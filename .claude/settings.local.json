@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(powershell:*)",
+      "Bash(powershell -NoProfile -Command \"rokit --version\" 2>&1 || \"$env:USERPROFILE/.rokit/bin/rokit.exe\" --version 2>&1)",
+      "Bash(export:*)",
+      "Bash(export PATH=\"$PATH:/c/Users/DL/.rokit/bin\" && cd /c/Users/DL/mon-jeu && rokit init 2>&1)",
+      "Bash(echo selene ✅:*)",
+      "Bash(export PATH=\"$PATH:/c/Users/DL/.rokit/bin\" && cd /c/Users/DL/mon-jeu && wally install 2>&1)",
+      "Bash(echo rojo ✅:*)",
+      "Bash(which git:*)",
+      "Bash(tail:*)",
+      "Bash(git:*)",
+      "Bash(head:*)"
+    ]
+  }
+}
