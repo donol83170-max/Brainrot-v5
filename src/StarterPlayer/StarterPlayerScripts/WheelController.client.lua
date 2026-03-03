@@ -318,19 +318,27 @@ end
 
 closeBtn.MouseButton1Click:Connect(closeWheel)
 
-for _, wheelFolder in ipairs(wheelAssets:GetChildren()) do
-    local physWheel = wheelFolder:FindFirstChild("PhysicalWheel")
-    if physWheel then
-        local cd  = physWheel:FindFirstChildOfClass("ClickDetector")
-        local wid = wheelFolder:GetAttribute("WheelIndex") or 1
-        if cd then
-            cd.MouseClick:Connect(function()
-                currentPhysicalWheel = physWheel
-                openWheel(wid)
-            end)
-        end
+local function connectWheel(wheelFolder)
+    local physWheel = wheelFolder:WaitForChild("PhysicalWheel", 10)
+    if not physWheel then return end
+    local cd  = physWheel:FindFirstChildOfClass("ClickDetector")
+    local wid = wheelFolder:GetAttribute("WheelIndex") or 1
+    if cd then
+        cd.MouseClick:Connect(function()
+            currentPhysicalWheel = physWheel
+            openWheel(wid)
+        end)
     end
 end
+
+-- Connecte les roues déjà présentes
+for _, wheelFolder in ipairs(wheelAssets:GetChildren()) do
+    task.spawn(connectWheel, wheelFolder)
+end
+-- Connecte les roues ajoutées après le démarrage
+wheelAssets.ChildAdded:Connect(function(wheelFolder)
+    task.spawn(connectWheel, wheelFolder)
+end)
 
 centerBtn.MouseButton1Click:Connect(function()
     if isSpinning then return end
