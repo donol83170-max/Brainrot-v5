@@ -19,22 +19,7 @@ local wheelAssets = workspace:WaitForChild("WheelAssets")
 local currentPhysicalWheel = nil
 local currentWheelId       = 1
 
--- ── Couleurs ───────────────────────────────────────────────────────────────────
-local SEGMENT_COLORS = {
-    Color3.fromRGB(255,  80, 120),   -- 1  Rose
-    Color3.fromRGB(255, 140,  40),   -- 2  Orange
-    Color3.fromRGB(240, 220,  30),   -- 3  Jaune
-    Color3.fromRGB( 60, 190,  80),   -- 4  Vert
-    Color3.fromRGB( 40, 180, 255),   -- 5  Bleu clair
-    Color3.fromRGB( 80,  80, 220),   -- 6  Bleu foncé
-    Color3.fromRGB(150,  50, 220),   -- 7  Violet
-    Color3.fromRGB(220,  40,  40),   -- 8  Rouge
-    Color3.fromRGB( 40, 175, 155),   -- 9  Teal
-    Color3.fromRGB(160, 230,  50),   -- 10 Lime
-    Color3.fromRGB(255, 100,  60),   -- 11 Corail
-    Color3.fromRGB(220,  60, 180),   -- 12 Magenta
-}
-
+-- ── Couleurs fixes ─────────────────────────────────────────────────────────────
 local GREEN_OUTER  = Color3.fromRGB( 50, 175,  60)
 local GREEN_DARK   = Color3.fromRGB( 30, 130,  40)
 local PINK_RING    = Color3.fromRGB(220,  50, 120)
@@ -49,6 +34,15 @@ local RARITY_COLORS = {
     ULTRA     = Color3.fromRGB(255,  50, 150),
 }
 
+-- Nuances par rareté (segments du même groupe légèrement différenciés)
+local RARITY_SHADES = {
+    NORMAL    = { Color3.fromRGB(160,160,165), Color3.fromRGB(200,200,205), Color3.fromRGB(178,178,183) },
+    RARE      = { Color3.fromRGB( 35,155,255), Color3.fromRGB( 70,195,255), Color3.fromRGB( 50,175,245) },
+    MYTHIC    = { Color3.fromRGB(145, 40,235), Color3.fromRGB(190, 80,255) },
+    LEGENDARY = { Color3.fromRGB(255,165,  0), Color3.fromRGB(255,210, 25) },
+    ULTRA     = { Color3.fromRGB(255, 20,135), Color3.fromRGB(255, 85,200) },
+}
+
 -- ── Config roue ────────────────────────────────────────────────────────────────
 local WHEEL_ITEMS = LootTables.Wheels[1].Items
 local N       = 12
@@ -56,6 +50,17 @@ local SEG_ANG = 360 / N
 local DIAM    = 500
 local RAD     = DIAM / 2
 local SEG_W   = math.ceil(2 * math.tan(math.rad(SEG_ANG / 2)) * RAD)
+
+-- Couleurs des segments basées sur la rareté de chaque item
+local SEGMENT_COLORS = {}
+local rarityCount = {}
+for i = 1, N do
+    local item   = WHEEL_ITEMS[i]
+    local rarity = item and item.Rarity or "NORMAL"
+    local shades = RARITY_SHADES[rarity]
+    rarityCount[rarity] = (rarityCount[rarity] or 0) + 1
+    SEGMENT_COLORS[i] = shades[((rarityCount[rarity] - 1) % #shades) + 1]
+end
 
 local isSpinning = false
 
@@ -181,7 +186,7 @@ wheelDisk.Name             = "WheelDisk"
 wheelDisk.Size             = UDim2.new(0, DIAM, 0, DIAM)
 wheelDisk.AnchorPoint      = Vector2.new(0.5, 0.5)
 wheelDisk.Position         = UDim2.new(0.5, 0, 0.5, 0)
-wheelDisk.BackgroundColor3 = SEGMENT_COLORS[1]
+wheelDisk.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 wheelDisk.BorderSizePixel  = 0
 wheelDisk.ClipsDescendants = true
 Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
