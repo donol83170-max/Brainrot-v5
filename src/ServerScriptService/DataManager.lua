@@ -109,6 +109,15 @@ function DataManager.AddItem(player, item)
 	print("🎒 [Inventory] " .. player.Name .. " a reçu : " .. item.Name)
 end
 
+-- Dépenser un ticket (retourne true si succès, false si pas assez de tickets)
+function DataManager.SpendTicket(player)
+    local data = playerCache[player.UserId]
+    if not data then return false end
+    if data.Stats.Tickets <= 0 then return false end
+    data.Stats.Tickets -= 1
+    return true
+end
+
 -- Retirer un item
 function DataManager.RemoveItem(player, itemId)
 	local data = playerCache[player.UserId]

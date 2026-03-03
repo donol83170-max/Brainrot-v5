@@ -42,6 +42,7 @@ local function createWheelUI()
     resultContainer.Parent = screenGui
 
     local resultLabel = Instance.new("TextLabel")
+    resultLabel.Name = "ResultLabel"
     resultLabel.Size = UDim2.new(1, 0, 0, 60)
     resultLabel.BackgroundTransparency = 1
     resultLabel.Text = "BRAINROT WINNER"
@@ -51,6 +52,7 @@ local function createWheelUI()
     resultLabel.Parent = resultContainer
 
     local rarityLabel = Instance.new("TextLabel")
+    rarityLabel.Name = "RarityLabel"
     rarityLabel.Size = UDim2.new(1, 0, 0, 40)
     rarityLabel.Position = UDim2.new(0, 0, 0, 65)
     rarityLabel.BackgroundTransparency = 1
