@@ -179,10 +179,11 @@ wheelDisk.ClipsDescendants = true
 Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
 wheelDisk.Parent = innerRingBorder
 
--- Segments colorés : 4 fines tranches par segment pour remplir tout le disque
+-- Segments colorés : 4 fines tranches par segment, hauteur = DIAM pour atteindre
+-- le bord du disque quelle que soit l'échelle (ClipsDescendants coupe en cercle)
 local N_THIN   = 4
-local THIN_ANG = SEG_ANG / N_THIN
-local THIN_W   = math.ceil(2 * math.tan(math.rad(THIN_ANG / 2)) * (RAD + 10)) + 2
+local THIN_ANG = SEG_ANG / N_THIN                                            -- 7.5°
+local THIN_W   = math.ceil(2 * math.tan(math.rad(THIN_ANG / 2)) * RAD) + 4  -- ~37 px
 
 for i = 0, N - 1 do
     local baseAngle = i * SEG_ANG
@@ -190,7 +191,7 @@ for i = 0, N - 1 do
     for j = 0, N_THIN - 1 do
         local angle = baseAngle + j * THIN_ANG + THIN_ANG / 2
         local thin  = Instance.new("Frame")
-        thin.Size             = UDim2.new(0, THIN_W, 0, RAD + 10)
+        thin.Size             = UDim2.new(0, THIN_W, 0, DIAM)   -- DIAM garantit le bord
         thin.AnchorPoint      = Vector2.new(0.5, 1)
         thin.Position         = UDim2.new(0.5, 0, 0.5, 0)
         thin.Rotation         = angle
@@ -204,7 +205,7 @@ end
 -- Séparateurs blancs entre les segments
 for i = 0, N - 1 do
     local div = Instance.new("Frame")
-    div.Size             = UDim2.new(0, 3, 0, RAD)
+    div.Size             = UDim2.new(0, 3, 0, DIAM)
     div.AnchorPoint      = Vector2.new(0.5, 1)
     div.Position         = UDim2.new(0.5, 0, 0.5, 0)
     div.Rotation         = i * SEG_ANG
@@ -214,19 +215,19 @@ for i = 0, N - 1 do
     div.Parent           = wheelDisk
 end
 
--- Labels sur chaque segment
+-- Labels sur chaque segment (à 68% du rayon pour être bien visibles)
 for i = 1, N do
     local item = WHEEL_ITEMS[i]
     if not item then continue end
 
     local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
     local rad      = math.rad(midAngle)
-    local labelR   = RAD * 0.60
+    local labelR   = RAD * 0.68
     local lx       = DIAM / 2 + labelR * math.sin(rad)
     local ly       = DIAM / 2 - labelR * math.cos(rad)
 
     local nameL = Instance.new("TextLabel")
-    nameL.Size                   = UDim2.new(0, 110, 0, 22)
+    nameL.Size                   = UDim2.new(0, 120, 0, 24)
     nameL.AnchorPoint            = Vector2.new(0.5, 0.5)
     nameL.Position               = UDim2.new(0, lx, 0, ly)
     nameL.Rotation               = midAngle
@@ -235,6 +236,7 @@ for i = 1, N do
     nameL.TextColor3             = WHITE
     nameL.Font                   = Enum.Font.GothamBold
     nameL.TextSize               = 12
+    nameL.TextScaled             = false
     nameL.ZIndex                 = 4
     nameL.Parent                 = wheelDisk
 end
