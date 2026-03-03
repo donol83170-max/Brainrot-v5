@@ -47,6 +47,26 @@ local SEG_W   = math.ceil(2 * math.tan(math.rad(SEG_ANG / 2)) * RAD)   -- ~134 p
 
 local isSpinning = false
 
+-- ── Constantes d'angle (intégration du système de probabilité par poids) ──────
+local DEG_PER_SEGMENT = SEG_ANG          -- 30° par segment
+local HALF_SEGMENT    = DEG_PER_SEGMENT / 2   -- 15°
+local MIN_EXTRA_TURNS = 5
+local MAX_EXTRA_TURNS = 8
+local MAX_WOBBLE      = 12   -- décalage aléatoire max (< 15° pour rester dans le segment)
+
+-- Calcule l'angle exact pour que le segment gagnant s'arrête sous le pointeur ▼
+-- Logique : le centre du segment N est à (N-1)×30 + 15° depuis 12h (sens horaire)
+-- On tourne la roue de la différence nécessaire + tours bonus + petit wobble
+local function getTargetAngle(currentRotation, segmentId)
+    local segCenter  = (segmentId - 1) * DEG_PER_SEGMENT + HALF_SEGMENT
+    local currentMod = currentRotation % 360
+    local offset     = segCenter - currentMod
+    if offset < 0 then offset += 360 end   -- garantit une rotation toujours en avant
+    local extraTurns = math.random(MIN_EXTRA_TURNS, MAX_EXTRA_TURNS)
+    local wobble     = math.random(-MAX_WOBBLE, MAX_WOBBLE)
+    return currentRotation + offset + (extraTurns * 360) + wobble
+end
+
 -- ── Construction UI ───────────────────────────────────────────────────────────
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name          = "SpinWheelUI"
@@ -320,26 +340,31 @@ centerBtn.MouseButton1Click:Connect(function()
 end)
 
 SpinResult.OnClientEvent:Connect(function(result)
-    local extraTurns    = 10
-    local randomAngle   = math.random(0, 359)
-    local targetRot     = wheelDisk.Rotation + (360 * extraTurns) + randomAngle
+    -- Calcul précis de l'angle : le disque s'arrête sur le bon segment
+    local targetRot   = getTargetAngle(wheelDisk.Rotation, result.SegmentId)
+    local totalDegrees = targetRot - wheelDisk.Rotation   -- degrés totaux parcourus
 
-    local tweenInfo = TweenInfo.new(6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    print(string.format(
+        "🎯 Segment tiré : %d | %s | %s",
+        result.SegmentId, result.Name, result.Rarity
+    ))
 
-    -- Animation du disque UI
+    local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+    -- Animation du disque UI (atterrit sur le segment gagnant)
     local uiTween = TweenService:Create(wheelDisk, tweenInfo, { Rotation = targetRot })
     uiTween:Play()
 
-    -- Animation de la roue physique dans le monde
+    -- Animation de la roue physique dans le monde (même nombre de degrés)
     local startCF  = physicalWheel.CFrame
-    local targetCF = startCF * CFrame.Angles(math.rad(360 * extraTurns + randomAngle), 0, 0)
+    local targetCF = startCF * CFrame.Angles(math.rad(totalDegrees), 0, 0)
     TweenService:Create(physicalWheel, tweenInfo, { CFrame = targetCF }):Play()
 
     uiTween.Completed:Wait()
 
     -- Affichage du résultat
     local rarityInfo        = Constants.RARITIES[result.Rarity]
-    resultLabel.Text        = "🎉  " .. string.upper(result.Name)
+    resultLabel.Text        = string.format("🎉  Gagné : Segment %d — %s !", result.SegmentId, string.upper(result.Name))
     rarityLabel.Text        = "✦  " .. string.upper(result.Rarity) .. "  ✦"
     rarityLabel.TextColor3  = rarityInfo.Color
     resultFrame.Visible     = true
