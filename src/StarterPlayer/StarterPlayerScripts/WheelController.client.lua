@@ -76,6 +76,13 @@ local function getTargetAngle(currentRotation, segmentId)
 end
 
 -- ── Construction UI ────────────────────────────────────────────────────────────
+local TITLE_H    = 48
+local GAP        = 8
+local RESULT_H   = 70
+local OUTER_SIZE = DIAM + 60   -- 560
+local PANEL_W    = OUTER_SIZE + 40          -- 600
+local PANEL_H    = TITLE_H + GAP + OUTER_SIZE + GAP + RESULT_H  -- 694
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name           = "SpinWheelUI"
 screenGui.IgnoreGuiInset = true
@@ -91,43 +98,44 @@ dimBG.BorderSizePixel        = 0
 dimBG.Parent                 = screenGui
 
 local panel = Instance.new("Frame")
-panel.Size             = UDim2.new(0, DIAM + 120, 0, DIAM + 180)
+panel.Size             = UDim2.new(0, PANEL_W, 0, PANEL_H)
 panel.AnchorPoint      = Vector2.new(0.5, 0.5)
 panel.Position         = UDim2.new(0.5, 0, 0.5, 0)
 panel.BackgroundTransparency = 1
 panel.Parent           = screenGui
 
--- Titre
+-- Titre (centré en haut du panel)
 local title = Instance.new("TextLabel")
-title.Size                   = UDim2.new(1, 0, 0, 50)
+title.Size                   = UDim2.new(1, 0, 0, TITLE_H)
+title.Position               = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
 title.Text                   = "✦  BRAINROT WHEEL  ✦"
 title.TextColor3             = WHITE
 title.Font                   = Enum.Font.GothamBlack
-title.TextSize               = 30
+title.TextSize               = 28
+title.TextXAlignment         = Enum.TextXAlignment.Center
 title.Parent                 = panel
 
--- Bouton fermer
+-- Bouton fermer (coin haut-droit du panel)
 local closeBtn = Instance.new("TextButton")
-closeBtn.Size             = UDim2.new(0, 44, 0, 44)
+closeBtn.Size             = UDim2.new(0, 40, 0, 40)
 closeBtn.AnchorPoint      = Vector2.new(1, 0)
 closeBtn.Position         = UDim2.new(1, 0, 0, 0)
 closeBtn.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
 closeBtn.Text             = "✕"
 closeBtn.TextColor3       = WHITE
 closeBtn.Font             = Enum.Font.GothamBold
-closeBtn.TextSize         = 22
+closeBtn.TextSize         = 20
 closeBtn.ZIndex           = 20
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0.5, 0)
 closeBtn.Parent = panel
 
 -- ── Anneau extérieur VERT avec points blancs ───────────────────────────────────
-local OUTER_SIZE = DIAM + 60
 local outerRing = Instance.new("Frame")
 outerRing.Name             = "OuterRing"
 outerRing.Size             = UDim2.new(0, OUTER_SIZE, 0, OUTER_SIZE)
 outerRing.AnchorPoint      = Vector2.new(0.5, 0)
-outerRing.Position         = UDim2.new(0.5, 0, 0, 52)
+outerRing.Position         = UDim2.new(0.5, 0, 0, TITLE_H + GAP)
 outerRing.BackgroundColor3 = GREEN_OUTER
 outerRing.BorderSizePixel  = 0
 Instance.new("UICorner", outerRing).CornerRadius = UDim.new(0.5, 0)
@@ -179,34 +187,49 @@ wheelDisk.ClipsDescendants = true
 Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
 wheelDisk.Parent = innerRingBorder
 
--- Segments colorés : 4 fines tranches par segment, hauteur = DIAM pour atteindre
--- le bord du disque quelle que soit l'échelle (ClipsDescendants coupe en cercle)
+-- Segments : 6 paires de segments opposés.
+-- Chaque paire = demi-barre HAUT (AnchorPoint bas) + demi-barre BAS (AnchorPoint haut)
+-- Les deux demi-barres partagent la même rotation et couvrent les deux moitiés du disque.
 local N_THIN   = 4
 local THIN_ANG = SEG_ANG / N_THIN                                            -- 7.5°
 local THIN_W   = math.ceil(2 * math.tan(math.rad(THIN_ANG / 2)) * RAD) + 4  -- ~37 px
+local HALF     = N / 2                                                        -- 6
 
-for i = 0, N - 1 do
-    local baseAngle = i * SEG_ANG
-    local color     = SEGMENT_COLORS[(i % N) + 1]
+for pair = 0, HALF - 1 do
+    local colorUp   = SEGMENT_COLORS[pair + 1]          -- segments 1-6  (haut)
+    local colorDown = SEGMENT_COLORS[pair + 1 + HALF]   -- segments 7-12 (bas)
     for j = 0, N_THIN - 1 do
-        local angle = baseAngle + j * THIN_ANG + THIN_ANG / 2
-        local thin  = Instance.new("Frame")
-        thin.Size             = UDim2.new(0, THIN_W, 0, DIAM)   -- DIAM garantit le bord
-        thin.AnchorPoint      = Vector2.new(0.5, 1)
-        thin.Position         = UDim2.new(0.5, 0, 0.5, 0)
-        thin.Rotation         = angle
-        thin.BackgroundColor3 = color
-        thin.BorderSizePixel  = 0
-        thin.ZIndex           = 2
-        thin.Parent           = wheelDisk
+        local angle = pair * SEG_ANG + j * THIN_ANG + THIN_ANG / 2
+
+        -- Demi-barre supérieure : pivot en bas, s'étend vers le bord "haut"
+        local tU = Instance.new("Frame")
+        tU.Size             = UDim2.new(0, THIN_W, 0, RAD + 5)
+        tU.AnchorPoint      = Vector2.new(0.5, 1)
+        tU.Position         = UDim2.new(0.5, 0, 0.5, 0)
+        tU.Rotation         = angle
+        tU.BackgroundColor3 = colorUp
+        tU.BorderSizePixel  = 0
+        tU.ZIndex           = 2
+        tU.Parent           = wheelDisk
+
+        -- Demi-barre inférieure : pivot en haut, s'étend vers le bord opposé
+        local tD = Instance.new("Frame")
+        tD.Size             = UDim2.new(0, THIN_W, 0, RAD + 5)
+        tD.AnchorPoint      = Vector2.new(0.5, 0)
+        tD.Position         = UDim2.new(0.5, 0, 0.5, 0)
+        tD.Rotation         = angle
+        tD.BackgroundColor3 = colorDown
+        tD.BorderSizePixel  = 0
+        tD.ZIndex           = 2
+        tD.Parent           = wheelDisk
     end
 end
 
--- Séparateurs blancs entre les segments
+-- Séparateurs blancs : pleine hauteur, centrés (AnchorPoint centre)
 for i = 0, N - 1 do
     local div = Instance.new("Frame")
     div.Size             = UDim2.new(0, 3, 0, DIAM)
-    div.AnchorPoint      = Vector2.new(0.5, 1)
+    div.AnchorPoint      = Vector2.new(0.5, 0.5)
     div.Position         = UDim2.new(0.5, 0, 0.5, 0)
     div.Rotation         = i * SEG_ANG
     div.BackgroundColor3 = WHITE
@@ -215,7 +238,7 @@ for i = 0, N - 1 do
     div.Parent           = wheelDisk
 end
 
--- Labels sur chaque segment (à 68% du rayon pour être bien visibles)
+-- Labels sur chaque segment
 for i = 1, N do
     local item = WHEEL_ITEMS[i]
     if not item then continue end
@@ -226,17 +249,22 @@ for i = 1, N do
     local lx       = DIAM / 2 + labelR * math.sin(rad)
     local ly       = DIAM / 2 - labelR * math.cos(rad)
 
+    -- Retourner le texte pour qu'il soit lisible dans la moitié basse
+    local textRot = midAngle
+    if midAngle > 90 and midAngle < 270 then
+        textRot = midAngle + 180
+    end
+
     local nameL = Instance.new("TextLabel")
     nameL.Size                   = UDim2.new(0, 120, 0, 24)
     nameL.AnchorPoint            = Vector2.new(0.5, 0.5)
     nameL.Position               = UDim2.new(0, lx, 0, ly)
-    nameL.Rotation               = midAngle
+    nameL.Rotation               = textRot
     nameL.BackgroundTransparency = 1
     nameL.Text                   = item.Name
     nameL.TextColor3             = WHITE
     nameL.Font                   = Enum.Font.GothamBold
     nameL.TextSize               = 12
-    nameL.TextScaled             = false
     nameL.ZIndex                 = 4
     nameL.Parent                 = wheelDisk
 end
@@ -280,10 +308,10 @@ pointerLabel.Font                   = Enum.Font.GothamBlack
 pointerLabel.ZIndex                 = 10
 pointerLabel.Parent                 = outerRing
 
--- ── Panneau résultat ───────────────────────────────────────────────────────────
+-- ── Panneau résultat (dans le panel, sous l'anneau) ────────────────────────────
 local resultFrame = Instance.new("Frame")
-resultFrame.Size                   = UDim2.new(1, 0, 0, 72)
-resultFrame.Position               = UDim2.new(0, 0, 1, 14)
+resultFrame.Size                   = UDim2.new(1, 0, 0, RESULT_H)
+resultFrame.Position               = UDim2.new(0, 0, 0, TITLE_H + GAP + OUTER_SIZE + GAP)
 resultFrame.BackgroundTransparency = 1
 resultFrame.Visible                = false
 resultFrame.Parent                 = panel
