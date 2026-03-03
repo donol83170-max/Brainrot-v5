@@ -21,4 +21,12 @@ Constants.STARTING_STATS = {
     TICKETS = 10
 }
 
+Constants.SELL_VALUES = {
+    NORMAL    = 10,
+    RARE      = 50,
+    MYTHIC    = 150,
+    LEGENDARY = 500,
+    ULTRA     = 2000,
+}
+
 return Constants

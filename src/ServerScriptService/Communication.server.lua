@@ -23,6 +23,12 @@ end
 local SpinRequest = getOrCreateEvent("SpinRequest")
 local SpinResult = getOrCreateEvent("SpinResult")
 local UpdateClientData = getOrCreateEvent("UpdateClientData")
+local SellRequest = getOrCreateEvent("SellRequest")
+local SellResult = getOrCreateEvent("SellResult")
+
+local GetPlayerData = EventsFolder:FindFirstChild("GetPlayerData") or Instance.new("RemoteFunction")
+GetPlayerData.Name = "GetPlayerData"
+GetPlayerData.Parent = EventsFolder
 
 -- Liaison avec le WheelManager et DataManager
 local WheelManager = require(ServerScriptService:WaitForChild("WheelManager"))
@@ -56,13 +62,38 @@ SpinRequest.OnServerEvent:Connect(function(player, wheelId)
 	if result then
 		print("🎰 [Server] Envoi du résultat à " .. player.Name .. " : " .. result.Name)
 		SpinResult:FireClient(player, result)
-		-- Sync les stats à jour vers le client
+		-- Sync les données complètes vers le client
 		local data = DataManager.GetData(player)
 		if data then
-			UpdateClientData:FireClient(player, data.Stats)
+			UpdateClientData:FireClient(player, data)
 		end
 	else
 		print("⚠️ [Server] Erreur lors du spin pour " .. player.Name)
+	end
+end)
+
+-- Fournit les données complètes du joueur au client (appelé au démarrage)
+GetPlayerData.OnServerInvoke = function(player)
+	return DataManager.GetData(player)
+end
+
+-- Vente d'un item
+SellRequest.OnServerEvent:Connect(function(player, itemId)
+	local data = DataManager.GetData(player)
+	if not data or not data.Inventory[itemId] then return end
+
+	local item = data.Inventory[itemId]
+	local sellValue = Constants.SELL_VALUES[string.upper(item.Rarity)] or 0
+
+	DataManager.RemoveItem(player, itemId)
+	DataManager.AddGold(player, sellValue)
+
+	print("💰 [Server] " .. player.Name .. " a vendu " .. item.Name .. " pour " .. sellValue .. " gold")
+
+	local updatedData = DataManager.GetData(player)
+	if updatedData then
+		UpdateClientData:FireClient(player, updatedData)
+		SellResult:FireClient(player, itemId, sellValue)
 	end
 end)
 
