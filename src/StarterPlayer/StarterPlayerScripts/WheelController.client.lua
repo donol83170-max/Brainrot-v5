@@ -14,9 +14,11 @@ local LootTables = require(ReplicatedStorage:WaitForChild("LootTables"))
 local SpinRequest = Events:WaitForChild("SpinRequest")
 local SpinResult  = Events:WaitForChild("SpinResult")
 
-local wheelAssets    = workspace:WaitForChild("WheelAssets")
-local physicalWheel  = wheelAssets:WaitForChild("PhysicalWheel")
-local clickDetector  = physicalWheel:WaitForChild("ClickDetector")
+local wheelAssets = workspace:WaitForChild("WheelAssets")
+
+-- Roue physique active (mise à jour au clic)
+local currentPhysicalWheel = nil
+local currentWheelId       = 1
 
 -- ── Couleurs ──────────────────────────────────────────────────────────────────
 local GOLD_BRIGHT  = Color3.fromRGB(255, 210, 40)
@@ -314,11 +316,14 @@ rarityLabel.TextSize         = 18
 rarityLabel.Parent           = resultFrame
 
 -- ── Logique ───────────────────────────────────────────────────────────────────
-local function openWheel()
-    resultFrame.Visible    = false
-    centerBtn.Text         = "SPIN!"
-    centerBtn.TextColor3   = Color3.fromRGB(30, 160, 30)
-    screenGui.Enabled      = true
+local function openWheel(wheelId)
+    currentWheelId = wheelId or 1
+    local wheelData = LootTables.Wheels[currentWheelId]
+    title.Text          = "✦  " .. string.upper(wheelData and wheelData.Name or "BRAINROT WHEEL") .. "  ✦"
+    resultFrame.Visible = false
+    centerBtn.Text      = "SPIN!"
+    centerBtn.TextColor3 = Color3.fromRGB(30, 160, 30)
+    screenGui.Enabled   = true
 end
 
 local function closeWheel()
@@ -328,7 +333,21 @@ local function closeWheel()
 end
 
 closeBtn.MouseButton1Click:Connect(closeWheel)
-clickDetector.MouseClick:Connect(openWheel)
+
+-- Connecte le ClickDetector de chacune des 3 roues physiques
+for _, wheelFolder in ipairs(wheelAssets:GetChildren()) do
+    local physWheel = wheelFolder:FindFirstChild("PhysicalWheel")
+    if physWheel then
+        local cd = physWheel:FindFirstChildOfClass("ClickDetector")
+        local wid = wheelFolder:GetAttribute("WheelIndex") or 1
+        if cd then
+            cd.MouseClick:Connect(function()
+                currentPhysicalWheel = physWheel
+                openWheel(wid)
+            end)
+        end
+    end
+end
 
 centerBtn.MouseButton1Click:Connect(function()
     if isSpinning then return end
@@ -336,7 +355,7 @@ centerBtn.MouseButton1Click:Connect(function()
     resultFrame.Visible = false
     centerBtn.Text     = "..."
     centerBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-    SpinRequest:FireServer(1)
+    SpinRequest:FireServer(currentWheelId)
 end)
 
 SpinResult.OnClientEvent:Connect(function(result)
@@ -356,9 +375,11 @@ SpinResult.OnClientEvent:Connect(function(result)
     uiTween:Play()
 
     -- Animation de la roue physique dans le monde (même nombre de degrés)
-    local startCF  = physicalWheel.CFrame
-    local targetCF = startCF * CFrame.Angles(math.rad(totalDegrees), 0, 0)
-    TweenService:Create(physicalWheel, tweenInfo, { CFrame = targetCF }):Play()
+    if currentPhysicalWheel then
+        local startCF  = currentPhysicalWheel.CFrame
+        local targetCF = startCF * CFrame.Angles(math.rad(totalDegrees), 0, 0)
+        TweenService:Create(currentPhysicalWheel, tweenInfo, { CFrame = targetCF }):Play()
+    end
 
     uiTween.Completed:Wait()
 
