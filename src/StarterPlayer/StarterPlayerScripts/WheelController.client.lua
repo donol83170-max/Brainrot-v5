@@ -179,19 +179,26 @@ wheelDisk.ClipsDescendants = true
 Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
 wheelDisk.Parent = innerRingBorder
 
--- Segments colorés (un par un, chacun sa couleur)
+-- Segments colorés : 4 fines tranches par segment pour remplir tout le disque
+local N_THIN   = 4
+local THIN_ANG = SEG_ANG / N_THIN
+local THIN_W   = math.ceil(2 * math.tan(math.rad(THIN_ANG / 2)) * (RAD + 10)) + 2
+
 for i = 0, N - 1 do
-    local midAngle = i * SEG_ANG + SEG_ANG / 2
-    local color    = SEGMENT_COLORS[(i % N) + 1]
-    local seg      = Instance.new("Frame")
-    seg.Size             = UDim2.new(0, SEG_W, 0, RAD)
-    seg.AnchorPoint      = Vector2.new(0.5, 1)
-    seg.Position         = UDim2.new(0.5, 0, 0.5, 0)
-    seg.Rotation         = midAngle
-    seg.BackgroundColor3 = color
-    seg.BorderSizePixel  = 0
-    seg.ZIndex           = 2
-    seg.Parent           = wheelDisk
+    local baseAngle = i * SEG_ANG
+    local color     = SEGMENT_COLORS[(i % N) + 1]
+    for j = 0, N_THIN - 1 do
+        local angle = baseAngle + j * THIN_ANG + THIN_ANG / 2
+        local thin  = Instance.new("Frame")
+        thin.Size             = UDim2.new(0, THIN_W, 0, RAD + 10)
+        thin.AnchorPoint      = Vector2.new(0.5, 1)
+        thin.Position         = UDim2.new(0.5, 0, 0.5, 0)
+        thin.Rotation         = angle
+        thin.BackgroundColor3 = color
+        thin.BorderSizePixel  = 0
+        thin.ZIndex           = 2
+        thin.Parent           = wheelDisk
+    end
 end
 
 -- Séparateurs blancs entre les segments
