@@ -18,19 +18,19 @@ CENTER_R = 68    # rayon du moyeu "SPIN!"
 
 # ── Couleurs par rareté (même palette que le jeu Roblox) ────────────────────
 SEGMENT_DATA = [
-    # (Nom,                 couleur RGB)
-    ("Son Bruh",            (160, 160, 165)),   # NORMAL  shade 1
-    ("Tête de Noob",        (200, 200, 205)),   # NORMAL  shade 2
-    ("Pizza Froide",        (178, 178, 183)),   # NORMAL  shade 3
-    ("Emoji Mewing",        ( 35, 155, 255)),   # RARE    shade 1
-    ("Cravate Bleue",       ( 70, 195, 255)),   # RARE    shade 2
-    ("Sourire Sigma",       ( 50, 175, 245)),   # RARE    shade 3
-    ("Mâchoire Gigachad",   (145,  40, 235)),   # MYTHIC  shade 1
-    ("Tour de Pizza",       (190,  80, 255)),   # MYTHIC  shade 2
-    ("Tête Skibidi",        (255, 165,   0)),   # LEGENDARY shade 1
-    ("Sigma d'Or",          (255, 210,  25)),   # LEGENDARY shade 2
-    ("Sigma Galactique",    (255,  20, 135)),   # ULTRA   shade 1
-    ("Skibidi Diamant",     (255,  85, 200)),   # ULTRA   shade 2
+    # (Nom,                 couleur RGB)  — même palette que WheelController.lua
+    ("Son Bruh",            (255,  45,  45)),   # 1  Rouge vif
+    ("Tête de Noob",        ( 55, 175, 255)),   # 2  Bleu ciel
+    ("Pizza Froide",        ( 45, 200,  75)),   # 3  Vert
+    ("Emoji Mewing",        (255, 200,   0)),   # 4  Jaune or
+    ("Cravate Bleue",       (175,  45, 255)),   # 5  Violet
+    ("Sourire Sigma",       (255, 115,   0)),   # 6  Orange
+    ("Mâchoire Gigachad",   (  0, 210, 210)),   # 7  Turquoise
+    ("Tour de Pizza",       (255,  45, 145)),   # 8  Rose vif
+    ("Tête Skibidi",        ( 75, 255, 115)),   # 9  Vert lime
+    ("Sigma d'Or",          ( 75,  75, 255)),   # 10 Bleu roi
+    ("Sigma Galactique",    (255, 155,  25)),   # 11 Ambre
+    ("Skibidi Diamant",     (220,  55, 220)),   # 12 Magenta
 ]
 
 N   = len(SEGMENT_DATA)

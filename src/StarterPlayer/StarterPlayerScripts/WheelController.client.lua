@@ -34,15 +34,6 @@ local RARITY_COLORS = {
     ULTRA     = Color3.fromRGB(255,  50, 150),
 }
 
--- Nuances par rareté (segments du même groupe légèrement différenciés)
-local RARITY_SHADES = {
-    NORMAL    = { Color3.fromRGB(160,160,165), Color3.fromRGB(200,200,205), Color3.fromRGB(178,178,183) },
-    RARE      = { Color3.fromRGB( 35,155,255), Color3.fromRGB( 70,195,255), Color3.fromRGB( 50,175,245) },
-    MYTHIC    = { Color3.fromRGB(145, 40,235), Color3.fromRGB(190, 80,255) },
-    LEGENDARY = { Color3.fromRGB(255,165,  0), Color3.fromRGB(255,210, 25) },
-    ULTRA     = { Color3.fromRGB(255, 20,135), Color3.fromRGB(255, 85,200) },
-}
-
 -- ── Config roue ────────────────────────────────────────────────────────────────
 local WHEEL_ITEMS = LootTables.Wheels[1].Items
 local N       = 12
@@ -51,16 +42,21 @@ local DIAM    = 500
 local RAD     = DIAM / 2
 local SEG_W   = math.ceil(2 * math.tan(math.rad(SEG_ANG / 2)) * RAD)
 
--- Couleurs des segments basées sur la rareté de chaque item
-local SEGMENT_COLORS = {}
-local rarityCount = {}
-for i = 1, N do
-    local item   = WHEEL_ITEMS[i]
-    local rarity = item and item.Rarity or "NORMAL"
-    local shades = RARITY_SHADES[rarity]
-    rarityCount[rarity] = (rarityCount[rarity] or 0) + 1
-    SEGMENT_COLORS[i] = shades[((rarityCount[rarity] - 1) % #shades) + 1]
-end
+-- 12 couleurs vives alternées — aucune adjacente identique, aucun dégradé
+local SEGMENT_COLORS = {
+    Color3.fromRGB(255,  45,  45),   -- 1  Rouge vif
+    Color3.fromRGB( 55, 175, 255),   -- 2  Bleu ciel
+    Color3.fromRGB( 45, 200,  75),   -- 3  Vert
+    Color3.fromRGB(255, 200,   0),   -- 4  Jaune or
+    Color3.fromRGB(175,  45, 255),   -- 5  Violet
+    Color3.fromRGB(255, 115,   0),   -- 6  Orange
+    Color3.fromRGB(  0, 210, 210),   -- 7  Turquoise
+    Color3.fromRGB(255,  45, 145),   -- 8  Rose vif
+    Color3.fromRGB( 75, 255, 115),   -- 9  Vert lime
+    Color3.fromRGB( 75,  75, 255),   -- 10 Bleu roi
+    Color3.fromRGB(255, 155,  25),   -- 11 Ambre
+    Color3.fromRGB(220,  55, 220),   -- 12 Magenta
+}
 
 local isSpinning = false
 
@@ -170,12 +166,12 @@ for i = 0, DOT_COUNT - 1 do
     dot.Parent = outerRing
 end
 
--- ── Anneau ROSE ────────────────────────────────────────────────────────────────
+-- ── Anneau intérieur (séparateur sombre entre anneau vert et disque) ──────────
 local innerRingBorder = Instance.new("Frame")
 innerRingBorder.Size             = UDim2.new(0, DIAM + 24, 0, DIAM + 24)
 innerRingBorder.AnchorPoint      = Vector2.new(0.5, 0.5)
 innerRingBorder.Position         = UDim2.new(0.5, 0, 0.5, 0)
-innerRingBorder.BackgroundColor3 = PINK_RING
+innerRingBorder.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 innerRingBorder.BorderSizePixel  = 0
 Instance.new("UICorner", innerRingBorder).CornerRadius = UDim.new(0.5, 0)
 innerRingBorder.Parent = outerRing
@@ -192,12 +188,12 @@ wheelDisk.ClipsDescendants = true
 Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
 wheelDisk.Parent = innerRingBorder
 
--- Segments : 6 paires de segments opposés.
--- Chaque paire = demi-barre HAUT (AnchorPoint bas) + demi-barre BAS (AnchorPoint haut)
--- Les deux demi-barres partagent la même rotation et couvrent les deux moitiés du disque.
-local N_THIN   = 4
-local THIN_ANG = SEG_ANG / N_THIN                                            -- 7.5°
-local THIN_W   = math.ceil(2 * math.tan(math.rad(THIN_ANG / 2)) * RAD) + 4  -- ~37 px
+-- Segments : 6 paires opposées.
+-- N_THIN=30 barres par segment → chaque barre couvre 1°, l'empiètement
+-- entre deux paires adjacentes est < 1° → couleur uniforme, sans dégradé.
+local N_THIN   = 30
+local THIN_ANG = SEG_ANG / N_THIN                                            -- 1°
+local THIN_W   = math.ceil(2 * math.tan(math.rad(THIN_ANG / 2)) * RAD) + 3  -- ~12 px
 local HALF     = N / 2                                                        -- 6
 
 for pair = 0, HALF - 1 do
