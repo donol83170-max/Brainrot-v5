@@ -1,9 +1,9 @@
 -- WheelController.client.lua
--- Roue dorée à 12 segments avec ScreenGui overlay
+-- Roue colorée style émission TV + ScreenGui overlay
 
-local Players        = game:GetService("Players")
+local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService   = game:GetService("TweenService")
+local TweenService      = game:GetService("TweenService")
 
 local player     = Players.LocalPlayer
 local playerGui  = player:WaitForChild("PlayerGui")
@@ -16,78 +16,82 @@ local SpinResult  = Events:WaitForChild("SpinResult")
 
 local wheelAssets = workspace:WaitForChild("WheelAssets")
 
--- Roue physique active (mise à jour au clic)
 local currentPhysicalWheel = nil
 local currentWheelId       = 1
 
--- ── Couleurs ──────────────────────────────────────────────────────────────────
-local GOLD_BRIGHT  = Color3.fromRGB(255, 210, 40)
-local GOLD_DARK    = Color3.fromRGB(185, 130,  0)
-local GOLD_BORDER  = Color3.fromRGB(255, 235, 120)
-local GOLD_DIVIDER = Color3.fromRGB(220, 175, 20)
-local GOLD_RIM2    = Color3.fromRGB(150, 100,  0)
+-- ── Couleurs ───────────────────────────────────────────────────────────────────
+local SEGMENT_COLORS = {
+    Color3.fromRGB(255,  80, 120),   -- 1  Rose
+    Color3.fromRGB(255, 140,  40),   -- 2  Orange
+    Color3.fromRGB(240, 220,  30),   -- 3  Jaune
+    Color3.fromRGB( 60, 190,  80),   -- 4  Vert
+    Color3.fromRGB( 40, 180, 255),   -- 5  Bleu clair
+    Color3.fromRGB( 80,  80, 220),   -- 6  Bleu foncé
+    Color3.fromRGB(150,  50, 220),   -- 7  Violet
+    Color3.fromRGB(220,  40,  40),   -- 8  Rouge
+    Color3.fromRGB( 40, 175, 155),   -- 9  Teal
+    Color3.fromRGB(160, 230,  50),   -- 10 Lime
+    Color3.fromRGB(255, 100,  60),   -- 11 Corail
+    Color3.fromRGB(220,  60, 180),   -- 12 Magenta
+}
+
+local GREEN_OUTER  = Color3.fromRGB( 50, 175,  60)
+local GREEN_DARK   = Color3.fromRGB( 30, 130,  40)
+local PINK_RING    = Color3.fromRGB(220,  50, 120)
+local WHITE        = Color3.new(1, 1, 1)
+local DARK_RED     = Color3.fromRGB(140,  20,  20)
 
 local RARITY_COLORS = {
     NORMAL    = Color3.fromRGB(190, 190, 190),
-    RARE      = Color3.fromRGB(80,  180, 255),
+    RARE      = Color3.fromRGB( 80, 180, 255),
     MYTHIC    = Color3.fromRGB(170,  80, 255),
     LEGENDARY = Color3.fromRGB(255, 180,   0),
     ULTRA     = Color3.fromRGB(255,  50, 150),
 }
-local RARITY_PCT = {
-    NORMAL = "60%", RARE = "20%", MYTHIC = "10%", LEGENDARY = "8%", ULTRA = "2%",
-}
 
--- ── Config roue ───────────────────────────────────────────────────────────────
+-- ── Config roue ────────────────────────────────────────────────────────────────
 local WHEEL_ITEMS = LootTables.Wheels[1].Items
-local N       = 12                          -- nombre de segments
-local SEG_ANG = 360 / N                    -- 30° par segment
-local DIAM    = 500                         -- diamètre en px
-local RAD     = DIAM / 2                   -- 250 px
--- Largeur du rectangle pour couvrir exactement 30° au bord extérieur
-local SEG_W   = math.ceil(2 * math.tan(math.rad(SEG_ANG / 2)) * RAD)   -- ~134 px
+local N       = 12
+local SEG_ANG = 360 / N
+local DIAM    = 500
+local RAD     = DIAM / 2
+local SEG_W   = math.ceil(2 * math.tan(math.rad(SEG_ANG / 2)) * RAD)
 
 local isSpinning = false
 
--- ── Constantes d'angle (intégration du système de probabilité par poids) ──────
-local DEG_PER_SEGMENT = SEG_ANG          -- 30° par segment
-local HALF_SEGMENT    = DEG_PER_SEGMENT / 2   -- 15°
+local DEG_PER_SEGMENT = SEG_ANG
+local HALF_SEGMENT    = DEG_PER_SEGMENT / 2
 local MIN_EXTRA_TURNS = 5
 local MAX_EXTRA_TURNS = 8
-local MAX_WOBBLE      = 12   -- décalage aléatoire max (< 15° pour rester dans le segment)
+local MAX_WOBBLE      = 12
 
--- Calcule l'angle exact pour que le segment gagnant s'arrête sous le pointeur ▼
--- Logique : le centre du segment N est à (N-1)×30 + 15° depuis 12h (sens horaire)
--- On tourne la roue de la différence nécessaire + tours bonus + petit wobble
 local function getTargetAngle(currentRotation, segmentId)
     local segCenter  = (segmentId - 1) * DEG_PER_SEGMENT + HALF_SEGMENT
     local currentMod = currentRotation % 360
     local offset     = segCenter - currentMod
-    if offset < 0 then offset += 360 end   -- garantit une rotation toujours en avant
+    if offset < 0 then offset += 360 end
     local extraTurns = math.random(MIN_EXTRA_TURNS, MAX_EXTRA_TURNS)
     local wobble     = math.random(-MAX_WOBBLE, MAX_WOBBLE)
     return currentRotation + offset + (extraTurns * 360) + wobble
 end
 
--- ── Construction UI ───────────────────────────────────────────────────────────
+-- ── Construction UI ────────────────────────────────────────────────────────────
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name          = "SpinWheelUI"
+screenGui.Name           = "SpinWheelUI"
 screenGui.IgnoreGuiInset = true
-screenGui.ResetOnSpawn  = false
-screenGui.Enabled       = false
-screenGui.Parent        = playerGui
+screenGui.ResetOnSpawn   = false
+screenGui.Enabled        = false
+screenGui.Parent         = playerGui
 
--- Fond assombri
 local dimBG = Instance.new("Frame")
-dimBG.Size                  = UDim2.new(1, 0, 1, 0)
-dimBG.BackgroundColor3      = Color3.new(0, 0, 0)
-dimBG.BackgroundTransparency = 0.45
-dimBG.BorderSizePixel       = 0
-dimBG.Parent                = screenGui
+dimBG.Size                   = UDim2.new(1, 0, 1, 0)
+dimBG.BackgroundColor3       = Color3.new(0, 0, 0)
+dimBG.BackgroundTransparency = 0.5
+dimBG.BorderSizePixel        = 0
+dimBG.Parent                 = screenGui
 
--- Panneau principal (centré)
 local panel = Instance.new("Frame")
-panel.Size             = UDim2.new(0, DIAM + 80, 0, DIAM + 145)
+panel.Size             = UDim2.new(0, DIAM + 120, 0, DIAM + 180)
 panel.AnchorPoint      = Vector2.new(0.5, 0.5)
 panel.Position         = UDim2.new(0.5, 0, 0.5, 0)
 panel.BackgroundTransparency = 1
@@ -95,165 +99,145 @@ panel.Parent           = screenGui
 
 -- Titre
 local title = Instance.new("TextLabel")
-title.Size             = UDim2.new(1, 0, 0, 48)
+title.Size                   = UDim2.new(1, 0, 0, 50)
 title.BackgroundTransparency = 1
-title.Text             = "✦  BRAINROT WHEEL  ✦"
-title.TextColor3       = GOLD_BORDER
-title.Font             = Enum.Font.GothamBlack
-title.TextSize         = 30
-title.Parent           = panel
+title.Text                   = "✦  BRAINROT WHEEL  ✦"
+title.TextColor3             = WHITE
+title.Font                   = Enum.Font.GothamBlack
+title.TextSize               = 30
+title.Parent                 = panel
 
--- Bouton fermer (×)
+-- Bouton fermer
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size             = UDim2.new(0, 44, 0, 44)
 closeBtn.AnchorPoint      = Vector2.new(1, 0)
 closeBtn.Position         = UDim2.new(1, 0, 0, 0)
 closeBtn.BackgroundColor3 = Color3.fromRGB(190, 40, 40)
 closeBtn.Text             = "✕"
-closeBtn.TextColor3       = Color3.new(1, 1, 1)
+closeBtn.TextColor3       = WHITE
 closeBtn.Font             = Enum.Font.GothamBold
 closeBtn.TextSize         = 22
 closeBtn.ZIndex           = 20
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0.5, 0)
 closeBtn.Parent = panel
 
--- ── Anneau extérieur doré ─────────────────────────────────────────────────────
+-- ── Anneau extérieur VERT avec points blancs ───────────────────────────────────
+local OUTER_SIZE = DIAM + 60
 local outerRing = Instance.new("Frame")
 outerRing.Name             = "OuterRing"
-outerRing.Size             = UDim2.new(0, DIAM + 30, 0, DIAM + 30)
+outerRing.Size             = UDim2.new(0, OUTER_SIZE, 0, OUTER_SIZE)
 outerRing.AnchorPoint      = Vector2.new(0.5, 0)
-outerRing.Position         = UDim2.new(0.5, 0, 0, 50)
-outerRing.BackgroundColor3 = GOLD_BORDER
+outerRing.Position         = UDim2.new(0.5, 0, 0, 52)
+outerRing.BackgroundColor3 = GREEN_OUTER
 outerRing.BorderSizePixel  = 0
 Instance.new("UICorner", outerRing).CornerRadius = UDim.new(0.5, 0)
 outerRing.Parent = panel
 
--- Anneau intérieur (deuxième bord)
+local outerStroke = Instance.new("UIStroke")
+outerStroke.Color     = GREEN_DARK
+outerStroke.Thickness = 5
+outerStroke.Parent    = outerRing
+
+-- Points blancs autour de l'anneau
+local outerR      = OUTER_SIZE / 2
+local DOT_COUNT   = 24
+local DOT_PLACE_R = outerR - 14
+for i = 0, DOT_COUNT - 1 do
+    local angle = math.rad(i * (360 / DOT_COUNT))
+    local cx    = outerR + math.sin(angle) * DOT_PLACE_R
+    local cy    = outerR - math.cos(angle) * DOT_PLACE_R
+    local dot   = Instance.new("Frame")
+    dot.Size             = UDim2.new(0, 11, 0, 11)
+    dot.AnchorPoint      = Vector2.new(0.5, 0.5)
+    dot.Position         = UDim2.new(0, cx, 0, cy)
+    dot.BackgroundColor3 = WHITE
+    dot.BorderSizePixel  = 0
+    dot.ZIndex           = 2
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(0.5, 0)
+    dot.Parent = outerRing
+end
+
+-- ── Anneau ROSE ────────────────────────────────────────────────────────────────
 local innerRingBorder = Instance.new("Frame")
-innerRingBorder.Size             = UDim2.new(0, DIAM + 10, 0, DIAM + 10)
+innerRingBorder.Size             = UDim2.new(0, DIAM + 24, 0, DIAM + 24)
 innerRingBorder.AnchorPoint      = Vector2.new(0.5, 0.5)
 innerRingBorder.Position         = UDim2.new(0.5, 0, 0.5, 0)
-innerRingBorder.BackgroundColor3 = GOLD_RIM2
+innerRingBorder.BackgroundColor3 = PINK_RING
 innerRingBorder.BorderSizePixel  = 0
 Instance.new("UICorner", innerRingBorder).CornerRadius = UDim.new(0.5, 0)
 innerRingBorder.Parent = outerRing
 
--- ── Disque rotatif ────────────────────────────────────────────────────────────
--- C'est le seul élément qui tourne ; ClipsDescendants + UICorner = clip circulaire
+-- ── Disque rotatif ─────────────────────────────────────────────────────────────
 local wheelDisk = Instance.new("Frame")
 wheelDisk.Name             = "WheelDisk"
 wheelDisk.Size             = UDim2.new(0, DIAM, 0, DIAM)
 wheelDisk.AnchorPoint      = Vector2.new(0.5, 0.5)
 wheelDisk.Position         = UDim2.new(0.5, 0, 0.5, 0)
-wheelDisk.BackgroundColor3 = GOLD_DARK   -- fond = segments impairs
+wheelDisk.BackgroundColor3 = SEGMENT_COLORS[1]
 wheelDisk.BorderSizePixel  = 0
 wheelDisk.ClipsDescendants = true
 Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
 wheelDisk.Parent = innerRingBorder
 
--- Segments pairs (or vif) : rectangles du centre vers le bord, pivotés au centre
-for i = 0, N - 1, 2 do
+-- Segments colorés (un par un, chacun sa couleur)
+for i = 0, N - 1 do
     local midAngle = i * SEG_ANG + SEG_ANG / 2
-    local seg = Instance.new("Frame")
+    local color    = SEGMENT_COLORS[(i % N) + 1]
+    local seg      = Instance.new("Frame")
     seg.Size             = UDim2.new(0, SEG_W, 0, RAD)
-    seg.AnchorPoint      = Vector2.new(0.5, 1)   -- pivot = bas-centre = centre de la roue
+    seg.AnchorPoint      = Vector2.new(0.5, 1)
     seg.Position         = UDim2.new(0.5, 0, 0.5, 0)
     seg.Rotation         = midAngle
-    seg.BackgroundColor3 = GOLD_BRIGHT
+    seg.BackgroundColor3 = color
     seg.BorderSizePixel  = 0
     seg.ZIndex           = 2
     seg.Parent           = wheelDisk
 end
 
--- Lignes séparatrices entre les segments
+-- Séparateurs blancs entre les segments
 for i = 0, N - 1 do
     local div = Instance.new("Frame")
-    div.Size             = UDim2.new(0, 2, 0, RAD)
+    div.Size             = UDim2.new(0, 3, 0, RAD)
     div.AnchorPoint      = Vector2.new(0.5, 1)
     div.Position         = UDim2.new(0.5, 0, 0.5, 0)
     div.Rotation         = i * SEG_ANG
-    div.BackgroundColor3 = GOLD_DIVIDER
+    div.BackgroundColor3 = WHITE
     div.BorderSizePixel  = 0
     div.ZIndex           = 3
     div.Parent           = wheelDisk
 end
 
--- Labels (nom + rareté %) sur chaque segment
+-- Labels sur chaque segment
 for i = 1, N do
     local item = WHEEL_ITEMS[i]
     if not item then continue end
 
     local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
     local rad      = math.rad(midAngle)
-    local labelR   = RAD * 0.62   -- 62 % du rayon depuis le centre
+    local labelR   = RAD * 0.60
     local lx       = DIAM / 2 + labelR * math.sin(rad)
     local ly       = DIAM / 2 - labelR * math.cos(rad)
 
-    local rColor = RARITY_COLORS[item.Rarity] or Color3.new(1, 1, 1)
-
-    -- Numéro de segment
-    local numL = Instance.new("TextLabel")
-    numL.Size             = UDim2.new(0, 20, 0, 14)
-    numL.AnchorPoint      = Vector2.new(0.5, 0.5)
-    numL.Position         = UDim2.new(0, lx, 0, ly - 18)
-    numL.Rotation         = midAngle
-    numL.BackgroundTransparency = 1
-    numL.Text             = tostring(i)
-    numL.TextColor3       = GOLD_BORDER
-    numL.Font             = Enum.Font.GothamBlack
-    numL.TextSize         = 11
-    numL.ZIndex           = 4
-    numL.Parent           = wheelDisk
-
-    -- Nom de l'item
     local nameL = Instance.new("TextLabel")
-    nameL.Size             = UDim2.new(0, 100, 0, 16)
-    nameL.AnchorPoint      = Vector2.new(0.5, 0.5)
-    nameL.Position         = UDim2.new(0, lx, 0, ly - 4)
-    nameL.Rotation         = midAngle
+    nameL.Size                   = UDim2.new(0, 110, 0, 22)
+    nameL.AnchorPoint            = Vector2.new(0.5, 0.5)
+    nameL.Position               = UDim2.new(0, lx, 0, ly)
+    nameL.Rotation               = midAngle
     nameL.BackgroundTransparency = 1
-    nameL.Text             = item.Name
-    nameL.TextColor3       = Color3.new(1, 1, 1)
-    nameL.Font             = Enum.Font.GothamBold
-    nameL.TextSize         = 10
-    nameL.ZIndex           = 4
-    nameL.Parent           = wheelDisk
-
-    -- Pourcentage de la rareté
-    local pctL = Instance.new("TextLabel")
-    pctL.Size             = UDim2.new(0, 80, 0, 13)
-    pctL.AnchorPoint      = Vector2.new(0.5, 0.5)
-    pctL.Position         = UDim2.new(0, lx, 0, ly + 10)
-    pctL.Rotation         = midAngle
-    pctL.BackgroundTransparency = 1
-    pctL.Text             = RARITY_PCT[item.Rarity] or ""
-    pctL.TextColor3       = rColor
-    pctL.Font             = Enum.Font.Gotham
-    pctL.TextSize         = 9
-    pctL.ZIndex           = 4
-    pctL.Parent           = wheelDisk
-
-    -- Étoile décorative
-    local starL = Instance.new("TextLabel")
-    starL.Size             = UDim2.new(0, 16, 0, 16)
-    starL.AnchorPoint      = Vector2.new(0.5, 0.5)
-    starL.Position         = UDim2.new(0, lx, 0, ly + 22)
-    starL.Rotation         = midAngle
-    starL.BackgroundTransparency = 1
-    starL.Text             = "★"
-    starL.TextColor3       = rColor
-    starL.Font             = Enum.Font.GothamBold
-    starL.TextSize         = 12
-    starL.ZIndex           = 4
-    starL.Parent           = wheelDisk
+    nameL.Text                   = item.Name
+    nameL.TextColor3             = WHITE
+    nameL.Font                   = Enum.Font.GothamBold
+    nameL.TextSize               = 12
+    nameL.ZIndex                 = 4
+    nameL.Parent                 = wheelDisk
 end
 
--- ── Centre (ne tourne PAS → enfant de innerRingBorder) ───────────────────────
+-- ── Centre blanc ───────────────────────────────────────────────────────────────
 local centerDecor = Instance.new("Frame")
-centerDecor.Size             = UDim2.new(0, 88, 0, 88)
+centerDecor.Size             = UDim2.new(0, 104, 0, 104)
 centerDecor.AnchorPoint      = Vector2.new(0.5, 0.5)
 centerDecor.Position         = UDim2.new(0.5, 0, 0.5, 0)
-centerDecor.BackgroundColor3 = GOLD_DIVIDER
+centerDecor.BackgroundColor3 = WHITE
 centerDecor.BorderSizePixel  = 0
 centerDecor.ZIndex           = 5
 Instance.new("UICorner", centerDecor).CornerRadius = UDim.new(0.5, 0)
@@ -261,69 +245,69 @@ centerDecor.Parent = innerRingBorder
 
 local centerBtn = Instance.new("TextButton")
 centerBtn.Name             = "CenterBtn"
-centerBtn.Size             = UDim2.new(0, 72, 0, 72)
+centerBtn.Size             = UDim2.new(0, 92, 0, 92)
 centerBtn.AnchorPoint      = Vector2.new(0.5, 0.5)
 centerBtn.Position         = UDim2.new(0.5, 0, 0.5, 0)
-centerBtn.BackgroundColor3 = Color3.new(1, 1, 1)
+centerBtn.BackgroundColor3 = WHITE
 centerBtn.BorderSizePixel  = 0
 centerBtn.Text             = "SPIN!"
-centerBtn.TextColor3       = Color3.fromRGB(30, 160, 30)
+centerBtn.TextColor3       = Color3.fromRGB(30, 140, 30)
 centerBtn.Font             = Enum.Font.GothamBlack
-centerBtn.TextSize         = 14
+centerBtn.TextSize         = 17
 centerBtn.ZIndex           = 6
 Instance.new("UICorner", centerBtn).CornerRadius = UDim.new(0.5, 0)
 centerBtn.Parent = innerRingBorder
 
--- ── Pointeur ▼ (ne tourne PAS → enfant de outerRing) ─────────────────────────
+-- ── Pointeur ▼ rouge foncé en haut ─────────────────────────────────────────────
 local pointerLabel = Instance.new("TextLabel")
-pointerLabel.Size             = UDim2.new(0, 44, 0, 40)
-pointerLabel.AnchorPoint      = Vector2.new(0.5, 1)
-pointerLabel.Position         = UDim2.new(0.5, 0, 0, 2)   -- juste au-dessus du ring
+pointerLabel.Size                   = UDim2.new(0, 44, 0, 40)
+pointerLabel.AnchorPoint            = Vector2.new(0.5, 1)
+pointerLabel.Position               = UDim2.new(0.5, 0, 0, 2)
 pointerLabel.BackgroundTransparency = 1
-pointerLabel.Text             = "▼"
-pointerLabel.TextColor3       = Color3.fromRGB(220, 50, 50)
-pointerLabel.TextSize         = 34
-pointerLabel.Font             = Enum.Font.GothamBlack
-pointerLabel.ZIndex           = 10
-pointerLabel.Parent           = outerRing
+pointerLabel.Text                   = "▼"
+pointerLabel.TextColor3             = DARK_RED
+pointerLabel.TextSize               = 36
+pointerLabel.Font                   = Enum.Font.GothamBlack
+pointerLabel.ZIndex                 = 10
+pointerLabel.Parent                 = outerRing
 
--- ── Panneau résultat (sous la roue) ──────────────────────────────────────────
+-- ── Panneau résultat ───────────────────────────────────────────────────────────
 local resultFrame = Instance.new("Frame")
-resultFrame.Size             = UDim2.new(1, 0, 0, 72)
-resultFrame.Position         = UDim2.new(0, 0, 1, 14)
+resultFrame.Size                   = UDim2.new(1, 0, 0, 72)
+resultFrame.Position               = UDim2.new(0, 0, 1, 14)
 resultFrame.BackgroundTransparency = 1
-resultFrame.Visible          = false
-resultFrame.Parent           = panel
+resultFrame.Visible                = false
+resultFrame.Parent                 = panel
 
 local resultLabel = Instance.new("TextLabel")
-resultLabel.Name             = "ResultLabel"
-resultLabel.Size             = UDim2.new(1, 0, 0.55, 0)
+resultLabel.Name                   = "ResultLabel"
+resultLabel.Size                   = UDim2.new(1, 0, 0.55, 0)
 resultLabel.BackgroundTransparency = 1
-resultLabel.Text             = ""
-resultLabel.TextColor3       = Color3.new(1, 1, 1)
-resultLabel.Font             = Enum.Font.GothamBlack
-resultLabel.TextSize         = 26
-resultLabel.Parent           = resultFrame
+resultLabel.Text                   = ""
+resultLabel.TextColor3             = WHITE
+resultLabel.Font                   = Enum.Font.GothamBlack
+resultLabel.TextSize               = 26
+resultLabel.Parent                 = resultFrame
 
 local rarityLabel = Instance.new("TextLabel")
-rarityLabel.Name             = "RarityLabel"
-rarityLabel.Size             = UDim2.new(1, 0, 0.45, 0)
-rarityLabel.Position         = UDim2.new(0, 0, 0.55, 0)
+rarityLabel.Name                   = "RarityLabel"
+rarityLabel.Size                   = UDim2.new(1, 0, 0.45, 0)
+rarityLabel.Position               = UDim2.new(0, 0, 0.55, 0)
 rarityLabel.BackgroundTransparency = 1
-rarityLabel.Text             = ""
-rarityLabel.Font             = Enum.Font.GothamBold
-rarityLabel.TextSize         = 18
-rarityLabel.Parent           = resultFrame
+rarityLabel.Text                   = ""
+rarityLabel.Font                   = Enum.Font.GothamBold
+rarityLabel.TextSize               = 18
+rarityLabel.Parent                 = resultFrame
 
--- ── Logique ───────────────────────────────────────────────────────────────────
+-- ── Logique ────────────────────────────────────────────────────────────────────
 local function openWheel(wheelId)
     currentWheelId = wheelId or 1
     local wheelData = LootTables.Wheels[currentWheelId]
-    title.Text          = "✦  " .. string.upper(wheelData and wheelData.Name or "BRAINROT WHEEL") .. "  ✦"
-    resultFrame.Visible = false
-    centerBtn.Text      = "SPIN!"
-    centerBtn.TextColor3 = Color3.fromRGB(30, 160, 30)
-    screenGui.Enabled   = true
+    title.Text           = "✦  " .. string.upper(wheelData and wheelData.Name or "BRAINROT WHEEL") .. "  ✦"
+    resultFrame.Visible  = false
+    centerBtn.Text       = "SPIN!"
+    centerBtn.TextColor3 = Color3.fromRGB(30, 140, 30)
+    screenGui.Enabled    = true
 end
 
 local function closeWheel()
@@ -334,11 +318,10 @@ end
 
 closeBtn.MouseButton1Click:Connect(closeWheel)
 
--- Connecte le ClickDetector de chacune des 3 roues physiques
 for _, wheelFolder in ipairs(wheelAssets:GetChildren()) do
     local physWheel = wheelFolder:FindFirstChild("PhysicalWheel")
     if physWheel then
-        local cd = physWheel:FindFirstChildOfClass("ClickDetector")
+        local cd  = physWheel:FindFirstChildOfClass("ClickDetector")
         local wid = wheelFolder:GetAttribute("WheelIndex") or 1
         if cd then
             cd.MouseClick:Connect(function()
@@ -351,30 +334,24 @@ end
 
 centerBtn.MouseButton1Click:Connect(function()
     if isSpinning then return end
-    isSpinning         = true
-    resultFrame.Visible = false
-    centerBtn.Text     = "..."
+    isSpinning           = true
+    resultFrame.Visible  = false
+    centerBtn.Text       = "..."
     centerBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
     SpinRequest:FireServer(currentWheelId)
 end)
 
 SpinResult.OnClientEvent:Connect(function(result)
-    -- Calcul précis de l'angle : le disque s'arrête sur le bon segment
-    local targetRot   = getTargetAngle(wheelDisk.Rotation, result.SegmentId)
-    local totalDegrees = targetRot - wheelDisk.Rotation   -- degrés totaux parcourus
+    local targetRot    = getTargetAngle(wheelDisk.Rotation, result.SegmentId)
+    local totalDegrees = targetRot - wheelDisk.Rotation
 
-    print(string.format(
-        "🎯 Segment tiré : %d | %s | %s",
-        result.SegmentId, result.Name, result.Rarity
-    ))
+    print(string.format("🎯 Segment tiré : %d | %s | %s", result.SegmentId, result.Name, result.Rarity))
 
     local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
-    -- Animation du disque UI (atterrit sur le segment gagnant)
     local uiTween = TweenService:Create(wheelDisk, tweenInfo, { Rotation = targetRot })
     uiTween:Play()
 
-    -- Animation de la roue physique dans le monde (même nombre de degrés)
     if currentPhysicalWheel then
         local startCF  = currentPhysicalWheel.CFrame
         local targetCF = startCF * CFrame.Angles(math.rad(totalDegrees), 0, 0)
@@ -383,16 +360,14 @@ SpinResult.OnClientEvent:Connect(function(result)
 
     uiTween.Completed:Wait()
 
-    -- Affichage du résultat
-    local rarityInfo        = Constants.RARITIES[result.Rarity]
-    resultLabel.Text        = string.format("🎉  Gagné : Segment %d — %s !", result.SegmentId, string.upper(result.Name))
-    rarityLabel.Text        = "✦  " .. string.upper(result.Rarity) .. "  ✦"
-    rarityLabel.TextColor3  = rarityInfo.Color
-    resultFrame.Visible     = true
+    local rarityInfo       = Constants.RARITIES[result.Rarity]
+    resultLabel.Text       = string.format("🎉  Gagné : %s !", string.upper(result.Name))
+    rarityLabel.Text       = "✦  " .. string.upper(result.Rarity) .. "  ✦"
+    rarityLabel.TextColor3 = rarityInfo.Color
+    resultFrame.Visible    = true
 
-    -- Réinitialisation
     centerBtn.Text       = "SPIN!"
-    centerBtn.TextColor3 = Color3.fromRGB(30, 160, 30)
+    centerBtn.TextColor3 = Color3.fromRGB(30, 140, 30)
 
     task.wait(4)
     resultFrame.Visible = false
