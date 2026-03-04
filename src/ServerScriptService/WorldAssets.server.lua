@@ -34,60 +34,23 @@ local function createPhysicalWheel(origin, wheelIndex)
 
     local ox, oy, oz = origin.X, origin.Y, origin.Z
 
-    -- Base Platform
-    local base = Instance.new("Part")
-    base.Name     = "WheelBase"
-    base.Size     = Vector3.new(20, 1.2, 9)
-    base.Position = Vector3.new(ox, oy + 0.6, oz)
-    base.Anchored = true
-    base.Color    = BROWN
-    base.Material = Enum.Material.Wood
-    base.Parent   = folder
-
-    -- Pieds
-    for _, zOff in ipairs({ -3.5, 3.5 }) do
-        for _, xOff in ipairs({ -9, 9 }) do
-            local foot = Instance.new("Part")
-            foot.Size     = Vector3.new(1.2, 2.5, 1.2)
-            foot.Position = Vector3.new(ox + xOff, oy - 0.65, oz + zOff)
-            foot.Anchored = true
-            foot.Color    = DARK_BROWN
-            foot.Material = Enum.Material.Wood
-            foot.Parent   = folder
-        end
-    end
-
-    -- Poteaux verticaux
-    local function makePost(xOff)
-        local post = Instance.new("Part")
-        post.Name     = (xOff < 0) and "LeftPost" or "RightPost"
-        post.Size     = Vector3.new(1.6, 18, 1.6)
-        post.Position = Vector3.new(ox + xOff, oy + 9.2, oz)
-        post.Anchored = true
-        post.Color    = BROWN
-        post.Material = Enum.Material.Wood
-        post.Parent   = folder
-    end
-    makePost(-7.5)
-    makePost( 7.5)
-
-    -- Barre du haut
-    local topBar = Instance.new("Part")
-    topBar.Name     = "TopBar"
-    topBar.Size     = Vector3.new(17.2, 1.6, 1.6)
-    topBar.Position = Vector3.new(ox, oy + 18.2, oz)
-    topBar.Anchored = true
-    topBar.Color    = BROWN
-    topBar.Material = Enum.Material.Wood
-    topBar.Parent   = folder
+    -- Poteau central unique (Mis à l'arrière : Z-1 pour être caché derrière la roue)
+    local mainPost = Instance.new("Part")
+    mainPost.Name     = "MainPost"
+    mainPost.Size     = Vector3.new(2, 12, 2)
+    mainPost.Position = Vector3.new(ox, oy + 6, oz - 1)
+    mainPost.Anchored = true
+    mainPost.Color    = BROWN
+    mainPost.Material = Enum.Material.Wood
+    mainPost.Parent   = folder
 
     -- ── BillboardGui (Labels 3D) ───────────────────────────────────────────────
     local bbgui = Instance.new("BillboardGui")
     bbgui.Name            = "InfoGui"
-    bbgui.Size            = UDim2.new(0, 200, 0, 100)
-    bbgui.StudsOffset     = Vector3.new(0, 4, 0) -- Flotte au-dessus de la TopBar
-    bbgui.Adornee         = topBar
-    bbgui.AlwaysOnTop     = false -- Pour que ça reste derrière les murs si besoin, plus immersif
+    bbgui.Size            = UDim2.new(0, 240, 0, 100)
+    bbgui.StudsOffset     = Vector3.new(0, 15, 0)
+    bbgui.Adornee         = mainPost
+    bbgui.AlwaysOnTop     = false
     bbgui.Parent          = folder
 
     local nameLabel = Instance.new("TextLabel")
@@ -111,17 +74,6 @@ local function createPhysicalWheel(origin, wheelIndex)
     costLabel.TextSize               = 32
     costLabel.TextStrokeTransparency = 0
     costLabel.Parent                 = bbgui
-
-    -- Barrières décoratives
-    for _, yOff in ipairs({ 4, 8, 12 }) do
-        local rail = Instance.new("Part")
-        rail.Size     = Vector3.new(17.2, 0.6, 0.6)
-        rail.Position = Vector3.new(ox, oy + yOff, oz + 3.8)
-        rail.Anchored = true
-        rail.Color    = DARK_BROWN
-        rail.Material = Enum.Material.Wood
-        rail.Parent   = folder
-    end
 
     local WHEEL_BLUE = Color3.fromRGB(30, 100, 220)
     local LIGHT_BLUE_NEON = Color3.fromRGB(100, 200, 255)
@@ -152,35 +104,23 @@ local function createPhysicalWheel(origin, wheelIndex)
     rim.CanCollide  = false
     rim.Parent      = folder
 
-    -- Moyeu central
-    local hub = Instance.new("Part")
-    hub.Name        = "WheelHub"
-    hub.Shape       = Enum.PartType.Cylinder
-    hub.Size        = Vector3.new(1, 2.8, 2.8)
-    hub.Position    = Vector3.new(ox, oy + 10, oz)
-    hub.Orientation = Vector3.new(0, 90, 0)
-    hub.Anchored    = true
-    hub.Color       = Color3.new(1, 1, 1)
-    hub.Material    = Enum.Material.SmoothPlastic
-    hub.Parent      = folder
-
-    -- Axe
+    -- Axe (reculé un peu vers le poteau)
     local axle = Instance.new("Part")
     axle.Name        = "WheelAxle"
     axle.Shape       = Enum.PartType.Cylinder
-    axle.Size        = Vector3.new(15.5, 1, 1)
-    axle.Position    = Vector3.new(ox, oy + 10, oz)
+    axle.Size        = Vector3.new(1, 1, 1)
+    axle.Position    = Vector3.new(ox, oy + 10, oz - 0.5)
     axle.Orientation = Vector3.new(0, 90, 0)
     axle.Anchored    = true
     axle.Color       = Color3.fromRGB(100, 100, 110)
     axle.Material    = Enum.Material.Metal
     axle.Parent      = folder
 
-    -- Pointeur rouge au sommet
+    -- Pointeur rouge au sommet (fixé en haut de l'axe ou juste au-dessus de la roue)
     local pointer = Instance.new("WedgePart")
     pointer.Name       = "Pointer"
     pointer.Size       = Vector3.new(0.5, 2.5, 1.4)
-    pointer.Position   = Vector3.new(ox, oy + 17.2, oz)
+    pointer.Position   = Vector3.new(ox, oy + 16.5, oz)
     pointer.Anchored   = true
     pointer.Color      = Color3.fromRGB(210, 40, 40)
     pointer.Material   = Enum.Material.Neon
@@ -234,3 +174,18 @@ end
 createPhysicalWheel(Vector3.new(  0, 0, 0), 1)   -- Roue Noob   (centre)
 createPhysicalWheel(Vector3.new(-70, 0, 0), 2)   -- Roue Sigma  (gauche)
 createPhysicalWheel(Vector3.new( 70, 0, 0), 3)   -- Roue Ultra  (droite)
+
+-- ── SpawnLocation (face aux roues) ─────────────────────────────────────────────
+local spawn = Instance.new("SpawnLocation")
+spawn.Name     = "MainSpawn"
+spawn.Size     = Vector3.new(12, 1, 12)
+spawn.Position = Vector3.new(0, 0.5, 30) -- Placé un peu devant les roues
+spawn.Anchored = true
+spawn.Transparency = 0.5
+spawn.Material = Enum.Material.Neon
+spawn.Color    = Color3.fromRGB(100, 200, 255)
+-- Orientation pour faire face aux roues (qui sont à Z=0, on est à Z=30, donc on regarde vers -Z)
+spawn.CFrame = CFrame.lookAt(spawn.Position, Vector3.new(0, 0.5, 0))
+spawn.Parent = Workspace
+
+print("🚩 [WorldAssets] SpawnLocation créé à (0, 0.5, 30) face aux roues.")

@@ -16,38 +16,50 @@ RING_R   = 298   # bord intérieur anneau vert (= rayon du disque)
 TEXT_R   = 195   # rayon du point d'ancrage du texte
 CENTER_R = 68    # rayon du moyeu "SPIN!"
 
-# ── Couleurs par rareté (même palette que le jeu Roblox) ────────────────────
+# ── Couleurs par rareté (mêmes constantes que Roblox) ─────────────────────────
+# On associe chaque rareté à son pourcentage et sa couleur
+RARITY_CONFIG = {
+    "NORMAL":    {"perc": 60, "color": (163, 162, 165)},
+    "RARE":      {"perc": 20, "color": (  0, 162, 255)},
+    "MYTHIC":    {"perc": 10, "color": (170,   0, 255)},
+    "LEGENDARY": {"perc":  8, "color": (255, 170,   0)},
+    "ULTRA":     {"perc":  2, "color": (255,   0, 127)},
+}
+
 SEGMENT_DATA = [
-    # (Nom,                 couleur RGB)  — même palette que WheelController.lua
-    ("Son Bruh",            (255,  45,  45)),   # 1  Rouge vif
-    ("Tête de Noob",        ( 55, 175, 255)),   # 2  Bleu ciel
-    ("Pizza Froide",        ( 45, 200,  75)),   # 3  Vert
-    ("Emoji Mewing",        (255, 200,   0)),   # 4  Jaune or
-    ("Cravate Bleue",       (175,  45, 255)),   # 5  Violet
-    ("Sourire Sigma",       (255, 115,   0)),   # 6  Orange
-    ("Mâchoire Gigachad",   (  0, 210, 210)),   # 7  Turquoise
-    ("Tour de Pizza",       (255,  45, 145)),   # 8  Rose vif
-    ("Tête Skibidi",        ( 75, 255, 115)),   # 9  Vert lime
-    ("Sigma d'Or",          ( 75,  75, 255)),   # 10 Bleu roi
-    ("Sigma Galactique",    (255, 155,  25)),   # 11 Ambre
-    ("Skibidi Diamant",     (220,  55, 220)),   # 12 Magenta
+    ("Son Bruh",            "NORMAL"),
+    ("Tête de Noob",        "NORMAL"),
+    ("Pizza Froide",        "NORMAL"),
+    ("Emoji Mewing",        "RARE"),
+    ("Cravate Bleue",       "RARE"),
+    ("Sourire Sigma",       "RARE"),
+    ("Mâchoire Gigachad",   "MYTHIC"),
+    ("Tour de Pizza",       "MYTHIC"),
+    ("Tête Skibidi",        "LEGENDARY"),
+    ("Sigma d'Or",          "LEGENDARY"),
+    ("Sigma Galactique",    "ULTRA"),
+    ("Skibidi Diamant",     "ULTRA"),
 ]
 
 N   = len(SEGMENT_DATA)
 SEG = 360.0 / N          # 30° par part
 
 # ── Polices ──────────────────────────────────────────────────────────────────
-FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_REG  = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# Chemins Windows ou défaut
+FONTS = [
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/segoeuib.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+]
 
-def load_font(path, size):
-    try:
-        return ImageFont.truetype(path, size)
-    except:
-        return ImageFont.load_default()
+def load_font(size):
+    for f in FONTS:
+        try: return ImageFont.truetype(f, size)
+        except: continue
+    return ImageFont.load_default()
 
-font_label  = load_font(FONT_BOLD, 17)
-font_center = load_font(FONT_BOLD, 24)
+font_label  = load_font(18)
+font_center = load_font(24)
 
 # ── Création de l'image principale ──────────────────────────────────────────
 main = Image.new("RGBA", (SIZE, SIZE), (25, 25, 25, 255))
@@ -60,7 +72,8 @@ draw.ellipse(
 )
 
 # ── Parts de camembert ───────────────────────────────────────────────────────
-for i, (name, color) in enumerate(SEGMENT_DATA):
+for i, (name, rarity) in enumerate(SEGMENT_DATA):
+    color = RARITY_CONFIG[rarity]["color"]
     # PIL : angle 0 = droite (3h), donc on décale de -90° pour partir du haut
     start = i * SEG - 90
     end   = start + SEG
@@ -78,22 +91,33 @@ for i in range(N):
     draw.line([(CX, CY), (int(x), int(y))], fill=(255, 255, 255), width=3)
 
 # ── Textes rotatifs (chaque label suit son segment) ──────────────────────────
-for i, (name, color) in enumerate(SEGMENT_DATA):
+for i, (name, rarity) in enumerate(SEGMENT_DATA):
     mid_deg = i * SEG + SEG / 2 - 90   # angle du milieu du segment (PIL)
+    
+    perc = RARITY_CONFIG[rarity]["perc"]
+    full_name = f"{name} ({perc}%)"
 
     # Image temporaire pour le texte (fond transparent)
-    TW, TH = 210, 32
+    TW, TH = 240, 40
     txt_img = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
     td = ImageDraw.Draw(txt_img)
+    
+    # Rotation logic for readability
+    # On normalise l'angle pour savoir si on est en bas
+    norm_ang = (mid_deg + 90) % 360
+    text_angle = -mid_deg
+    
+    if 90 < norm_ang < 270:
+        text_angle += 180
+    
     # Ombre légère pour lisibilité
-    td.text((TW // 2 + 1, TH // 2 + 1), name,
-            fill=(0, 0, 0, 160), font=font_label, anchor="mm")
-    td.text((TW // 2, TH // 2), name,
+    td.text((TW // 2 + 1, TH // 2 + 1), full_name,
+            fill=(0, 0, 0, 200), font=font_label, anchor="mm")
+    td.text((TW // 2, TH // 2), full_name,
             fill=(255, 255, 255, 255), font=font_label, anchor="mm")
 
-    # Rotation du texte pour qu'il soit radial
-    # PIL rotate : sens antihoraire → on passe -mid_deg pour alignement CW
-    txt_rot = txt_img.rotate(-mid_deg, expand=True, resample=Image.BICUBIC)
+    # Rotation du texte
+    txt_rot = txt_img.rotate(text_angle, expand=True, resample=Image.BICUBIC)
 
     # Position sur le disque
     angle_rad = math.radians(mid_deg)
@@ -141,7 +165,19 @@ draw.ellipse([CX - CENTER_R, CY - CENTER_R, CX + CENTER_R, CY + CENTER_R],
 draw.text((CX, CY), "SPIN!", fill=(180, 20, 20),
           font=font_center, anchor="mm")
 
+# ── FLÈCHE INDICATRICE (EN HAUT) ──────────────────────────────────────────────
+# Un triangle rouge pointant vers le bas au sommet de la roue
+ARROW_W = 40
+ARROW_H = 35
+pts = [
+    (CX - ARROW_W//2, CY - OUTER_R - 10), # Gauche haut
+    (CX + ARROW_W//2, CY - OUTER_R - 10), # Droite haut
+    (CX, CY - OUTER_R + ARROW_H - 10)     # Pointe bas (touche l'anneau)
+]
+draw.polygon(pts, fill=(220, 20, 20), outline=(255, 255, 255))
+
 # ── Sauvegarde ────────────────────────────────────────────────────────────────
-out = "/home/user/Brainrot-v5/wheel_preview.png"
+import os
+out = os.path.join(os.getcwd(), "wheel_preview.png")
 main.save(out)
 print(f"Image sauvegardée : {out}")

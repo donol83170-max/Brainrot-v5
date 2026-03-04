@@ -66,11 +66,15 @@ local RAD     = DIAM / 2
 local isSpinning = false
 
 local function getTargetAngle(currentRotation, segmentId)
-    local segCenter  = (segmentId - 1) * SEG_ANG + (SEG_ANG / 2)
-    local currentMod = currentRotation % 360
-    local offset     = segCenter - currentMod
-    if offset < 0 then offset += 360 end
-    return currentRotation + offset + (5 * 360) -- 5 tours minimum
+    local midAngle = (segmentId - 1) * SEG_ANG + (SEG_ANG / 2)
+    local target   = -midAngle -- Alignment direct au sommet (0°)
+    
+    local finalTarget = target
+    while finalTarget <= currentRotation + (360 * 3) do -- Au moins 3 tours
+        finalTarget += 360
+    end
+    
+    return finalTarget
 end
 
 -- ── Construction UI ────────────────────────────────────────────────────────────
@@ -163,19 +167,25 @@ Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
 wheelDisk.ZIndex           = 2
 wheelDisk.Parent           = innerRingBorder
 
--- RENDU DES SEGMENTS COLORES (360 RAYONS POUR UN REMPLISSAGE PARFAIT)
-for deg = 0, 359 do
-    local segmentIndex = math.floor(deg / SEG_ANG) + 1
-    local ray = Instance.new("Frame")
-    ray.Name             = "Ray_" .. deg
-    ray.Size             = UDim2.new(0, 2, 0, OUTER_SIZE)
-    ray.AnchorPoint      = Vector2.new(0.5, 0.5)
-    ray.Position         = UDim2.new(0.5, 0, 0.5, 0)
-    ray.Rotation         = deg
-    ray.BackgroundColor3 = SEGMENT_COLORS[segmentIndex] or WHEEL_BLUE
-    ray.BorderSizePixel  = 0
-    ray.ZIndex           = 2
-    ray.Parent           = wheelDisk
+-- RENDU DES SEGMENTS COLORES (BASÉ SUR LES RARETÉS)
+for i = 1, N do
+    local item = WHEEL_ITEMS[i]
+    local rarityInfo = item and Constants.RARITIES[item.Rarity]
+    local color = rarityInfo and rarityInfo.Color or WHEEL_BLUE
+
+    for degOffset = 0, math.floor(SEG_ANG) - 1 do
+        local deg = (i - 1) * SEG_ANG + degOffset
+        local ray = Instance.new("Frame")
+        ray.Name             = "Ray_" .. deg
+        ray.Size             = UDim2.new(0, 2, 0, OUTER_SIZE)
+        ray.AnchorPoint      = Vector2.new(0.5, 0.5)
+        ray.Position         = UDim2.new(0.5, 0, 0.5, 0)
+        ray.Rotation         = deg
+        ray.BackgroundColor3 = color
+        ray.BorderSizePixel  = 0
+        ray.ZIndex           = 2
+        ray.Parent           = wheelDisk
+    end
 end
 
 -- SEPARATEURS BLANCS (lignes de démarcation)
@@ -191,29 +201,39 @@ for i = 0, N - 1 do
     div.Parent           = wheelDisk
 end
 
--- LABELS À L'ENDROIT (PRÉCISÉMENT CENTRÉS)
+-- LABELS À L'ENDROIT (AVEC POURCENTAGES ET FLIP)
 for i = 1, N do
     local item = WHEEL_ITEMS[i]
     if not item then continue end
 
+    local rarityInfo = Constants.RARITIES[item.Rarity]
+    local weight     = rarityInfo and rarityInfo.Weight or 0
+    local labelText  = string.format("%s (%d%%)", item.Name, weight)
+
     local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
     local rad      = math.rad(midAngle)
-    -- On réduit un peu le rayon des labels pour qu'ils ne touchent pas le bord
-    local labelRadius = (OUTER_SIZE / 2) * 0.65
+    local labelRadius = (OUTER_SIZE / 2) * 0.7
     local lx       = OUTER_SIZE / 2 + labelRadius * math.sin(rad)
     local ly       = OUTER_SIZE / 2 - labelRadius * math.cos(rad)
 
+    -- Le texte est tangent au rayon (90°)
+    local textRot = midAngle + 90
+    -- Si on est dans la moitié basse, on flippe de 180° pour rester lisible
+    if midAngle > 90 and midAngle < 270 then
+        textRot += 180
+    end
+
     local nameL = Instance.new("TextLabel")
-    nameL.Size                   = UDim2.new(0, 120, 0, 24)
+    nameL.Size                   = UDim2.new(0, 160, 0, 24)
     nameL.AnchorPoint            = Vector2.new(0.5, 0.5)
     nameL.Position               = UDim2.new(0, lx, 0, ly)
-    nameL.Rotation               = 0 -- TOUJOURS À L'ENDROIT
+    nameL.Rotation               = textRot
     nameL.BackgroundTransparency = 1
-    nameL.Text                   = item.Name
+    nameL.Text                   = labelText
     nameL.TextColor3             = WHITE
     nameL.Font                   = Enum.Font.FredokaOne
-    nameL.TextSize               = 12
-    nameL.TextStrokeTransparency = 0.4 -- Ombre douce
+    nameL.TextSize               = 11
+    nameL.TextStrokeTransparency = 0.5
     nameL.ZIndex                 = 4
     nameL.Parent                 = wheelDisk
 end
