@@ -177,7 +177,6 @@ for deg = 0, 359 do
     ray.ZIndex           = 2
     ray.Parent           = wheelDisk
 end
-end
 
 -- SEPARATEURS BLANCS (lignes de démarcation)
 for i = 0, N - 1 do
@@ -300,12 +299,6 @@ local function openWheel(wheelId)
     centerBtn.Text       = "SPIN!\n(" .. cost .. " " .. icon .. ")"
     centerBtn.TextColor3 = Color3.fromRGB(30, 140, 30)
     screenGui.Enabled    = true
-end
-
-local function closeWheel()
-    if not isSpinning then
-        screenGui.Enabled = false
-    end
 end
 
 local function closeWheel()
