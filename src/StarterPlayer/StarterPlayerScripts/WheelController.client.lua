@@ -40,27 +40,53 @@ local WHITE        = Color3.new(1, 1, 1)
 local DARK_RED     = Color3.fromRGB(140,  20,  20)
 local WHEEL_BLUE   = Color3.fromRGB(30, 100, 220)
 
--- Palette de 12 nuances de bleu pour les segments
-local SEGMENT_COLORS = {
-    Color3.fromRGB(0, 40, 120),    -- 1
-    Color3.fromRGB(20, 110, 210),  -- 2
-    Color3.fromRGB(10, 70, 160),   -- 3
-    Color3.fromRGB(40, 150, 255),  -- 4
-    Color3.fromRGB(0, 50, 140),    -- 5
-    Color3.fromRGB(70, 180, 255),  -- 6
-    Color3.fromRGB(15, 60, 130),   -- 7
-    Color3.fromRGB(30, 130, 240),  -- 8
-    Color3.fromRGB(5, 45, 115),    -- 9
-    Color3.fromRGB(55, 165, 255),  -- 10
-    Color3.fromRGB(0, 35, 105),    -- 11
-    Color3.fromRGB(45, 145, 230),  -- 12
+-- ── IDs des Decals uploadés ────────────────────────────────────────────────────
+local DECAL_IDS = {
+    [1] = 137995560327998, -- Roue Noob
+    [2] = 114355985856863, -- Roue Sigma
+    [3] = 104911990893082, -- Roue Ultra
 }
+
+local function resolveAndApply(wheelId, imageLabel)
+    if not currentPhysicalWheel or not currentPhysicalWheel.Parent then return end
+    local folder = currentPhysicalWheel.Parent
+
+    -- Fonction interne pour appliquer l'ID s'il existe
+    local function applyIfReady()
+        local resolvedId = folder:GetAttribute("ResolvedImageId")
+        if resolvedId and resolvedId ~= "" then
+            imageLabel.Image = resolvedId
+            imageLabel.BackgroundTransparency = 1
+            return true
+        end
+        return false
+    end
+
+    -- État initial (chargement)
+    if not applyIfReady() then
+        imageLabel.Image = ""
+        imageLabel.BackgroundTransparency = 0
+        imageLabel.BackgroundColor3 = WHEEL_BLUE
+        
+        -- Attendre que le serveur finisse de résoudre (si besoin)
+        local conn
+        conn = folder:GetAttributeChangedSignal("ResolvedImageId"):Connect(function()
+            if applyIfReady() then
+                conn:Disconnect()
+            end
+        end)
+        
+        -- Nettoyage automatique si on ferme
+        task.delay(10, function() if conn and conn.Connected then conn:Disconnect() end end)
+    end
+end
+
 
 -- ── Config roue ────────────────────────────────────────────────────────────────
 local WHEEL_ITEMS = LootTables.Wheels[1].Items
 local N       = 12
 local SEG_ANG = 360 / N
-local DIAM    = 450 -- Réduit de 10% (500 -> 450)
+local DIAM    = 425 -- Réduit de 5% supplémentaires (450 -> 425)
 local RAD     = DIAM / 2
 
 local isSpinning = false
@@ -145,97 +171,83 @@ outerRing.BackgroundColor3 = GREEN_OUTER
 Instance.new("UICorner", outerRing).CornerRadius = UDim.new(0.5, 0)
 outerRing.Parent = panel
 
--- Anneau ROSE
+-- Anneau ROSE (clip circulaire)
 local innerRingBorder = Instance.new("Frame")
 innerRingBorder.Size             = UDim2.new(0, OUTER_SIZE + 24, 0, OUTER_SIZE + 24)
 innerRingBorder.AnchorPoint      = Vector2.new(0.5, 0.5)
 innerRingBorder.Position         = UDim2.new(0.5, 0, 0.5, 0)
-innerRingBorder.BackgroundColor3 = PINK_RING
+innerRingBorder.BackgroundColor3 = WHITE
+innerRingBorder.ClipsDescendants = true
 Instance.new("UICorner", innerRingBorder).CornerRadius = UDim.new(0.5, 0)
 innerRingBorder.Parent = outerRing
 
--- LE DISQUE ROTATIF
-local wheelDisk = Instance.new("Frame")
-wheelDisk.Name             = "WheelDisk"
-wheelDisk.Size             = UDim2.new(0, OUTER_SIZE, 0, OUTER_SIZE)
-wheelDisk.AnchorPoint      = Vector2.new(0.5, 0.5)
-wheelDisk.Position         = UDim2.new(0.5, 0, 0.5, 0)
-wheelDisk.BackgroundColor3 = WHEEL_BLUE
-wheelDisk.BorderSizePixel  = 0
-wheelDisk.ClipsDescendants = true
-Instance.new("UICorner", wheelDisk).CornerRadius = UDim.new(0.5, 0)
-wheelDisk.ZIndex           = 2
-wheelDisk.Parent           = innerRingBorder
+-- L'IMAGE DE LA ROUE (Texture uploadée - circulaire)
+local wheelImage = Instance.new("ImageLabel")
+wheelImage.Name             = "WheelImage"
+wheelImage.Size             = UDim2.new(1, 0, 1, 0) -- Prend TOUTE la place de l'anneau
+wheelImage.AnchorPoint      = Vector2.new(0.5, 0.5)
+wheelImage.Position         = UDim2.new(0.5, 0, 0.5, 0)
+wheelImage.BackgroundTransparency = 1
+wheelImage.ZIndex           = 3
+wheelImage.ScaleType        = Enum.ScaleType.Fit
+Instance.new("UICorner", wheelImage).CornerRadius = UDim.new(0.5, 0) -- Circulaire
+wheelImage.Parent           = innerRingBorder
 
--- RENDU DES SEGMENTS COLORES (BASÉ SUR LES RARETÉS)
-for i = 1, N do
-    local item = WHEEL_ITEMS[i]
-    local rarityInfo = item and Constants.RARITIES[item.Rarity]
-    local color = rarityInfo and rarityInfo.Color or WHEEL_BLUE
+local wheelDisk = wheelImage -- Référence pour la rotation
 
-    for degOffset = 0, math.floor(SEG_ANG) - 1 do
-        local deg = (i - 1) * SEG_ANG + degOffset
-        local ray = Instance.new("Frame")
-        ray.Name             = "Ray_" .. deg
-        ray.Size             = UDim2.new(0, 2, 0, OUTER_SIZE)
-        ray.AnchorPoint      = Vector2.new(0.5, 0.5)
-        ray.Position         = UDim2.new(0.5, 0, 0.5, 0)
-        ray.Rotation         = deg
-        ray.BackgroundColor3 = color
-        ray.BorderSizePixel  = 0
-        ray.ZIndex           = 2
-        ray.Parent           = wheelDisk
+-- COUCHE DE LABELS (au-dessus de l'image, tourne avec la roue)
+local labelLayer = Instance.new("Frame")
+labelLayer.Name             = "LabelLayer"
+labelLayer.Size             = UDim2.new(1, 0, 1, 0)
+labelLayer.AnchorPoint      = Vector2.new(0.5, 0.5)
+labelLayer.Position         = UDim2.new(0.5, 0, 0.5, 0)
+labelLayer.BackgroundTransparency = 1
+labelLayer.ZIndex           = 4
+labelLayer.Parent           = innerRingBorder
+
+local function rebuildLabels(wheelId)
+    labelLayer.Rotation = wheelImage.Rotation -- Synchronise la rotation
+    labelLayer:ClearAllChildren()
+    
+    local items = LootTables.Wheels[wheelId] and LootTables.Wheels[wheelId].Items or {}
+    local labelRadius = (OUTER_SIZE / 2) * 0.68
+    for i = 1, N do
+        local item = items[i]
+        if not item then continue end
+        
+        local rarityInfo = Constants.RARITIES[item.Rarity]
+        local weight = rarityInfo and rarityInfo.Weight or 0
+        
+        local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
+        local rad      = math.rad(midAngle)
+        local lx       = OUTER_SIZE / 2 + labelRadius * math.sin(rad)
+        local ly       = OUTER_SIZE / 2 - labelRadius * math.cos(rad)
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size                   = UDim2.new(0, 110, 0, 44) -- Taille plus adaptée aux labels horizontaux
+        lbl.AnchorPoint            = Vector2.new(0.5, 0.5)
+        lbl.Position               = UDim2.new(0, lx, 0, ly)
+        lbl.Rotation               = -wheelImage.Rotation -- Compense la rotation pour rester droit
+        lbl.BackgroundTransparency = 1
+        lbl.Text                   = string.format("%s\n<font color='#FFFF00'>%d%%</font>", item.Name, weight)
+        lbl.RichText               = true
+        lbl.TextColor3             = WHITE
+        lbl.Font                   = Enum.Font.FredokaOne
+        lbl.TextSize               = 13
+        lbl.LineHeight             = 1.0
+        lbl.TextStrokeTransparency = 0.2
+        lbl.ZIndex                 = 7
+        lbl.Parent                 = labelLayer
     end
 end
 
--- SEPARATEURS BLANCS (lignes de démarcation)
-for i = 0, N - 1 do
-    local div = Instance.new("Frame")
-    div.Size             = UDim2.new(0, 4, 0, OUTER_SIZE)
-    div.AnchorPoint      = Vector2.new(0.5, 0.5)
-    div.Position         = UDim2.new(0.5, 0, 0.5, 0)
-    div.Rotation         = i * SEG_ANG
-    div.BackgroundColor3 = WHITE
-    div.BorderSizePixel  = 0
-    div.ZIndex           = 3
-    div.Parent           = wheelDisk
-end
-
--- LABELS À L'ENDROIT (AVEC POURCENTAGES ET FLIP)
-for i = 1, N do
-    local item = WHEEL_ITEMS[i]
-    if not item then continue end
-
-    local rarityInfo = Constants.RARITIES[item.Rarity]
-    local weight     = rarityInfo and rarityInfo.Weight or 0
-    local labelText  = string.format("%s (%d%%)", item.Name, weight)
-
-    local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
-    local rad      = math.rad(midAngle)
-    local labelRadius = (OUTER_SIZE / 2) * 0.7
-    local lx       = OUTER_SIZE / 2 + labelRadius * math.sin(rad)
-    local ly       = OUTER_SIZE / 2 - labelRadius * math.cos(rad)
-
-    -- Le texte est tangent au rayon (90°)
-    local textRot = midAngle + 90
-    -- Si on est dans la moitié basse, on flippe de 180° pour rester lisible
-    if midAngle > 90 and midAngle < 270 then
-        textRot += 180
+-- Synchronisation continue pour que les textes restent droits pendant le spin
+local function updateLabelsOrientation()
+    for _, lbl in ipairs(labelLayer:GetChildren()) do
+        if lbl:IsA("TextLabel") then
+            lbl.Rotation = -labelLayer.Rotation
+        end
     end
-
-    local nameL = Instance.new("TextLabel")
-    nameL.Size                   = UDim2.new(0, 160, 0, 24)
-    nameL.AnchorPoint            = Vector2.new(0.5, 0.5)
-    nameL.Position               = UDim2.new(0, lx, 0, ly)
-    nameL.Rotation               = textRot
-    nameL.BackgroundTransparency = 1
-    nameL.Text                   = labelText
-    nameL.TextColor3             = WHITE
-    nameL.Font                   = Enum.Font.FredokaOne
-    nameL.TextSize               = 11
-    nameL.TextStrokeTransparency = 0.5
-    nameL.ZIndex                 = 4
-    nameL.Parent                 = wheelDisk
 end
 
 -- ── Centre blanc ───────────────────────────────────────────────────────────────
@@ -312,6 +324,12 @@ local function openWheel(wheelId)
     title.Text           = "✦  " .. string.upper(wheelData and wheelData.Name or "BRAINROT WHEEL") .. "  ✦"
     resultFrame.Visible  = false
     
+    -- Charger la texture (résolution depuis le Decal ID)
+    resolveAndApply(currentWheelId, wheelImage)
+    
+    -- Dessiner les labels item + %
+    rebuildLabels(currentWheelId)
+    
     local cost = wheelData and wheelData.Cost or 0
     local currency = wheelData and wheelData.Currency or "Tickets"
     local icon = currency == "Gold" and "💰" or "🎟️"
@@ -320,6 +338,7 @@ local function openWheel(wheelId)
     centerBtn.TextColor3 = Color3.fromRGB(30, 140, 30)
     screenGui.Enabled    = true
 end
+
 
 local function closeWheel()
     if not isSpinning then
@@ -409,6 +428,8 @@ SpinResult.OnClientEvent:Connect(function(result)
 
     local uiTween = TweenService:Create(wheelDisk, tweenInfo, { Rotation = targetRot })
     uiTween:Play()
+    -- Synchronise les labels avec la rotation
+    TweenService:Create(labelLayer, tweenInfo, { Rotation = targetRot }):Play()
 
     if currentPhysicalWheel then
         local startCF  = currentPhysicalWheel.CFrame
@@ -424,6 +445,9 @@ SpinResult.OnClientEvent:Connect(function(result)
 
     local lastSeg = math.floor(wheelDisk.Rotation / SEG_ANG)
     local conn = RunService.RenderStepped:Connect(function()
+        -- Garder les textes "au sens de lecture" (droits) pendant le spin
+        updateLabelsOrientation()
+
         local curSeg = math.floor(wheelDisk.Rotation / SEG_ANG)
         if curSeg ~= lastSeg then
             lastSeg = curSeg
