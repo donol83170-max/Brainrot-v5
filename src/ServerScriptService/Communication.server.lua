@@ -34,6 +34,7 @@ GetPlayerData.Parent = EventsFolder
 local WheelManager = require(ServerScriptService:WaitForChild("WheelManager"))
 local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
 local Constants = require(ReplicatedStorage:WaitForChild("Constants"))
+local LootTables = require(ReplicatedStorage:WaitForChild("LootTables"))
 
 -- Cooldown tracking
 local lastSpinTime = {}
@@ -50,10 +51,23 @@ SpinRequest.OnServerEvent:Connect(function(player, wheelId)
 		return
 	end
 
-	-- Ticket check
-	if not DataManager.SpendTicket(player) then
-		print("🎟️ [Server] Pas assez de tickets pour " .. player.Name)
-		return
+	local wheelData = LootTables.Wheels[wheelId or 1]
+	if not wheelData then return end
+	
+	local cost = wheelData.Cost or 0
+	local currency = wheelData.Currency or "Tickets"
+
+	-- Currency check
+	if currency == "Tickets" then
+		if not DataManager.SpendTicket(player, cost) then
+			print("🎟️ [Server] Pas assez de tickets pour " .. player.Name)
+			return
+		end
+	elseif currency == "Gold" then
+		if not DataManager.SpendGold(player, cost) then
+			print("💰 [Server] Pas assez d'or pour " .. player.Name)
+			return
+		end
 	end
 
 	lastSpinTime[player.UserId] = now

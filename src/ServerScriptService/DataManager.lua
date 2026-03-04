@@ -109,12 +109,22 @@ function DataManager.AddItem(player, item)
 	print("🎒 [Inventory] " .. player.Name .. " a reçu : " .. item.Name)
 end
 
--- Dépenser un ticket (retourne true si succès, false si pas assez de tickets)
-function DataManager.SpendTicket(player)
+-- Dépenser des tickets
+function DataManager.SpendTicket(player, amount)
+    amount = amount or 1
     local data = playerCache[player.UserId]
     if not data then return false end
-    if data.Stats.Tickets <= 0 then return false end
-    data.Stats.Tickets -= 1
+    if data.Stats.Tickets < amount then return false end
+    data.Stats.Tickets -= amount
+    return true
+end
+
+-- Dépenser de l'Or
+function DataManager.SpendGold(player, amount)
+    local data = playerCache[player.UserId]
+    if not data then return false end
+    if data.Stats.Gold < amount then return false end
+    data.Stats.Gold -= amount
     return true
 end
 

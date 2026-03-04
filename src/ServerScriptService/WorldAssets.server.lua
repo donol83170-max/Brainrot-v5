@@ -1,7 +1,7 @@
--- WorldAssets.server.lua
--- Crée le sol en herbe et les trois stands de roue dans le monde
+local Workspace         = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Workspace = game:GetService("Workspace")
+local LootTables = require(ReplicatedStorage:WaitForChild("LootTables"))
 
 -- ── Sol herbe ──────────────────────────────────────────────────────────────────
 local ground = Instance.new("Part")
@@ -20,10 +20,12 @@ assetsFolder.Parent = Workspace
 
 -- ── Fonction de construction d'une roue ────────────────────────────────────────
 local function createPhysicalWheel(origin, wheelIndex)
+    local wheelData = LootTables.Wheels[wheelIndex]
+    if not wheelData then return end
+
     local BROWN      = Color3.fromRGB(101, 67, 33)
     local DARK_BROWN = Color3.fromRGB(70, 45, 20)
     local GOLD       = Color3.fromRGB(255, 215, 0)
-    local GOLD_NEON  = Color3.fromRGB(255, 230, 60)
 
     local folder = Instance.new("Folder")
     folder.Name   = "Wheel" .. wheelIndex
@@ -79,6 +81,37 @@ local function createPhysicalWheel(origin, wheelIndex)
     topBar.Material = Enum.Material.Wood
     topBar.Parent   = folder
 
+    -- ── BillboardGui (Labels 3D) ───────────────────────────────────────────────
+    local bbgui = Instance.new("BillboardGui")
+    bbgui.Name            = "InfoGui"
+    bbgui.Size            = UDim2.new(0, 200, 0, 100)
+    bbgui.StudsOffset     = Vector3.new(0, 4, 0) -- Flotte au-dessus de la TopBar
+    bbgui.Adornee         = topBar
+    bbgui.AlwaysOnTop     = false -- Pour que ça reste derrière les murs si besoin, plus immersif
+    bbgui.Parent          = folder
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size                   = UDim2.new(1, 0, 0.5, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text                   = string.upper(wheelData.Name)
+    nameLabel.TextColor3             = Color3.new(1, 1, 1)
+    nameLabel.Font                   = Enum.Font.FredokaOne
+    nameLabel.TextSize               = 40
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.Parent                 = bbgui
+
+    local icon = (wheelData.Currency == "Gold") and "💰" or "🎟️"
+    local costLabel = Instance.new("TextLabel")
+    costLabel.Size                   = UDim2.new(1, 0, 0.5, 0)
+    costLabel.Position               = UDim2.new(0, 0, 0.5, 0)
+    costLabel.BackgroundTransparency = 1
+    costLabel.Text                   = wheelData.Cost .. " " .. icon
+    costLabel.TextColor3             = (wheelData.Currency == "Gold") and GOLD or Color3.fromRGB(100, 200, 255)
+    costLabel.Font                   = Enum.Font.FredokaOne
+    costLabel.TextSize               = 32
+    costLabel.TextStrokeTransparency = 0
+    costLabel.Parent                 = bbgui
+
     -- Barrières décoratives
     for _, yOff in ipairs({ 4, 8, 12 }) do
         local rail = Instance.new("Part")
@@ -90,7 +123,10 @@ local function createPhysicalWheel(origin, wheelIndex)
         rail.Parent   = folder
     end
 
-    -- Roue principale (cylindre doré)
+    local WHEEL_BLUE = Color3.fromRGB(30, 100, 220)
+    local LIGHT_BLUE_NEON = Color3.fromRGB(100, 200, 255)
+
+    -- Roue principale (cylindre bleu)
     local wheel = Instance.new("Part")
     wheel.Name        = "PhysicalWheel"
     wheel.Shape       = Enum.PartType.Cylinder
@@ -98,7 +134,7 @@ local function createPhysicalWheel(origin, wheelIndex)
     wheel.Position    = Vector3.new(ox, oy + 10, oz)
     wheel.Orientation = Vector3.new(0, 90, 0)
     wheel.Anchored    = true
-    wheel.Color       = GOLD
+    wheel.Color       = WHEEL_BLUE
     wheel.Material    = Enum.Material.SmoothPlastic
     wheel.Parent      = folder
 
@@ -110,7 +146,7 @@ local function createPhysicalWheel(origin, wheelIndex)
     rim.Position    = Vector3.new(ox, oy + 10, oz)
     rim.Orientation = Vector3.new(0, 90, 0)
     rim.Anchored    = true
-    rim.Color       = GOLD_NEON
+    rim.Color       = LIGHT_BLUE_NEON
     rim.Material    = Enum.Material.Neon
     rim.CastShadow  = false
     rim.CanCollide  = false
@@ -150,6 +186,28 @@ local function createPhysicalWheel(origin, wheelIndex)
     pointer.Material   = Enum.Material.Neon
     pointer.CastShadow = false
     pointer.Parent     = folder
+
+    -- Confettis (Désactivés par défaut)
+    local confetti = Instance.new("ParticleEmitter")
+    confetti.Name = "Confetti"
+    confetti.Texture = "rbxassetid://5860882143" -- Texture confetti générique
+    confetti.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+        ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 0))
+    })
+    confetti.Size = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.5),
+        NumberSequenceKeypoint.new(1, 0.2)
+    })
+    confetti.Speed = NumberRange.new(20, 30)
+    confetti.SpreadAngle = Vector2.new(45, 45)
+    confetti.Acceleration = Vector3.new(0, -30, 0)
+    confetti.Lifetime = NumberRange.new(2, 4)
+    confetti.Rate = 0
+    confetti.Enabled = false
+    confetti.Parent = pointer
 
     -- Trail sur la jante
     local att0 = Instance.new("Attachment", wheel)
