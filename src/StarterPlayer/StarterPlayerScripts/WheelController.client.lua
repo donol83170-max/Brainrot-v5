@@ -42,9 +42,9 @@ local WHEEL_BLUE   = Color3.fromRGB(30, 100, 220)
 
 -- ── IDs des Decals uploadés ────────────────────────────────────────────────────
 local DECAL_IDS = {
-    [1] = 137995560327998, -- Roue Noob
-    [2] = 114355985856863, -- Roue Sigma
-    [3] = 104911990893082, -- Roue Ultra
+    [1] = 110862613756982, -- Roue Noob
+    [2] = 82741196283644,  -- Roue Sigma
+    [3] = 107234711297922, -- Roue Ultra
 }
 
 local function resolveAndApply(wheelId, imageLabel)
@@ -184,12 +184,12 @@ innerRingBorder.Parent = outerRing
 -- L'IMAGE DE LA ROUE (Texture uploadée - circulaire)
 local wheelImage = Instance.new("ImageLabel")
 wheelImage.Name             = "WheelImage"
-wheelImage.Size             = UDim2.new(1, 0, 1, 0) -- Prend TOUTE la place de l'anneau
+wheelImage.Size             = UDim2.new(1, 0, 1, 0) -- Taille exacte pour voir toute la roue
 wheelImage.AnchorPoint      = Vector2.new(0.5, 0.5)
 wheelImage.Position         = UDim2.new(0.5, 0, 0.5, 0)
 wheelImage.BackgroundTransparency = 1
 wheelImage.ZIndex           = 3
-wheelImage.ScaleType        = Enum.ScaleType.Fit
+wheelImage.ScaleType        = Enum.ScaleType.Stretch
 Instance.new("UICorner", wheelImage).CornerRadius = UDim.new(0.5, 0) -- Circulaire
 wheelImage.Parent           = innerRingBorder
 
@@ -206,42 +206,42 @@ labelLayer.ZIndex           = 4
 labelLayer.Parent           = innerRingBorder
 
 local function rebuildLabels(wheelId)
-    labelLayer.Rotation = wheelImage.Rotation -- Synchronise la rotation
+    labelLayer.Rotation = wheelImage.Rotation
     labelLayer:ClearAllChildren()
-    
+
     local items = LootTables.Wheels[wheelId] and LootTables.Wheels[wheelId].Items or {}
-    local labelRadius = (OUTER_SIZE / 2) * 0.68
+    local labelRadius = (OUTER_SIZE / 2) * 0.50 -- Mi-chemin entre centre et bord
+
     for i = 1, N do
         local item = items[i]
         if not item then continue end
-        
+
         local rarityInfo = Constants.RARITIES[item.Rarity]
         local weight = rarityInfo and rarityInfo.Weight or 0
-        
+
         local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
         local rad      = math.rad(midAngle)
-        local lx       = OUTER_SIZE / 2 + labelRadius * math.sin(rad)
-        local ly       = OUTER_SIZE / 2 - labelRadius * math.cos(rad)
+        local lx = OUTER_SIZE / 2 + labelRadius * math.sin(rad)
+        local ly = OUTER_SIZE / 2 - labelRadius * math.cos(rad)
 
         local lbl = Instance.new("TextLabel")
-        lbl.Size                   = UDim2.new(0, 110, 0, 44) -- Taille plus adaptée aux labels horizontaux
+        lbl.Size                   = UDim2.new(0, 65, 0, 32)
         lbl.AnchorPoint            = Vector2.new(0.5, 0.5)
         lbl.Position               = UDim2.new(0, lx, 0, ly)
-        lbl.Rotation               = -wheelImage.Rotation -- Compense la rotation pour rester droit
+        lbl.Rotation               = 0 -- Horizontal, compensé par updateLabelsOrientation
         lbl.BackgroundTransparency = 1
-        lbl.Text                   = string.format("%s\n<font color='#FFFF00'>%d%%</font>", item.Name, weight)
-        lbl.RichText               = true
+        lbl.Text                   = string.format("%s\n%d%%", item.Name, weight)
         lbl.TextColor3             = WHITE
         lbl.Font                   = Enum.Font.FredokaOne
-        lbl.TextSize               = 13
-        lbl.LineHeight             = 1.0
-        lbl.TextStrokeTransparency = 0.2
+        lbl.TextScaled             = true
+        lbl.TextStrokeTransparency = 0
+        lbl.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
         lbl.ZIndex                 = 7
         lbl.Parent                 = labelLayer
     end
 end
 
--- Synchronisation continue pour que les textes restent droits pendant le spin
+-- Maintient les labels horizontaux (sens de lecture) pendant que la roue tourne
 local function updateLabelsOrientation()
     for _, lbl in ipairs(labelLayer:GetChildren()) do
         if lbl:IsA("TextLabel") then
@@ -249,6 +249,8 @@ local function updateLabelsOrientation()
         end
     end
 end
+
+-- Labels tournent avec labelLayer naturellement (orientés dans les segments)
 
 -- ── Centre blanc ───────────────────────────────────────────────────────────────
 local centerDecor = Instance.new("Frame")
@@ -445,9 +447,7 @@ SpinResult.OnClientEvent:Connect(function(result)
 
     local lastSeg = math.floor(wheelDisk.Rotation / SEG_ANG)
     local conn = RunService.RenderStepped:Connect(function()
-        -- Garder les textes "au sens de lecture" (droits) pendant le spin
-        updateLabelsOrientation()
-
+        updateLabelsOrientation() -- Garde les textes horizontaux pendant le spin
         local curSeg = math.floor(wheelDisk.Rotation / SEG_ANG)
         if curSeg ~= lastSeg then
             lastSeg = curSeg

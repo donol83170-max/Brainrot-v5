@@ -25,9 +25,9 @@ local function getTrueImageId(decalId)
 end
 
 local DECAL_IDS = {
-    [1] = 137995560327998, -- Roue Noob
-    [2] = 114355985856863, -- Roue Sigma
-    [3] = 104911990893082, -- Roue Ultra
+    [1] = 110862613756982, -- Roue Noob
+    [2] = 82741196283644,  -- Roue Sigma
+    [3] = 107234711297922, -- Roue Ultra
 }
 
 local WHEEL_BLUE = Color3.fromRGB(30, 100, 220)
@@ -232,10 +232,12 @@ local function createPhysicalWheel(origin, wheelIndex)
     -- Résolution de la texture et application (Méthode validée par l'utilisateur)
     local wheelFace = Instance.new("ImageLabel")
     wheelFace.Name = "WheelFace"
-    wheelFace.Size = UDim2.new(1, 0, 1, 0)
+    wheelFace.Size = UDim2.new(1.1, 0, 1.1, 0) -- Agrandit pour remplir tout le cercle
+    wheelFace.AnchorPoint = Vector2.new(0.5, 0.5)
+    wheelFace.Position = UDim2.new(0.5, 0, 0.5, 0)
     wheelFace.BackgroundTransparency = 0
     wheelFace.BackgroundColor3 = WHEEL_BLUE
-    wheelFace.ScaleType = Enum.ScaleType.Fit
+    wheelFace.ScaleType = Enum.ScaleType.Stretch
     Instance.new("UICorner", wheelFace).CornerRadius = UDim.new(0.5, 0)
     wheelFace.Parent = surfaceGui
 
