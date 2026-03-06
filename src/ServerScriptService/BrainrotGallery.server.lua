@@ -28,6 +28,25 @@ local COL_WALL_LIGHT = Color3.fromRGB(226, 226, 226) -- Gris clair (murs altern�
 local COL_WALL_MID   = Color3.fromRGB(175, 175, 175) -- Gris moyen (murs alternés)
 local COL_PEDESTAL   = Color3.fromRGB(242, 243, 243) -- Blanc cassé (socles)
 local COL_PEDESTAL_TOP = Color3.fromRGB(255, 255, 255)
+local COL_GOLD       = Color3.fromRGB(255, 215,   0) -- Or (cadres)
+local COL_PLAQUE     = Color3.fromRGB( 20,  20,  25) -- Noir profond (plaque texto)
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- NOMS DES SLOTS (placeholder — modifie ici pour changer les noms exposés)
+-- Ordre : L1, R1, L2, R2, L3, R3, L4, R4, L5, R5
+-- ═══════════════════════════════════════════════════════════════════════════════
+local SLOT_NAMES: {string} = {
+    [1]  = "???  Slot 1",   -- L1 → première place gauche
+    [2]  = "???  Slot 2",   -- R1 → première place droite
+    [3]  = "???  Slot 3",
+    [4]  = "???  Slot 4",
+    [5]  = "???  Slot 5",
+    [6]  = "???  Slot 6",
+    [7]  = "???  Slot 7",
+    [8]  = "???  Slot 8",
+    [9]  = "???  Slot 9",
+    [10] = "???  Slot 10",  -- R5 → dernière place droite
+}
 
 -- Disposition
 local NUM_SIDES   = 5          -- 5 socles de chaque côté
@@ -192,6 +211,85 @@ for i = 1, NUM_SIDES do
         numLabel.TextSize               = 22
         numLabel.TextStrokeTransparency = 0.8
         numLabel.Parent                 = numBillboard
+
+        -- ── CADRE EN OR (fixé au mur face au couloir) ──────────────────────────
+        -- Le mur est à X = side * CORRIDOR_W/2 ; le cadre est légèrement en avant (relief)
+        local wallX   = side * (CORRIDOR_W / 2)
+        local reliefX = side * (CORRIDOR_W / 2 - WALL_T - 0.15)  -- 0.15 stud devant le mur
+        local frameH  = 10   -- Hauteur du cadre (zone d'exposition)
+        local frameW  = 9    -- Largeur du cadre
+        local frameT  = 0.35 -- Épaisseur du cadre
+        local frameCY = FLOOR_Y + 9  -- Centre vertical du cadre (à hauteur des yeux)
+
+        -- Barre du haut
+        makePart("FrameTop_" .. i .. sideLabel,
+            Vector3.new(frameW + frameT * 2, frameT, frameT),
+            Vector3.new(reliefX, frameCY + frameH / 2, placeZ),
+            COL_GOLD, Enum.Material.Metal
+        )
+        -- Barre du bas
+        makePart("FrameBot_" .. i .. sideLabel,
+            Vector3.new(frameW + frameT * 2, frameT, frameT),
+            Vector3.new(reliefX, frameCY - frameH / 2, placeZ),
+            COL_GOLD, Enum.Material.Metal
+        )
+        -- Barre gauche (du cadre, sens Z)
+        makePart("FrameLeft_" .. i .. sideLabel,
+            Vector3.new(frameT, frameH, frameT),
+            Vector3.new(reliefX, frameCY, placeZ - frameW / 2),
+            COL_GOLD, Enum.Material.Metal
+        )
+        -- Barre droite (du cadre, sens Z)
+        makePart("FrameRight_" .. i .. sideLabel,
+            Vector3.new(frameT, frameH, frameT),
+            Vector3.new(reliefX, frameCY, placeZ + frameW / 2),
+            COL_GOLD, Enum.Material.Metal
+        )
+
+        -- ── PLAQUE D'IDENTIFICATION (au pied du socle) ──────────────────────────
+        local slotIndex = (i - 1) * 2 + (side == -1 and 1 or 2)
+        local slotName  = SLOT_NAMES[slotIndex] or ("Slot " .. slotIndex)
+
+        -- Part noire plate, face côté couloir
+        local plaque = makePart(
+            "Plaque_" .. i .. sideLabel,
+            Vector3.new(7, 0.3, 1.5),
+            Vector3.new(baseX, FLOOR_Y + 1.55 + 0.15, placeZ),
+            COL_PLAQUE,
+            Enum.Material.SmoothPlastic
+        )
+        plaque.CanCollide = false
+        -- Fine bordure dorée autour de la plaque (top rim)
+        local plaqueRim = makePart(
+            "PlaqueRim_" .. i .. sideLabel,
+            Vector3.new(7.3, 0.1, 1.8),
+            Vector3.new(baseX, FLOOR_Y + 1.55, placeZ),
+            COL_GOLD,
+            Enum.Material.Metal
+        )
+        plaqueRim.CanCollide = false
+
+        -- SurfaceGui sur la face avant de la plaque (côté -Z = face au script d'entrée)
+        local sGui = Instance.new("SurfaceGui")
+        sGui.Name        = "NamePlaque"
+        sGui.Face        = Enum.NormalId.Top   -- Visible du dessus / joueur debout
+        sGui.CanvasSize  = Vector2.new(350, 60)
+        sGui.SizingMode  = Enum.SurfaceGuiSizingMode.FixedSize
+        sGui.AlwaysOnTop = false
+        sGui.Parent      = plaque
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size                   = UDim2.new(1, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text                   = slotName
+        nameLabel.TextColor3             = COL_GOLD
+        nameLabel.Font                   = Enum.Font.GothamBold
+        nameLabel.TextSize               = 22
+        nameLabel.TextXAlignment         = Enum.TextXAlignment.Center
+        nameLabel.TextYAlignment         = Enum.TextYAlignment.Center
+        nameLabel.TextStrokeTransparency = 0.6
+        nameLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
+        nameLabel.Parent                 = sGui
 
         -- Spot light au plafond pour chaque socle
         local spotLight = Instance.new("SpotLight")
