@@ -145,13 +145,23 @@ makePart(
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 3. PLAFOND (grille légère en LEGO)
 -- ══════════════════════════════════════════════════════════════════════════════
-makePart(
+local ceiling = makePart(
     "GalleryCeiling",
     Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
     Vector3.new(0, FLOOR_Y + WALL_H + 0.5, START_Z + GALLERY_LEN / 2),
-    COL_WALL_MID,
+    Color3.fromRGB(40, 40, 40),   -- Anthracite, symétrique avec le sol
     Enum.Material.SmoothPlastic,
     Enum.SurfaceType.Studs
+)
+ceiling.Reflectance = 0
+
+-- Ligne rouge au plafond (miroir de celle du sol)
+makePart(
+    "CeilingRedLine",
+    Vector3.new(1.5, 0.1, GALLERY_LEN + 8),
+    Vector3.new(0, FLOOR_Y + WALL_H, START_Z + GALLERY_LEN / 2),
+    COL_RED_LINE,
+    Enum.Material.SmoothPlastic
 )
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -351,33 +361,36 @@ local signRim = makePart(
 )
 signRim.CanCollide = false
 
--- SurfaceGui sur la face avant (-Z) de la plaque
--- Le texte "Base de {Joueur}" est mis à jour dynamiquement par GallerySign.client.lua
-local signGui = Instance.new("SurfaceGui")
-signGui.Name        = "GallerySignGui"
-signGui.Face        = Enum.NormalId.Front
-signGui.CanvasSize  = Vector2.new(700, 120)
-signGui.SizingMode  = Enum.SurfaceGuiSizingMode.FixedSize
-signGui.AlwaysOnTop = false
-signGui.MaxDistance = 1000   -- ← Empêche le texte de disparaitre en s'approchant
-signGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-signGui.Parent      = signPlaque
+-- ── ENSEIGNE — BillboardGui pour visibilité garantie à toute distance ─────────────
+-- (Le SurfaceGui peut être invis. si la face est mauvaise — BillboardGui n'a pas ce problème)
+local signBillboard = Instance.new("BillboardGui")
+signBillboard.Name           = "GallerySignBillboard"
+signBillboard.Size           = UDim2.new(0, 700, 0, 100)  -- Taille en pixels
+signBillboard.StudsOffset    = Vector3.new(0, 0, -1)       -- Légèrement en avant de la plaque
+signBillboard.AlwaysOnTop    = false
+signBillboard.MaxDistance    = 800
+signBillboard.ResetOnSpawn   = false
+signBillboard.Adornee        = signPlaque
+signBillboard.Parent         = galleryFolder
 
 local signLabel = Instance.new("TextLabel")
 signLabel.Name                   = "GallerySignLabel"
 signLabel.Size                   = UDim2.new(1, 0, 1, 0)
-signLabel.Position               = UDim2.new(0, 0, 0, 0)
-signLabel.BackgroundTransparency = 1
+signLabel.BackgroundColor3       = Color3.new(0, 0, 0)     -- Fond noir pour contraste
+signLabel.BackgroundTransparency = 0.1
 signLabel.Text                   = "★  BASE BRAINROT  ★"
-signLabel.TextColor3             = Color3.new(1, 1, 1)         -- Blanc pur = max contraste
-signLabel.Font                   = Enum.Font.GothamBlack        -- Plus gras que FredokaOne
-signLabel.TextSize               = 58
-signLabel.TextXAlignment         = Enum.TextXAlignment.Center
-signLabel.TextYAlignment         = Enum.TextYAlignment.Center
-signLabel.TextStrokeTransparency = 0                            -- Contour noir plein
+signLabel.TextColor3             = Color3.fromRGB(255, 230, 0)  -- Jaune fluo
+signLabel.Font                   = Enum.Font.GothamBlack
+signLabel.TextScaled             = true                    -- S'adapte automatiquement
+signLabel.TextStrokeTransparency = 0                       -- Contour noir plein
 signLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
-signLabel.ZIndex                 = 2
-signLabel.Parent                 = signGui
+signLabel.ZIndex                 = 10
+signLabel.Parent                 = signBillboard
+
+-- Coins arrondis
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent       = signLabel
 
 
 print("🏛️ [BrainrotGallery] Galerie générée ! " .. (NUM_SIDES * 2) .. " socles prêts.")
@@ -409,16 +422,16 @@ print("💡 [BrainrotGallery] Éclairage plafond ajouté")
 --    SurfaceGui étant répliqué, tous les clients voient le bon texte
 -- ══════════════════════════════════════════════════════════════════════════════
 local function updateSign(playerName: string)
-    local plaque = galleryFolder:FindFirstChild("GallerySignPlaque")
-    if not plaque then return end
-    local gui = plaque:FindFirstChild("GallerySignGui")
-    if not gui then return end
-    local lbl = gui:FindFirstChild("GallerySignLabel")
+    -- Le label est maintenant dans GallerySignBillboard (pas dans GallerySignGui)
+    local billboard = galleryFolder:FindFirstChild("GallerySignBillboard")
+    if not billboard then return end
+    local lbl = billboard:FindFirstChild("GallerySignLabel")
     if lbl then
         lbl.Text = "★  BASE DE " .. string.upper(playerName) .. "  ★"
         print("🏷️ [BrainrotGallery] Enseigne : BASE DE " .. playerName)
     end
 end
+
 
 -- Premier joueur qui rejoint (en jeu normal)
 Players.PlayerAdded:Connect(function(player)
