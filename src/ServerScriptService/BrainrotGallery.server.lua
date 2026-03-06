@@ -75,6 +75,7 @@ local function makePart(name: string, size: Vector3, position: Vector3, color: C
     p.CanCollide  = true
     p.Color       = color
     p.Material    = material
+    p.Reflectance = 0          -- Aucun reflet sur aucune brique
     p.TopSurface  = topSurface or Enum.SurfaceType.Smooth
     p.BottomSurface = Enum.SurfaceType.Smooth
     p.Parent      = galleryFolder
@@ -288,11 +289,11 @@ for i = 1, NUM_SIDES do
         floorSpotPart.CanCollide = false
 
         local floorSpot = Instance.new("SpotLight")
-        floorSpot.Face       = Enum.NormalId.Top    -- orienté vers le haut
-        floorSpot.Brightness = 5                    -- fort pour un effet théâtral
-        floorSpot.Range      = 18                   -- couvre le cadre doré
-        floorSpot.Angle      = 40                   -- cône large pour couvrir tout le cadre
-        floorSpot.Color      = Color3.fromRGB(255, 245, 200) -- blanc chaud
+        floorSpot.Face       = Enum.NormalId.Top
+        floorSpot.Brightness = 1.5   -- Réduit (5→1.5) : accent doux, pas de flash
+        floorSpot.Range      = 12    -- Portée réduite, cible le cadre uniquement
+        floorSpot.Angle      = 30    -- Cône resserré = lumière nette
+        floorSpot.Color      = Color3.fromRGB(255, 240, 200)
         floorSpot.Shadows    = true
         floorSpot.Parent     = floorSpotPart
     end
@@ -391,10 +392,10 @@ for j = 1, NUM_SIDES do
     )
     lightPart.CanCollide = false
     local pt = Instance.new("PointLight")
-    pt.Brightness = 5        -- Bien lumineux
-    pt.Range      = CORRIDOR_W * 2
-    pt.Color      = Color3.fromRGB(255, 245, 210)
-    pt.Shadows    = false    -- Perf : pas d'ombres
+    pt.Brightness = 1.2   -- Réduit (5 → 1.2) : ambiance douce, pas éblouissant
+    pt.Range      = CORRIDOR_W + 5  -- Portée réduite (pas besoin d'éclairer au-delà des murs)
+    pt.Color      = Color3.fromRGB(255, 240, 200)
+    pt.Shadows    = false
     pt.Parent     = lightPart
 end
 print("💡 [BrainrotGallery] Éclairage plafond ajouté")
