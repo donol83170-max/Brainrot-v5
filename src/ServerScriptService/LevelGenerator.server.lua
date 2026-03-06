@@ -357,4 +357,66 @@ atmo.Haze      = 1.5
 atmo.Parent    = Lighting
 
 print("✨ [LevelGenerator] Ambiance configurée")
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 6. SOL LEGO — Grille de dalles vertes avec Studs apparents
+-- ══════════════════════════════════════════════════════════════════════════════
+local legoGround = Instance.new("Folder")
+legoGround.Name   = "LegoGround"
+legoGround.Parent = envFolder
+
+local TILE_W  = 50   -- Largeur d'une tuile (studs)
+local TILE_D  = 50   -- Profondeur d'une tuile
+local TILE_H  = 1    -- Épaisseur (1 stud)
+local GRID_CX = 0    -- Centre X de la grille
+local GRID_CZ = 0    -- Centre Z de la grille
+
+-- Couleurs alternées pour l'effet LEGO classique
+local LEGO_COLORS = {
+    Color3.fromRGB( 75, 151,  74), -- Vert vif LEGO (Bright Green)
+    Color3.fromRGB( 88, 166,  86), -- Vert moyen
+    Color3.fromRGB( 63, 137,  61), -- Vert foncé
+}
+
+-- 12 colonnes × 8 rangées = 600 × 400 studs couverts
+local COLS = 12
+local ROWS = 8
+
+for row = 0, ROWS - 1 do
+    for col = 0, COLS - 1 do
+        local tileX = GRID_CX + (col - COLS / 2 + 0.5) * TILE_W
+        local tileZ = GRID_CZ + (row - ROWS / 2 + 0.5) * TILE_D
+        local colorIdx = ((row + col) % #LEGO_COLORS) + 1
+
+        local tile = Instance.new("Part")
+        tile.Name       = "Tile_" .. row .. "_" .. col
+        tile.Size       = Vector3.new(TILE_W, TILE_H, TILE_D)
+        tile.Position   = Vector3.new(tileX, -1.5, tileZ) -- dessous du sol principal
+        tile.Anchored   = true
+        tile.CanCollide = false  -- Le sol principal (WorldAssets) reste la vraie collision
+        tile.Color      = LEGO_COLORS[colorIdx]
+        tile.Material   = Enum.Material.SmoothPlastic
+        tile.TopSurface = Enum.SurfaceType.Studs  -- ← STYLE LEGO
+        tile.BottomSurface = Enum.SurfaceType.Smooth
+        tile.Parent     = legoGround
+    end
+end
+print("🟩 [LevelGenerator] Sol LEGO généré (" .. (COLS * ROWS) .. " tuiles)")
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 7. LAMPADAIRES SUPPLÉMENTAIRES — Allée vers la galerie (Z = 80 à 110)
+-- ══════════════════════════════════════════════════════════════════════════════
+local GALLERY_LAMP_POSITIONS = {
+    Vector3.new(-20, 0, 82),
+    Vector3.new( 20, 0, 82),
+    Vector3.new(-20, 0, 100),
+    Vector3.new( 20, 0, 100),
+}
+
+for i, pos in ipairs(GALLERY_LAMP_POSITIONS) do
+    createLamppost(pos, #LAMPPOST_POSITIONS + i)
+end
+print("💡 [LevelGenerator] Lampadaires galerie ajoutés")
+
 print("🌍 [LevelGenerator] Génération du monde terminée !")
+

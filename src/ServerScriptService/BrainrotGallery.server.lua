@@ -5,6 +5,7 @@
 -- Position : derrière le spawn (Z > 80), aligné sur l'axe central
 
 local Workspace = game:GetService("Workspace")
+local Players   = game:GetService("Players")
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DOSSIERS
@@ -376,3 +377,50 @@ signLabel.Parent                 = signGui
 
 print("🏛️ [BrainrotGallery] Galerie générée ! " .. (NUM_SIDES * 2) .. " socles prêts.")
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 6. ÉCLAIRAGE PLAFOND — PointLights réguliers pour une galerie bien éclairée
+-- ══════════════════════════════════════════════════════════════════════════════
+for j = 1, NUM_SIDES do
+    local lightZ = START_Z + j * PLACE_GAP
+    local lightPart = makePart(
+        "CeilingLight_" .. j,
+        Vector3.new(1.5, 0.3, 1.5),
+        Vector3.new(0, FLOOR_Y + WALL_H - 0.5, lightZ),
+        Color3.fromRGB(255, 255, 240),  -- Blanc chaud
+        Enum.Material.Neon
+    )
+    lightPart.CanCollide = false
+    local pt = Instance.new("PointLight")
+    pt.Brightness = 5        -- Bien lumineux
+    pt.Range      = CORRIDOR_W * 2
+    pt.Color      = Color3.fromRGB(255, 245, 210)
+    pt.Shadows    = false    -- Perf : pas d'ombres
+    pt.Parent     = lightPart
+end
+print("💡 [BrainrotGallery] Éclairage plafond ajouté")
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 7. ENSEIGNE DYNAMIQUE — nom du joueur mis à jour côté SERVEUR
+--    SurfaceGui étant répliqué, tous les clients voient le bon texte
+-- ══════════════════════════════════════════════════════════════════════════════
+local function updateSign(playerName: string)
+    local plaque = galleryFolder:FindFirstChild("GallerySignPlaque")
+    if not plaque then return end
+    local gui = plaque:FindFirstChild("GallerySignGui")
+    if not gui then return end
+    local lbl = gui:FindFirstChild("GallerySignLabel")
+    if lbl then
+        lbl.Text = "★  BASE DE " .. string.upper(playerName) .. "  ★"
+        print("🏷️ [BrainrotGallery] Enseigne : BASE DE " .. playerName)
+    end
+end
+
+-- Premier joueur qui rejoint (en jeu normal)
+Players.PlayerAdded:Connect(function(player)
+    updateSign(player.Name)
+end)
+-- Cas Studio : joueur déjà présent au démarrage du script
+for _, p in ipairs(Players:GetPlayers()) do
+    updateSign(p.Name)
+    break  -- Un seul propriétaire par base
+end
