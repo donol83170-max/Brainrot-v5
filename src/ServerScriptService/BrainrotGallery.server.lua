@@ -23,7 +23,7 @@ galleryFolder.Parent = mapFolder
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- Couleurs
-local COL_FLOOR      = Color3.fromRGB(163, 162, 165) -- Gris foncé (sol)
+local COL_FLOOR      = Color3.fromRGB( 50,  50,  50) -- Gris anthracite (plus sombre, anti-éblouissement)
 local COL_RED_LINE   = Color3.fromRGB(196,  40,  28) -- Bright Red (ligne centrale)
 local COL_WALL_LIGHT = Color3.fromRGB(226, 226, 226) -- Gris clair (murs alternés)
 local COL_WALL_MID   = Color3.fromRGB(175, 175, 175) -- Gris moyen (murs alternés)
@@ -354,25 +354,29 @@ signRim.CanCollide = false
 -- SurfaceGui sur la face avant (-Z) de la plaque
 -- Le texte "Base de {Joueur}" est mis à jour dynamiquement par GallerySign.client.lua
 local signGui = Instance.new("SurfaceGui")
-signGui.Name       = "GallerySignGui"
-signGui.Face       = Enum.NormalId.Front   -- face vers l'entrée (-Z)
-signGui.CanvasSize = Vector2.new(700, 120)
-signGui.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+signGui.Name        = "GallerySignGui"
+signGui.Face        = Enum.NormalId.Front
+signGui.CanvasSize  = Vector2.new(700, 120)
+signGui.SizingMode  = Enum.SurfaceGuiSizingMode.FixedSize
 signGui.AlwaysOnTop = false
-signGui.Parent     = signPlaque
+signGui.MaxDistance = 1000   -- ← Empêche le texte de disparaitre en s'approchant
+signGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+signGui.Parent      = signPlaque
 
 local signLabel = Instance.new("TextLabel")
 signLabel.Name                   = "GallerySignLabel"
 signLabel.Size                   = UDim2.new(1, 0, 1, 0)
+signLabel.Position               = UDim2.new(0, 0, 0, 0)
 signLabel.BackgroundTransparency = 1
 signLabel.Text                   = "★  BASE BRAINROT  ★"
-signLabel.TextColor3             = COL_GOLD
-signLabel.Font                   = Enum.Font.FredokaOne
+signLabel.TextColor3             = Color3.new(1, 1, 1)         -- Blanc pur = max contraste
+signLabel.Font                   = Enum.Font.GothamBlack        -- Plus gras que FredokaOne
 signLabel.TextSize               = 58
 signLabel.TextXAlignment         = Enum.TextXAlignment.Center
 signLabel.TextYAlignment         = Enum.TextYAlignment.Center
-signLabel.TextStrokeTransparency = 0.3
-signLabel.TextStrokeColor3       = Color3.fromRGB(80, 10, 0)
+signLabel.TextStrokeTransparency = 0                            -- Contour noir plein
+signLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
+signLabel.ZIndex                 = 2
 signLabel.Parent                 = signGui
 
 
