@@ -8,7 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Constants"))
 
-local DATASTORE_NAME = "Brainrot_v1"
+local DATASTORE_NAME = "Brainrot_v2" -- v2 : données de départ avec 300 Gold + 1 Ticket
 local playerDataStore
 
 -- Protection contre les erreurs si l'API n'est pas activée dans Studio

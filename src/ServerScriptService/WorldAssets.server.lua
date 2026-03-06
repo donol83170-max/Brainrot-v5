@@ -374,7 +374,7 @@ print("⛲ [WorldAssets] Fontaine centrale créée")
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Le spawn sera à Z=45, les roues forment un arc à Z négatif face au spawn
 local WHEEL_RADIUS = 35 -- Distance du centre
-local SPAWN_POS = Vector3.new(0, 0.5, 45)
+local SPAWN_POS = Vector3.new(0, 0.5, 80)
 
 -- Positions directes pour plus de contrôle sur le placement
 -- Roue Noob devant la fontaine, Sigma et Ultra entre les bâtiments (gauche/droite)

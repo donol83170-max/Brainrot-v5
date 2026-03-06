@@ -29,9 +29,21 @@ LootTables.Wheels = {
             { Id = "SkibidiHead",  Name = "Tête Skibidi",      Rarity = "LEGENDARY", SegmentId = 9  },
             { Id = "GoldenSigma",  Name = "Sigma d'Or",        Rarity = "LEGENDARY", SegmentId = 10 },
 
-            -- ULTRA (2%) — segments 11, 12
+            -- ULTRA (2%) — segment 11
             { Id = "GalaxySigma",    Name = "Sigma Galactique", Rarity = "ULTRA",    SegmentId = 11 },
-            { Id = "DiamondSkibidi", Name = "Skibidi Diamant",  Rarity = "ULTRA",    SegmentId = 12 },
+
+            -- NORMAL (60%) — segments 12, 13 (extra)
+            { Id = "DiamondSkibidi", Name = "Skibidi Diamant",  Rarity = "NORMAL",   SegmentId = 12 },
+            { Id = "JokeCrafter",    Name = "Joke Crafter",     Rarity = "NORMAL",   SegmentId = 13 },
+
+            -- RARE (20%) — segment 14 (extra)
+            { Id = "BrainrotKing",   Name = "Roi Brainrot",     Rarity = "RARE",     SegmentId = 14 },
+
+            -- MYTHIC (10%) — segment 15 (extra)
+            { Id = "SkibidiGod",     Name = "Dieu Skibidi",     Rarity = "MYTHIC",   SegmentId = 15 },
+
+            -- ULTRA (2%) — segment 16 (extra)
+            { Id = "UltimateNoob",   Name = "Noob Ultime",      Rarity = "ULTRA",    SegmentId = 16 },
         }
     },
 
@@ -59,9 +71,21 @@ LootTables.Wheels = {
             { Id = "UltraRizzler",  Name = "Rizzler Ultra",       Rarity = "LEGENDARY", SegmentId = 9  },
             { Id = "SigmaChad",     Name = "Sigma Chad",          Rarity = "LEGENDARY", SegmentId = 10 },
 
-            -- ULTRA (2%) — segments 11, 12
+            -- ULTRA (2%) — segment 11
             { Id = "OmegaSigma",    Name = "Omega Sigma",         Rarity = "ULTRA",     SegmentId = 11 },
-            { Id = "DivineRizzler", Name = "Rizzler Divin",       Rarity = "ULTRA",     SegmentId = 12 },
+
+            -- NORMAL (60%) — segments 12, 13 (extra)
+            { Id = "DivineRizzler", Name = "Rizzler Divin",        Rarity = "NORMAL",    SegmentId = 12 },
+            { Id = "ChadVibes",     Name = "Chad Vibes",           Rarity = "NORMAL",    SegmentId = 13 },
+
+            -- RARE (20%) — segment 14 (extra)
+            { Id = "SigmaFlash",    Name = "Sigma Flash",          Rarity = "RARE",      SegmentId = 14 },
+
+            -- MYTHIC (10%) — segment 15 (extra)
+            { Id = "MegaRizzler",   Name = "Méga Rizzler",         Rarity = "MYTHIC",    SegmentId = 15 },
+
+            -- ULTRA (2%) — segment 16 (extra)
+            { Id = "AbsoluteSigma", Name = "Sigma Absolu",         Rarity = "ULTRA",     SegmentId = 16 },
         }
     },
 
@@ -89,9 +113,21 @@ LootTables.Wheels = {
             { Id = "UniverseChad",   Name = "Chad de l'Univers", Rarity = "LEGENDARY", SegmentId = 9  },
             { Id = "CosmicSkibidi",  Name = "Skibidi Cosmique",  Rarity = "LEGENDARY", SegmentId = 10 },
 
-            -- ULTRA (2%) — segments 11, 12
+            -- ULTRA (2%) — segment 11
             { Id = "AbsoluteGigachad", Name = "Gigachad Absolu",    Rarity = "ULTRA",  SegmentId = 11 },
-            { Id = "TrueOmegaSigma",   Name = "Vrai Omega Sigma",   Rarity = "ULTRA",  SegmentId = 12 },
+
+            -- NORMAL (60%) — segments 12, 13 (extra)
+            { Id = "TrueOmegaSigma",   Name = "Vrai Omega Sigma",   Rarity = "NORMAL", SegmentId = 12 },
+            { Id = "StarNoob",         Name = "Noob Étoile",        Rarity = "NORMAL", SegmentId = 13 },
+
+            -- RARE (20%) — segment 14 (extra)
+            { Id = "NebulaSigma",      Name = "Sigma Nébuleux",     Rarity = "RARE",   SegmentId = 14 },
+
+            -- MYTHIC (10%) — segment 15 (extra)
+            { Id = "CelestialRizz",    Name = "Rizz Céleste",       Rarity = "MYTHIC", SegmentId = 15 },
+
+            -- ULTRA (2%) — segment 16 (extra)
+            { Id = "CosmicGigachad",   Name = "Gigachad Cosmique",  Rarity = "ULTRA",  SegmentId = 16 },
         }
     },
 }

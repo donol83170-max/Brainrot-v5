@@ -84,7 +84,7 @@ end
 
 -- ── Config roue ────────────────────────────────────────────────────────────────
 local WHEEL_ITEMS = LootTables.Wheels[1].Items
-local N       = 12
+local N       = 16
 local SEG_ANG = 360 / N
 local DIAM    = 425 -- Réduit de 5% supplémentaires (450 -> 425)
 local RAD     = DIAM / 2
@@ -206,11 +206,11 @@ labelLayer.ZIndex           = 4
 labelLayer.Parent           = innerRingBorder
 
 local function rebuildLabels(wheelId)
-    labelLayer.Rotation = wheelImage.Rotation
+    labelLayer.Rotation = 0
     labelLayer:ClearAllChildren()
 
     local items = LootTables.Wheels[wheelId] and LootTables.Wheels[wheelId].Items or {}
-    local labelRadius = (OUTER_SIZE / 2) * 0.50 -- Mi-chemin entre centre et bord
+    local halfSize = OUTER_SIZE / 2
 
     for i = 1, N do
         local item = items[i]
@@ -219,27 +219,55 @@ local function rebuildLabels(wheelId)
         local rarityInfo = Constants.RARITIES[item.Rarity]
         local weight = rarityInfo and rarityInfo.Weight or 0
 
-        local midAngle = (i - 1) * SEG_ANG + SEG_ANG / 2
+        local segId    = item.SegmentId or i
+        local midAngle = (segId - 1) * SEG_ANG + SEG_ANG / 2
         local rad      = math.rad(midAngle)
-        local lx = OUTER_SIZE / 2 + labelRadius * math.sin(rad)
-        local ly = OUTER_SIZE / 2 - labelRadius * math.cos(rad)
 
-        local lbl = Instance.new("TextLabel")
-        lbl.Size                   = UDim2.new(0, 65, 0, 32)
-        lbl.AnchorPoint            = Vector2.new(0.5, 0.5)
-        lbl.Position               = UDim2.new(0, lx, 0, ly)
-        lbl.Rotation               = 0 -- Horizontal, compensé par updateLabelsOrientation
-        lbl.BackgroundTransparency = 1
-        lbl.Text                   = string.format("%s\n%d%%", item.Name, weight)
-        lbl.TextColor3             = WHITE
-        lbl.Font                   = Enum.Font.FredokaOne
-        lbl.TextScaled             = true
-        lbl.TextStrokeTransparency = 0
-        lbl.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
-        lbl.ZIndex                 = 7
-        lbl.Parent                 = labelLayer
+        -- ── NOM : long du rayon (le long de la ligne du segment) ──────────────
+        -- Positionné à 58% du rayon, orienté radialement
+        local nameR = halfSize * 0.58
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size                   = UDim2.new(0, 72, 0, 14) -- Long (radial) × étroit (travers)
+        nameLbl.AnchorPoint            = Vector2.new(0.5, 0.5)
+        nameLbl.Position               = UDim2.new(0, halfSize + nameR * math.sin(rad),
+                                                      0, halfSize - nameR * math.cos(rad))
+        nameLbl.Rotation               = midAngle  -- Orienté le long du rayon
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text                   = item.Name
+        nameLbl.TextColor3             = WHITE
+        nameLbl.Font                   = Enum.Font.FredokaOne
+        nameLbl.TextScaled             = true
+        nameLbl.TextWrapped            = false
+        nameLbl.TextStrokeTransparency = 0
+        nameLbl.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+        nameLbl.ZIndex                 = 7
+        nameLbl.Parent                 = labelLayer
+
+        -- ── POURCENTAGE : au milieu du segment ────────────────────────────────
+        local pctR = halfSize * 0.28
+        local pctLbl = Instance.new("TextLabel")
+        pctLbl.Size                   = UDim2.new(0, 34, 0, 16)
+        pctLbl.AnchorPoint            = Vector2.new(0.5, 0.5)
+        pctLbl.Position               = UDim2.new(0, halfSize + pctR * math.sin(rad),
+                                                     0, halfSize - pctR * math.cos(rad))
+        pctLbl.Rotation               = midAngle  -- Aussi orienté pour cohérence visuelle
+        pctLbl.BackgroundTransparency = 1
+        pctLbl.Text                   = weight .. "%"
+        pctLbl.TextColor3             = WHITE
+        pctLbl.Font                   = Enum.Font.FredokaOne
+        pctLbl.TextScaled             = true
+        pctLbl.TextWrapped            = false
+        pctLbl.TextStrokeTransparency = 0
+        pctLbl.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+        pctLbl.ZIndex                 = 7
+        pctLbl.Parent                 = labelLayer
     end
+
+    -- Synchronise la rotation du calque avec la roue
+    labelLayer.Rotation = wheelImage.Rotation
 end
+
+
 
 -- Maintient les labels horizontaux (sens de lecture) pendant que la roue tourne
 local function updateLabelsOrientation()
