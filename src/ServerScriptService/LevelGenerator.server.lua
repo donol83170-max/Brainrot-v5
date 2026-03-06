@@ -284,7 +284,6 @@ local LAMPPOST_POSITIONS = {
 	Vector3.new(100, 0, 0),
 	Vector3.new(100, 0, 50),
 	Vector3.new(100, 0, -50),
-	Vector3.new(0, 0, 80),
 	Vector3.new(0, 0, -80),
 }
 
@@ -346,6 +345,13 @@ Lighting.Brightness    = 2
 Lighting.OutdoorAmbient = Color3.fromRGB(128, 140, 160)
 Lighting.Ambient        = Color3.fromRGB(50, 50, 60)
 
+-- Bloom : très faible pour éviter le halo sur les néons
+local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+bloom.Intensity  = 0.1   -- Quasi invisible (défaut Roblox ≈ 1.0)
+bloom.Size       = 14    -- Taille réduite
+bloom.Threshold  = 0.95  -- Ne touche que les surfaces vraiment saturées
+bloom.Parent     = Lighting
+
 -- Atmosphère
 local atmo = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
 atmo.Density   = 0.3
@@ -402,21 +408,6 @@ for row = 0, ROWS - 1 do
     end
 end
 print("🟩 [LevelGenerator] Sol LEGO généré (" .. (COLS * ROWS) .. " tuiles)")
-
--- ══════════════════════════════════════════════════════════════════════════════
--- 7. LAMPADAIRES SUPPLÉMENTAIRES — Allée vers la galerie (Z = 80 à 110)
--- ══════════════════════════════════════════════════════════════════════════════
-local GALLERY_LAMP_POSITIONS = {
-    Vector3.new(-20, 0, 82),
-    Vector3.new( 20, 0, 82),
-    Vector3.new(-20, 0, 100),
-    Vector3.new( 20, 0, 100),
-}
-
-for i, pos in ipairs(GALLERY_LAMP_POSITIONS) do
-    createLamppost(pos, #LAMPPOST_POSITIONS + i)
-end
-print("💡 [LevelGenerator] Lampadaires galerie ajoutés")
 
 print("🌍 [LevelGenerator] Génération du monde terminée !")
 

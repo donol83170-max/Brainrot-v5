@@ -408,8 +408,8 @@ spawn.Enabled      = true
 spawn.Neutral      = true
 spawn.Duration     = 0           -- Pas de temps de respawn forcé
 
--- Regarde vers la fontaine au centre
-spawn.CFrame = CFrame.lookAt(SPAWN_POS, Vector3.new(0, 5, 0))
+-- Regarde vers la galerie (entrée à Z ≈ 110, spawn à Z=80)
+spawn.CFrame = CFrame.lookAt(SPAWN_POS, Vector3.new(0, 0.5, 110))
 spawn.Parent = Workspace
 
 -- Supprimer le Decal bleu par défaut que Roblox ajoute automatiquement
