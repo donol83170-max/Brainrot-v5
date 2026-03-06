@@ -274,21 +274,26 @@ for i = 1, NUM_SIDES do
         nameLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
         nameLabel.Parent                 = sGui
 
-        -- Spot light au plafond pour chaque socle
-        local spotLight = Instance.new("SpotLight")
-        spotLight.Face       = Enum.NormalId.Bottom
-        spotLight.Brightness = 3
-        spotLight.Range      = 20
-        spotLight.Angle      = 35
-        spotLight.Color      = Color3.fromRGB(255, 240, 220) -- Lumière chaude
-        spotLight.Shadows    = true
-        spotLight.Parent = makePart(
-            "SpotLightPart_" .. i .. sideLabel,
-            Vector3.new(0.5, 0.5, 0.5),
-            Vector3.new(baseX, FLOOR_Y + WALL_H - 1, placeZ),
-            Color3.fromRGB(50, 50, 50),
+        -- ── SPOT AU SOL (orienté vers le haut — effet dramatique) ───────────────
+        -- Petite Part noire au sol, juste devant le socle côté couloir
+        local floorSpotPart = makePart(
+            "FloorSpot_" .. i .. sideLabel,
+            Vector3.new(0.6, 0.3, 0.6),
+            -- Placé entre le socle et le centre du couloir, à la surface du sol
+            Vector3.new(baseX - side * 4, FLOOR_Y + 0.15, placeZ),
+            Color3.fromRGB(30, 30, 30),
             Enum.Material.Metal
         )
+        floorSpotPart.CanCollide = false
+
+        local floorSpot = Instance.new("SpotLight")
+        floorSpot.Face       = Enum.NormalId.Top    -- orienté vers le haut
+        floorSpot.Brightness = 5                    -- fort pour un effet théâtral
+        floorSpot.Range      = 18                   -- couvre le cadre doré
+        floorSpot.Angle      = 40                   -- cône large pour couvrir tout le cadre
+        floorSpot.Color      = Color3.fromRGB(255, 245, 200) -- blanc chaud
+        floorSpot.Shadows    = true
+        floorSpot.Parent     = floorSpotPart
     end
 end
 
@@ -355,18 +360,19 @@ signGui.AlwaysOnTop = false
 signGui.Parent     = signPlaque
 
 local signLabel = Instance.new("TextLabel")
-signLabel.Name                   = "PlayerNameLabel"  -- trouvé par le LocalScript
+signLabel.Name                   = "GallerySignLabel"
 signLabel.Size                   = UDim2.new(1, 0, 1, 0)
 signLabel.BackgroundTransparency = 1
-signLabel.Text                   = "✦  Base de {Joueur}  ✦"  -- placeholder
+signLabel.Text                   = "★  BASE BRAINROT  ★"
 signLabel.TextColor3             = COL_GOLD
 signLabel.Font                   = Enum.Font.FredokaOne
-signLabel.TextSize               = 52
+signLabel.TextSize               = 58
 signLabel.TextXAlignment         = Enum.TextXAlignment.Center
 signLabel.TextYAlignment         = Enum.TextYAlignment.Center
-signLabel.TextStrokeTransparency = 0.4
-signLabel.TextStrokeColor3       = Color3.fromRGB(60, 0, 0)
+signLabel.TextStrokeTransparency = 0.3
+signLabel.TextStrokeColor3       = Color3.fromRGB(80, 10, 0)
 signLabel.Parent                 = signGui
+
 
 print("🏛️ [BrainrotGallery] Galerie générée ! " .. (NUM_SIDES * 2) .. " socles prêts.")
 
