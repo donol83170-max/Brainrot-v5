@@ -261,33 +261,165 @@ local function createPhysicalWheel(origin, wheelIndex)
     print(string.format("🏗️ [WorldAssets] Roue %d construite en (%d, %d, %d)", wheelIndex, ox, oy, oz))
 end
 
--- ── Création des 3 roues ───────────────────────────────────────────────────────
-createPhysicalWheel(Vector3.new(  0, 0, 0), 1)   -- Roue Noob   (centre)
-createPhysicalWheel(Vector3.new(-70, 0, 0), 2)   -- Roue Sigma  (gauche)
-createPhysicalWheel(Vector3.new( 70, 0, 0), 3)   -- Roue Ultra  (droite)
+-- ══════════════════════════════════════════════════════════════════════════════
+-- FONTAINE CENTRALE
+-- ══════════════════════════════════════════════════════════════════════════════
+local fountainFolder = Instance.new("Folder")
+fountainFolder.Name = "Fountain"
+fountainFolder.Parent = assetsFolder
 
--- ── SpawnLocation (face aux roues) ─────────────────────────────────────────────
--- Nettoyage des anciens spawns pour éviter l'aléatoire
+-- Bassin extérieur (marbre)
+local basin = Instance.new("Part")
+basin.Name        = "Basin"
+basin.Shape       = Enum.PartType.Cylinder
+basin.Size        = Vector3.new(2, 20, 20) -- Hauteur 2, Ø20
+basin.CFrame      = CFrame.new(0, 1, 0) * CFrame.Angles(0, 0, math.rad(90))
+basin.Anchored    = true
+basin.Color       = Color3.fromRGB(200, 195, 185) -- Marbre clair
+basin.Material    = Enum.Material.Marble
+basin.Parent      = fountainFolder
+
+-- Eau intérieure (transparent)
+local water = Instance.new("Part")
+water.Name        = "Water"
+water.Shape       = Enum.PartType.Cylinder
+water.Size        = Vector3.new(1.5, 18, 18) -- Légèrement plus petit que le bassin
+water.CFrame      = CFrame.new(0, 1.3, 0) * CFrame.Angles(0, 0, math.rad(90))
+water.Anchored    = true
+water.CanCollide  = false
+water.Color       = Color3.fromRGB(60, 150, 220) -- Bleu eau
+water.Material    = Enum.Material.Glass
+water.Transparency = 0.4
+water.Parent      = fountainFolder
+
+-- Pilier central
+local pillar = Instance.new("Part")
+pillar.Name       = "Pillar"
+pillar.Shape      = Enum.PartType.Cylinder
+pillar.Size       = Vector3.new(10, 3, 3) -- Hauteur 10, Ø3
+pillar.CFrame     = CFrame.new(0, 6, 0) * CFrame.Angles(0, 0, math.rad(90))
+pillar.Anchored   = true
+pillar.Color      = Color3.fromRGB(210, 205, 195)
+pillar.Material   = Enum.Material.Marble
+pillar.Parent     = fountainFolder
+
+-- Sphère dorée décorative au sommet
+local sphere = Instance.new("Part")
+sphere.Name       = "GoldenSphere"
+sphere.Shape      = Enum.PartType.Ball
+sphere.Size       = Vector3.new(3, 3, 3)
+sphere.Position   = Vector3.new(0, 12.5, 0)
+sphere.Anchored   = true
+sphere.CanCollide = false
+sphere.Color      = Color3.fromRGB(255, 215, 0) -- Or
+sphere.Material   = Enum.Material.Neon
+sphere.Parent     = fountainFolder
+
+-- Particules d'eau (jaillit vers le haut puis retombe)
+local waterEmitter = Instance.new("ParticleEmitter")
+waterEmitter.Name         = "WaterSpray"
+waterEmitter.Texture      = "rbxassetid://241685484" -- Particule blanche douce
+waterEmitter.Color        = ColorSequence.new(Color3.fromRGB(180, 220, 255))
+waterEmitter.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.3),
+    NumberSequenceKeypoint.new(0.5, 0.5),
+    NumberSequenceKeypoint.new(1, 1),
+})
+waterEmitter.Size = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.3),
+    NumberSequenceKeypoint.new(0.5, 0.8),
+    NumberSequenceKeypoint.new(1, 0.1),
+})
+waterEmitter.Speed        = NumberRange.new(8, 14)
+waterEmitter.SpreadAngle  = Vector2.new(15, 15)
+waterEmitter.Acceleration = Vector3.new(0, -20, 0) -- Gravité pour retomber
+waterEmitter.Lifetime     = NumberRange.new(1, 2)
+waterEmitter.Rate         = 40
+waterEmitter.RotSpeed     = NumberRange.new(-30, 30)
+waterEmitter.Enabled      = true
+waterEmitter.Parent       = sphere
+
+-- Deuxième couche (gouttelettes tombantes)
+local drips = Instance.new("ParticleEmitter")
+drips.Name         = "WaterDrips"
+drips.Texture      = "rbxassetid://241685484"
+drips.Color        = ColorSequence.new(Color3.fromRGB(120, 180, 240))
+drips.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.2),
+    NumberSequenceKeypoint.new(1, 0.9),
+})
+drips.Size = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.2),
+    NumberSequenceKeypoint.new(1, 0.5),
+})
+drips.Speed        = NumberRange.new(1, 4)
+drips.SpreadAngle  = Vector2.new(180, 180)
+drips.Acceleration = Vector3.new(0, -15, 0)
+drips.Lifetime     = NumberRange.new(0.8, 1.5)
+drips.Rate         = 25
+drips.Enabled      = true
+drips.Parent       = sphere
+
+-- Lumière ambiante de la fontaine
+local fountainLight = Instance.new("PointLight")
+fountainLight.Color      = Color3.fromRGB(150, 200, 255)
+fountainLight.Brightness = 1
+fountainLight.Range      = 30
+fountainLight.Parent     = sphere
+
+print("⛲ [WorldAssets] Fontaine centrale créée")
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CRÉATION DES 3 ROUES (en arc face au spawn)
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Le spawn sera à Z=45, les roues forment un arc à Z négatif face au spawn
+local WHEEL_RADIUS = 35 -- Distance du centre
+local SPAWN_POS = Vector3.new(0, 0.5, 45)
+
+-- Positions directes pour plus de contrôle sur le placement
+-- Roue Noob devant la fontaine, Sigma et Ultra entre les bâtiments (gauche/droite)
+local WHEEL_POSITIONS = {
+    { pos = Vector3.new(0, 0, 35),    index = 1 }, -- Roue Noob (devant la fontaine, face au spawn)
+    { pos = Vector3.new(-110, 0, 0),  index = 2 }, -- Roue Sigma (gauche, entre les bâtiments)
+    { pos = Vector3.new(110, 0, 0),   index = 3 }, -- Roue Ultra (droite, entre les bâtiments)
+}
+
+for _, layout in ipairs(WHEEL_POSITIONS) do
+    createPhysicalWheel(layout.pos, layout.index)
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- SPAWN INVISIBLE (face à la fontaine)
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Nettoyage des anciens spawns
 for _, obj in ipairs(Workspace:GetChildren()) do
-    if obj:IsA("SpawnLocation") and obj.Name ~= "MainSpawn" then
+    if obj:IsA("SpawnLocation") then
         obj:Destroy()
     end
 end
 
-local spawn = Workspace:FindFirstChild("MainSpawn") or Instance.new("SpawnLocation")
-spawn.Name     = "MainSpawn"
-spawn.Size     = Vector3.new(12, 1, 12)
-spawn.Position = Vector3.new(0, 0.5, 30) -- Placé un peu devant les roues
-spawn.Anchored = true
-spawn.Transparency = 0 -- Opaque comme demandé
-spawn.Material = Enum.Material.Neon
-spawn.Color    = Color3.fromRGB(0, 255, 255) -- Turquoise éclatant
-spawn.Enabled  = true
-spawn.Neutral  = true -- Permet à tout le monde de spawner ici
+local spawn = Instance.new("SpawnLocation")
+spawn.Name         = "MainSpawn"
+spawn.Size         = Vector3.new(12, 1, 12)
+spawn.Anchored     = true
+spawn.Transparency = 1           -- COMPLÈTEMENT INVISIBLE
+spawn.CanCollide   = false       -- On ne marche pas "sur" le spawn
+spawn.Enabled      = true
+spawn.Neutral      = true
+spawn.Duration     = 0           -- Pas de temps de respawn forcé
 
--- Orientation pour faire face aux roues (qui sont à Z=0, on est à Z=30, donc on regarde vers -Z)
--- On regarde un peu vers le haut (oy + 10) pour voir les roues en entier
-spawn.CFrame = CFrame.lookAt(spawn.Position + Vector3.new(0, 0, 0), Vector3.new(0, 10, 0))
+-- Regarde vers la fontaine au centre
+spawn.CFrame = CFrame.lookAt(SPAWN_POS, Vector3.new(0, 5, 0))
 spawn.Parent = Workspace
 
-print("🚩 [WorldAssets] Spawn Turquoise configuré à (0, 0.5, 30) face aux roues.")
+-- Supprimer le Decal bleu par défaut que Roblox ajoute automatiquement
+task.defer(function()
+    for _, child in ipairs(spawn:GetChildren()) do
+        if child:IsA("Decal") then
+            child:Destroy()
+        end
+    end
+end)
+
+print("🚩 [WorldAssets] Spawn invisible configuré à (0, 0.5, 45) face à la fontaine")
+
