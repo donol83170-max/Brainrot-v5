@@ -39,7 +39,8 @@ local WALL_T      = 2          -- Épaisseur des murs
 
 -- Point de départ : derrière le spawn (spawn à Z=80, galerie commence à Z=100)
 local START_Z  = 110
-local FLOOR_Y  = 0    -- Niveau du sol
+-- Niveau du sol : 0.5 au-dessus du sol principal (évite le Z-fighting)
+local FLOOR_Y  = 1    -- Positionné 1 stud au-dessus du sol de WorldAssets (Y=0)
 local GALLERY_LEN = (NUM_SIDES + 1) * PLACE_GAP  -- Longueur totale du couloir
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -66,17 +67,19 @@ end
 makePart(
     "GalleryFloor",
     Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
+    -- Centre du sol : assis sur Y=0 (sol principal), son dessus est à Y=1
     Vector3.new(0, FLOOR_Y - 0.5, START_Z + GALLERY_LEN / 2),
     COL_FLOOR,
     Enum.Material.SmoothPlastic,
     Enum.SurfaceType.Studs  -- Style LEGO
 )
 
--- Ligne rouge centrale au sol
+-- Ligne rouge centrale : posée à plat SUR le sol de la galerie (Y=1)
+-- Très fine (0.1) pour ne pas gêner la marche
 makePart(
     "CenterLine",
-    Vector3.new(1.5, 1.05, GALLERY_LEN + 8),
-    Vector3.new(0, FLOOR_Y - 0.5, START_Z + GALLERY_LEN / 2),
+    Vector3.new(1.5, 0.1, GALLERY_LEN + 8),
+    Vector3.new(0, FLOOR_Y + 0.05, START_Z + GALLERY_LEN / 2),
     COL_RED_LINE,
     Enum.Material.SmoothPlastic,
     Enum.SurfaceType.Smooth
