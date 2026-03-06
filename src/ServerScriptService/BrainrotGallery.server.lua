@@ -105,32 +105,30 @@ makePart(
 )
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 2. MURS DU COULOIR (gauche et droite, alternance couleurs)
+-- 2. MURS DU COULOIR — 2 grandes dalles continues (toute la longueur)
 -- ══════════════════════════════════════════════════════════════════════════════
-local WALL_SEGMENT_LEN = PLACE_GAP  -- Chaque segment de mur corresponds à une place
+local FULL_WALL_LEN = GALLERY_LEN + 8  -- Même longueur que le sol
+local WALL_CZ = START_Z + GALLERY_LEN / 2
 
-for i = 0, NUM_SIDES do
-    local segZ    = START_Z + i * WALL_SEGMENT_LEN + WALL_SEGMENT_LEN / 2
-    local wallCol = (i % 2 == 0) and COL_WALL_LIGHT or COL_WALL_MID
+-- Mur gauche continu avec aspect LEGO (studs visibles sur le dessus)
+makePart(
+    "WallLeft",
+    Vector3.new(WALL_T, WALL_H, FULL_WALL_LEN),
+    Vector3.new(-(CORRIDOR_W / 2), FLOOR_Y + WALL_H / 2, WALL_CZ),
+    COL_WALL_MID,
+    Enum.Material.SmoothPlastic,
+    Enum.SurfaceType.Studs
+)
 
-    -- Mur gauche
-    makePart(
-        "WallLeft_" .. i,
-        Vector3.new(WALL_T, WALL_H, WALL_SEGMENT_LEN),
-        Vector3.new(-(CORRIDOR_W / 2), FLOOR_Y + WALL_H / 2, segZ),
-        wallCol,
-        Enum.Material.SmoothPlastic
-    )
-
-    -- Mur droit
-    makePart(
-        "WallRight_" .. i,
-        Vector3.new(WALL_T, WALL_H, WALL_SEGMENT_LEN),
-        Vector3.new(CORRIDOR_W / 2, FLOOR_Y + WALL_H / 2, segZ),
-        wallCol,
-        Enum.Material.SmoothPlastic
-    )
-end
+-- Mur droit continu
+makePart(
+    "WallRight",
+    Vector3.new(WALL_T, WALL_H, FULL_WALL_LEN),
+    Vector3.new(CORRIDOR_W / 2, FLOOR_Y + WALL_H / 2, WALL_CZ),
+    COL_WALL_MID,
+    Enum.Material.SmoothPlastic,
+    Enum.SurfaceType.Studs
+)
 
 -- Mur de fond (ferme le couloir)
 makePart(
@@ -140,6 +138,7 @@ makePart(
     COL_WALL_LIGHT,
     Enum.Material.SmoothPlastic
 )
+
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 3. PLAFOND (grille légère en LEGO)
@@ -212,39 +211,23 @@ for i = 1, NUM_SIDES do
         numLabel.TextStrokeTransparency = 0.8
         numLabel.Parent                 = numBillboard
 
-        -- ── CADRE EN OR (fixé au mur face au couloir) ──────────────────────────
-        -- Le mur est à X = side * CORRIDOR_W/2 ; le cadre est légèrement en avant (relief)
-        local wallX   = side * (CORRIDOR_W / 2)
-        local reliefX = side * (CORRIDOR_W / 2 - WALL_T - 0.15)  -- 0.15 stud devant le mur
-        local frameH  = 10   -- Hauteur du cadre (zone d'exposition)
-        local frameW  = 9    -- Largeur du cadre
-        local frameT  = 0.35 -- Épaisseur du cadre
-        local frameCY = FLOOR_Y + 9  -- Centre vertical du cadre (à hauteur des yeux)
+        -- ── CADRE EN OR PLAT (une seule Part fine plaquée contre le mur) ──────────
+        -- Le mur intérieur est à X = side * (CORRIDOR_W/2 - WALL_T)
+        -- Le cadre est flush contre cette face (0.05 stud devant pour le relief)
+        local wallInnerX = side * (CORRIDOR_W / 2 - WALL_T - 0.05)
+        local frameH  = 10   -- Hauteur visuelle du cadre
+        local frameW  = 10   -- Largeur du cadre (sens Z)
+        local frameCY = FLOOR_Y + 9  -- Centre vertical
 
-        -- Barre du haut
-        makePart("FrameTop_" .. i .. sideLabel,
-            Vector3.new(frameW + frameT * 2, frameT, frameT),
-            Vector3.new(reliefX, frameCY + frameH / 2, placeZ),
-            COL_GOLD, Enum.Material.Metal
+        -- Un seul rectangle plat, très fin (0.1), plaque d'or sur le mur
+        local frame = makePart(
+            "GoldFrame_" .. i .. sideLabel,
+            Vector3.new(0.1, frameH, frameW),
+            Vector3.new(wallInnerX, frameCY, placeZ),
+            COL_GOLD,
+            Enum.Material.Metal
         )
-        -- Barre du bas
-        makePart("FrameBot_" .. i .. sideLabel,
-            Vector3.new(frameW + frameT * 2, frameT, frameT),
-            Vector3.new(reliefX, frameCY - frameH / 2, placeZ),
-            COL_GOLD, Enum.Material.Metal
-        )
-        -- Barre gauche (du cadre, sens Z)
-        makePart("FrameLeft_" .. i .. sideLabel,
-            Vector3.new(frameT, frameH, frameT),
-            Vector3.new(reliefX, frameCY, placeZ - frameW / 2),
-            COL_GOLD, Enum.Material.Metal
-        )
-        -- Barre droite (du cadre, sens Z)
-        makePart("FrameRight_" .. i .. sideLabel,
-            Vector3.new(frameT, frameH, frameT),
-            Vector3.new(reliefX, frameCY, placeZ + frameW / 2),
-            COL_GOLD, Enum.Material.Metal
-        )
+        frame.CanCollide = false
 
         -- ── PLAQUE D'IDENTIFICATION (au pied du socle) ──────────────────────────
         local slotIndex = (i - 1) * 2 + (side == -1 and 1 or 2)
@@ -310,15 +293,17 @@ for i = 1, NUM_SIDES do
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 5. ENTRÉE DE LA GALERIE (arche décorative)
+-- 5. ENTRÉE DE LA GALERIE (arche + enseigne physique)
 -- ══════════════════════════════════════════════════════════════════════════════
+
 -- Pilier gauche d'entrée
 makePart(
     "EntryPillarL",
     Vector3.new(3, WALL_H, 3),
     Vector3.new(-(CORRIDOR_W / 2) + 1.5, FLOOR_Y + WALL_H / 2, START_Z - 1),
     COL_WALL_MID,
-    Enum.Material.SmoothPlastic
+    Enum.Material.SmoothPlastic,
+    Enum.SurfaceType.Studs
 )
 -- Pilier droit d'entrée
 makePart(
@@ -326,9 +311,10 @@ makePart(
     Vector3.new(3, WALL_H, 3),
     Vector3.new(CORRIDOR_W / 2 - 1.5, FLOOR_Y + WALL_H / 2, START_Z - 1),
     COL_WALL_MID,
-    Enum.Material.SmoothPlastic
+    Enum.Material.SmoothPlastic,
+    Enum.SurfaceType.Studs
 )
--- Linteau (dessus de l'arche)
+-- Linteau rouge (dessus de l'arche)
 makePart(
     "EntryLintel",
     Vector3.new(CORRIDOR_W, 4, 3),
@@ -337,24 +323,50 @@ makePart(
     Enum.Material.SmoothPlastic
 )
 
--- Enseigne "BRAINROT GALLERY"
-local signGui = Instance.new("BillboardGui")
-signGui.Name        = "GallerySign"
-signGui.Size        = UDim2.new(0, 360, 0, 60)
-signGui.StudsOffset = Vector3.new(0, 0, -1)
-signGui.Adornee     = galleryFolder:FindFirstChild("EntryLintel") or Workspace
+-- ── ENSEIGNE PHYSIQUE "Base de [Joueur]" ──────────────────────────────────────
+-- Plaque noire principale (large, style LEGO)
+local signPlaque = makePart(
+    "GallerySignPlaque",
+    Vector3.new(CORRIDOR_W - 4, 5, 0.8),
+    Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 2.6),
+    COL_PLAQUE,
+    Enum.Material.SmoothPlastic
+)
+signPlaque.CanCollide = false
+
+-- Bordure dorée (légèrement plus grande)
+local signRim = makePart(
+    "GallerySignRim",
+    Vector3.new(CORRIDOR_W - 2, 5.5, 0.4),
+    Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 2.9),
+    COL_GOLD,
+    Enum.Material.Metal
+)
+signRim.CanCollide = false
+
+-- SurfaceGui sur la face avant (-Z) de la plaque
+-- Le texte "Base de {Joueur}" est mis à jour dynamiquement par GallerySign.client.lua
+local signGui = Instance.new("SurfaceGui")
+signGui.Name       = "GallerySignGui"
+signGui.Face       = Enum.NormalId.Front   -- face vers l'entrée (-Z)
+signGui.CanvasSize = Vector2.new(700, 120)
+signGui.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
 signGui.AlwaysOnTop = false
-signGui.Parent      = galleryFolder
+signGui.Parent     = signPlaque
 
 local signLabel = Instance.new("TextLabel")
+signLabel.Name                   = "PlayerNameLabel"  -- trouvé par le LocalScript
 signLabel.Size                   = UDim2.new(1, 0, 1, 0)
 signLabel.BackgroundTransparency = 1
-signLabel.Text                   = "✦  BRAINROT GALLERY  ✦"
-signLabel.TextColor3             = Color3.new(1, 1, 1)
+signLabel.Text                   = "✦  Base de {Joueur}  ✦"  -- placeholder
+signLabel.TextColor3             = COL_GOLD
 signLabel.Font                   = Enum.Font.FredokaOne
-signLabel.TextSize               = 36
-signLabel.TextStrokeTransparency = 0
-signLabel.TextStrokeColor3       = Color3.fromRGB(80, 0, 0)
+signLabel.TextSize               = 52
+signLabel.TextXAlignment         = Enum.TextXAlignment.Center
+signLabel.TextYAlignment         = Enum.TextYAlignment.Center
+signLabel.TextStrokeTransparency = 0.4
+signLabel.TextStrokeColor3       = Color3.fromRGB(60, 0, 0)
 signLabel.Parent                 = signGui
 
 print("🏛️ [BrainrotGallery] Galerie générée ! " .. (NUM_SIDES * 2) .. " socles prêts.")
+
