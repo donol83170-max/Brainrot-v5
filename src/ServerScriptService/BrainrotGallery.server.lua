@@ -454,71 +454,60 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ── ENSEIGNE PHYSIQUE "Base de [Joueur]" ──────────────────────────────────────
--- Plaque noire principale (large, style LEGO)
--- Avancé de 5 studs devant la galerie (jamais enfoncé dans les murs)
+-- Plaque épaisse (Z=3) orientée par défaut : Front face = -Z = vers le spawn (Z=80)
+-- Position : 6 studs DEVANT l'entrée de la galerie, en plein air
 local signPlaque = makePart(
     "GallerySignPlaque",
-    Vector3.new(CORRIDOR_W - 4, 5, 0.8),
-    Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 5),
+    Vector3.new(CORRIDOR_W - 4, 5, 3),    -- Z=3 : épaisseur suffisante, pas de z-clip
+    Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 6),
     COL_PLAQUE,
     Enum.Material.SmoothPlastic
 )
 signPlaque.CanCollide = false
 
--- Bordure dorée (légèrement plus grande)
+-- Bordure dorée (derrière la plaque, côté galerie)
 local signRim = makePart(
     "GallerySignRim",
     Vector3.new(CORRIDOR_W - 2, 5.5, 0.4),
-    Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 5.3),
+    Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 4.3),
     COL_GOLD,
     Enum.Material.Metal
 )
 signRim.CanCollide = false
 
--- ── ENSEIGNE — Double SurfaceGui (Front + Back) pour rester visible à toute distance ──
--- Problème : SurfaceGui Face=Front disparaît quand la caméra passe derrière la plaque.
--- Solution : deux GUIs identiques, une sur chaque face. updateSign met à jour les deux.
+-- ── SurfaceGui — face FRONT (-Z) vers le spawn ───────────────────────────────
+-- LightInfluence = 0 : TOUJOURS visible, même dans une galerie sombre
+-- Le texte rouge est provisoire pour vérifier la visibilité ; le LocalScript
+-- GallerySignClient le remplace par "BASE DE [Joueur]" en jaune.
+local signSGui = Instance.new("SurfaceGui")
+signSGui.Name           = "GallerySignGui"
+signSGui.Face           = Enum.NormalId.Front  -- -Z = face vers le spawn
+signSGui.CanvasSize     = Vector2.new(520, 100)
+signSGui.SizingMode     = Enum.SurfaceGuiSizingMode.FixedSize
+signSGui.LightInfluence = 0       -- CRITIQUE : indépendant de l'éclairage ambiant
+signSGui.AlwaysOnTop    = false
+signSGui.ZOffset        = 1
+signSGui.Parent         = signPlaque
 
-local signLabelRef: TextLabel       -- face avant (-Z, vue de l'extérieur)
-local signLabelRefBack: TextLabel   -- face arrière (+Z, vue de l'intérieur)
+local signLabelRef: TextLabel
 
-local function makeSignLabel(parent: Instance): TextLabel
-    local lbl = Instance.new("TextLabel")
-    lbl.Size                   = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundColor3       = Color3.new(0, 0, 0)
-    lbl.BackgroundTransparency = 0.1
-    lbl.Text                   = "★  BASE BRAINROT  ★"
-    lbl.TextColor3             = Color3.fromRGB(255, 230, 0)
-    lbl.Font                   = Enum.Font.GothamBlack
-    lbl.TextScaled             = true
-    lbl.TextStrokeTransparency = 0
-    lbl.TextStrokeColor3       = Color3.new(0, 0, 0)
-    lbl.Parent                 = parent
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 8)
-    c.Parent       = lbl
-    return lbl
-end
+local signLabel = Instance.new("TextLabel")
+signLabel.Name                   = "GallerySignLabel"
+signLabel.Size                   = UDim2.new(1, 0, 1, 0)
+signLabel.BackgroundColor3       = Color3.new(0, 0, 0)
+signLabel.BackgroundTransparency = 0.1
+signLabel.Text                   = "★  BASE BRAINROT  ★"
+signLabel.TextColor3             = Color3.fromRGB(255, 0, 0)   -- ROUGE : debug visibilité
+signLabel.Font                   = Enum.Font.GothamBlack
+signLabel.TextScaled             = true
+signLabel.TextStrokeTransparency = 0
+signLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
+signLabel.Parent                 = signSGui
+signLabelRef                     = signLabel
 
--- Face avant : visible depuis le spawn (Z < signPlaque.Z)
-local sgFront = Instance.new("SurfaceGui")
-sgFront.Name       = "GallerySignFront"
-sgFront.Face       = Enum.NormalId.Front
-sgFront.CanvasSize = Vector2.new(520, 100)
-sgFront.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-sgFront.ZOffset    = 0.5
-sgFront.Parent     = signPlaque
-signLabelRef       = makeSignLabel(sgFront)
-
--- Face arrière : visible une fois dans la galerie (Z > signPlaque.Z)
-local sgBack = Instance.new("SurfaceGui")
-sgBack.Name       = "GallerySignBack"
-sgBack.Face       = Enum.NormalId.Back
-sgBack.CanvasSize = Vector2.new(520, 100)
-sgBack.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-sgBack.ZOffset    = 0.5
-sgBack.Parent     = signPlaque
-signLabelRefBack   = makeSignLabel(sgBack)
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent       = signLabel
 
 
 -- ── LAMPADAIRES D'ENTRÉE — encadrement gauche/droit de la porte ──────────────
@@ -640,10 +629,9 @@ print("[BrainrotGallery] 8 lumieres d'ambiance ajoutees")
 -- 8. ENSEIGNE DYNAMIQUE + GALERIE RÉACTIVE à l'inventaire du joueur
 -- ══════════════════════════════════════════════════════════════════════════════
 local function updateSign(playerName: string)
-    local text = "★  BASE DE " .. string.upper(playerName) .. "  ★"
-    if signLabelRef     then signLabelRef.Text     = text end
-    if signLabelRefBack then signLabelRefBack.Text = text end
-    print("[BrainrotGallery] Enseigne : " .. text)
+    if signLabelRef then
+        signLabelRef.Text = "★  BASE DE " .. string.upper(playerName) .. "  ★"
+    end
 end
 
 -- Crée ou remplace la figurine d'un socle
