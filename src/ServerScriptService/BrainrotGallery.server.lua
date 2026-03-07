@@ -49,6 +49,8 @@ local PEDESTAL_TOP_SHADES: {Color3} = {
 }
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA=5, LEGENDARY=4, MYTHIC=3, RARE=2, NORMAL=1}
+-- Puissance générée par mème exposé (Coins/s ajoutés au revenu passif)
+local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, RARE=5, MYTHIC=10, LEGENDARY=25, ULTRA=50}
 local RARITY_COLOR: {[string]: Color3} = {
     NORMAL    = Color3.fromRGB(163, 162, 165),
     RARE      = Color3.fromRGB(  0, 162, 255),
@@ -126,7 +128,7 @@ local function getPlotParams(plotIndex: number): (number, number, number)
 end
 
 -- État par parcelle
-type PedestalRef = {top: Part, nameLabel: TextLabel, decal: Decal}
+type PedestalRef = {top: Part, nameLabel: TextLabel, decal: Decal, powerLabel: TextLabel}
 type PlotState = {
     folder       : Folder,
     pedestalRefs : {[number]: PedestalRef},
@@ -407,7 +409,27 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             decal.Face    = side == -1 and Enum.NormalId.Right or Enum.NormalId.Left
             decal.Parent  = imgPanel
 
-            pedestalRefs[slotIndex] = {top = topPart, nameLabel = nameLabel, decal = decal}
+            -- Label de puissance flottant au-dessus du cadre doré
+            local powerBb = Instance.new("BillboardGui")
+            powerBb.Size        = UDim2.new(0, 120, 0, 26)
+            powerBb.StudsOffset = Vector3.new(0, 6, 0)   -- 6 studs au-dessus du centre du cadre
+            powerBb.Adornee     = imgPanel
+            powerBb.AlwaysOnTop = false
+            powerBb.MaxDistance = 35
+            powerBb.Parent      = folder
+
+            local powerLbl = Instance.new("TextLabel")
+            powerLbl.Size                   = UDim2.new(1, 0, 1, 0)
+            powerLbl.BackgroundTransparency = 1
+            powerLbl.Text                   = ""
+            powerLbl.TextColor3             = Color3.fromRGB(100, 220, 255)
+            powerLbl.Font                   = Enum.Font.GothamBold
+            powerLbl.TextScaled             = true
+            powerLbl.TextStrokeTransparency = 0.3
+            powerLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+            powerLbl.Parent                 = powerBb
+
+            pedestalRefs[slotIndex] = {top = topPart, nameLabel = nameLabel, decal = decal, powerLabel = powerLbl}
 
             -- Spot au sol
             local floorSpotPart = mp("FloorSpot_" .. i .. sideLabel,
@@ -724,6 +746,8 @@ local function refreshGallery(player: Player)
     local lockedId   = BrainrotData.LockedImageId
     local fallbackId = BrainrotData.FallbackImageId
 
+    local totalPower = 0
+
     for slotIndex = 1, NUM_SIDES * 2 do
         local item = ownedItems[slotIndex]
         local refs = state.pedestalRefs[slotIndex]
@@ -733,9 +757,14 @@ local function refreshGallery(player: Player)
                 refs.nameLabel.Text       = item.Name
                 refs.nameLabel.TextColor3 = RARITY_COLOR[item.Rarity] or COL_GOLD
                 createFigurine(state, slotIndex, item)
-                -- GetImageId() retourne déjà FallbackImageId si l'item n'a pas d'image
                 local imgId = BrainrotData.GetImageId(item.Id)
                 refs.decal.Texture = "rbxassetid://" .. imgId
+
+                -- Puissance de ce slot
+                local pps = POWER_PER_RARITY[item.Rarity] or 1
+                totalPower += pps
+                refs.powerLabel.Text       = "+" .. pps .. "⚡/s"
+                refs.powerLabel.TextColor3 = RARITY_COLOR[item.Rarity] or Color3.fromRGB(100, 220, 255)
             else
                 -- Slot vide : image "Locked" si disponible, sinon vide
                 refs.nameLabel.Text       = "???  Slot " .. slotIndex
@@ -743,12 +772,18 @@ local function refreshGallery(player: Player)
                 createFigurine(state, slotIndex, nil)
                 refs.decal.Texture = lockedId ~= 0
                     and ("rbxassetid://" .. lockedId) or ""
+                refs.powerLabel.Text = ""
             end
         end
     end
 
+    -- Mise à jour instantanée du revenu passif
+    if _G.EconomyManager_SetPower then
+        _G.EconomyManager_SetPower(player, totalPower)
+    end
+
     print("[BrainrotGallery] Galerie #" .. plotIndex .. " maj pour " .. player.Name
-        .. " (" .. #ownedItems .. " items)")
+        .. " (" .. #ownedItems .. " items, " .. totalPower .. "⚡/s)")
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
