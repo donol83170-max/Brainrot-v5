@@ -192,24 +192,80 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         Vector3.new(0, FLOOR_Y + 0.15, START_Z + GALLERY_LEN / 2),
         COL_RED_LINE, Enum.Material.SmoothPlastic, Enum.SurfaceType.Smooth)
 
-    -- ── 2. MURS ───────────────────────────────────────────────────────────────
+    -- ── 2. MURS (SHOWROOM — BAIES VITRÉES) ──────────────────────────────────
     local FULL_WALL_LEN = GALLERY_LEN + 8
     local WALL_CZ       = START_Z + GALLERY_LEN / 2
 
-    mp("WallLeft",
-        Vector3.new(WALL_T, WALL_H, FULL_WALL_LEN),
-        Vector3.new(-(CORRIDOR_W / 2), FLOOR_Y + WALL_H / 2, WALL_CZ),
-        COL_WALL_MID, Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+    -- Palette showroom
+    local COL_POST  = Color3.fromRGB(28, 30, 34)      -- métal anthracite quasi-noir
+    local COL_GLASS = Color3.fromRGB(155, 200, 235)   -- verre bleuté lumineux
+    local POST_W    = 1.8   -- largeur du montant perpendiculaire au mur (axe X)
+    local POST_D    = 1.5   -- épaisseur du montant dans l'axe du couloir (axe Z)
+    local RAIL_H    = 0.8   -- hauteur des rails horizontaux (traverse haut/bas)
+    local GLASS_H   = WALL_H - RAIL_H * 2 - 0.2  -- hauteur libre entre les rails
 
-    mp("WallRight",
-        Vector3.new(WALL_T, WALL_H, FULL_WALL_LEN),
-        Vector3.new(CORRIDOR_W / 2, FLOOR_Y + WALL_H / 2, WALL_CZ),
-        COL_WALL_MID, Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+    -- Positions Z locales (frame nord) des montants verticaux :
+    --   • 1 poteau à l'entrée (START_Z)
+    --   • 1 poteau entre chaque paire de cadres (i + 0.5) * PLACE_GAP
+    --   • 1 poteau au fond (START_Z + GALLERY_LEN + 4)
+    local postZList: {number} = {START_Z}
+    for i = 0, NUM_SIDES do
+        table.insert(postZList, START_Z + (i + 0.5) * PLACE_GAP)
+    end
+    table.insert(postZList, START_Z + GALLERY_LEN + 4)
 
+    for _, wallSide in ipairs({-1, 1}) do
+        local wallX = wallSide * (CORRIDOR_W / 2)
+        local sTag  = wallSide == -1 and "L" or "R"
+
+        -- Traverse basse (seuil métallique)
+        local rb = mp("RailBot_" .. sTag,
+            Vector3.new(POST_W, RAIL_H, FULL_WALL_LEN),
+            Vector3.new(wallX, FLOOR_Y + RAIL_H / 2, WALL_CZ),
+            COL_POST, Enum.Material.Metal)
+        rb.CanCollide = true
+
+        -- Traverse haute (linteau métallique)
+        local rt = mp("RailTop_" .. sTag,
+            Vector3.new(POST_W, RAIL_H, FULL_WALL_LEN),
+            Vector3.new(wallX, FLOOR_Y + WALL_H - RAIL_H / 2, WALL_CZ),
+            COL_POST, Enum.Material.Metal)
+        rt.CanCollide = true
+
+        -- Montants verticaux (colonnes)
+        for pi, pz in ipairs(postZList) do
+            local post = mp("Post_" .. sTag .. "_" .. pi,
+                Vector3.new(POST_W, WALL_H, POST_D),
+                Vector3.new(wallX, FLOOR_Y + WALL_H / 2, pz),
+                COL_POST, Enum.Material.Metal)
+            post.CanCollide = true
+        end
+
+        -- Panneaux de verre entre chaque paire de montants consécutifs
+        for gi = 1, #postZList - 1 do
+            local z1   = postZList[gi]
+            local z2   = postZList[gi + 1]
+            local gz   = (z1 + z2) / 2        -- centre du panneau (local Z)
+            local gLen = z2 - z1 - POST_D     -- longueur nette (hors montants)
+
+            if gLen > 0.5 then
+                local panel = mp("Glass_" .. sTag .. "_" .. gi,
+                    Vector3.new(0.3, GLASS_H, gLen),
+                    Vector3.new(wallX, FLOOR_Y + WALL_H / 2, gz),
+                    COL_GLASS, Enum.Material.Glass)
+                panel.Transparency = 0.55
+                panel.CastShadow   = false
+                panel.CanCollide   = true
+                panel.Reflectance  = 0.05
+            end
+        end
+    end
+
+    -- Mur du fond : béton peint moderne (opaque — point focal de la galerie)
     mp("WallBack",
-        Vector3.new(CORRIDOR_W + WALL_T * 2, WALL_H, WALL_T),
+        Vector3.new(CORRIDOR_W + POST_W * 2, WALL_H, WALL_T),
         Vector3.new(0, FLOOR_Y + WALL_H / 2, START_Z + GALLERY_LEN + 4),
-        COL_WALL_LIGHT, Enum.Material.SmoothPlastic)
+        Color3.fromRGB(32, 34, 40), Enum.Material.SmoothPlastic)
 
     -- ── 3. PLAFOND ────────────────────────────────────────────────────────────
     local ceiling = mp("GalleryCeiling",
@@ -469,9 +525,9 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         lightPart.CanCollide = false
 
         local pt = Instance.new("PointLight")
-        pt.Brightness = 1.2
-        pt.Range      = 14
-        pt.Color      = Color3.fromRGB(255, 240, 200)
+        pt.Brightness = 1.5
+        pt.Range      = 16
+        pt.Color      = Color3.fromRGB(255, 245, 210)
         pt.Shadows    = false
         pt.Parent     = lightPart
     end
@@ -502,12 +558,31 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         amb.CastShadow   = false
         amb.Parent       = folder
 
+        -- Lumière chaude principale
         local pl = Instance.new("PointLight")
         pl.Color      = Color3.fromRGB(255, 255, 255)
         pl.Brightness = 3.5
         pl.Range      = 25
         pl.Shadows    = false
         pl.Parent     = amb
+
+        -- Lumière froide bleue simulant le reflet des baies vitrées
+        local glassAmb = Instance.new("Part")
+        glassAmb.Name         = "GlassAmbient_" .. k
+        glassAmb.Size         = Vector3.new(0.2, 0.2, 0.2)
+        glassAmb.Position     = Vector3.new(pos.X + offsetX, pos.Y, pos.Z)
+        glassAmb.Anchored     = true
+        glassAmb.CanCollide   = false
+        glassAmb.Transparency = 1
+        glassAmb.CastShadow   = false
+        glassAmb.Parent       = folder
+
+        local bl = Instance.new("PointLight")
+        bl.Color      = Color3.fromRGB(155, 200, 255)
+        bl.Brightness = 0.6
+        bl.Range      = 12
+        bl.Shadows    = false
+        bl.Parent     = glassAmb
     end
 
     -- ── BALISE DEBUG : colonne néon rouge au-dessus du toit ──────────────────
