@@ -50,16 +50,12 @@ end
 
 -- ── API publique : BrainrotGallery met à jour la puissance du joueur ─────────
 -- Appelé à chaque refreshGallery (ex : après un spin, à l'arrivée).
+-- Met à jour le taux de génération (utilisé pour le revenu passif en Coins).
+-- NE modifie PAS le leaderstat ⚡ Power — celui-ci est réservé au total récolté.
 _G.EconomyManager_SetPower = function(player: Player, pps: number)
     local uid = player.UserId
     playerPPS[uid] = pps
-
-    local powerVal = powerValues[uid]
-    if powerVal then
-        powerVal.Value = pps
-    end
-
-    print(string.format("[EconomyManager] Power %s → %d⚡/s (gain: +%d Coins/%ds)",
+    print(string.format("[EconomyManager] PPS %s → %d⚡/s (Coins: +%d/%ds)",
         player.Name, pps, pps * INCOME_INTERVAL, INCOME_INTERVAL))
 end
 

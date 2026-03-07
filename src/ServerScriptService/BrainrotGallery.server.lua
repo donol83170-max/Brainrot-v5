@@ -459,12 +459,12 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             local plateX = side * (SIDE_DIST - 4)   -- 4 studs vers le centre
             local plate  = Instance.new("Part")
             plate.Name      = "CollectorPlate_" .. i .. sideLabel
-            plate.Size      = Vector3.new(5, 0.2, 5)
+            plate.Size      = Vector3.new(4, 0.2, 4)
             plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
             plate.Anchored  = true
             plate.CanCollide = true
             plate.Material  = Enum.Material.Neon
-            plate.Color     = Color3.fromRGB(0, 80, 30)
+            plate.Color     = Color3.fromRGB(255, 215, 0)   -- jaune vif
             plate.CastShadow = false
             plate.Parent    = folder
 
@@ -481,7 +481,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             harvestLbl.Size                   = UDim2.new(1, 0, 1, 0)
             harvestLbl.BackgroundTransparency = 1
             harvestLbl.Text                   = "0 ⚡"
-            harvestLbl.TextColor3             = Color3.fromRGB(0, 255, 100)
+            harvestLbl.TextColor3             = Color3.fromRGB(255, 220, 0)
             harvestLbl.Font                   = Enum.Font.GothamBold
             harvestLbl.TextScaled             = true
             harvestLbl.TextStrokeTransparency = 0.3
@@ -492,7 +492,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             local particles = Instance.new("ParticleEmitter")
             particles.Texture       = "rbxassetid://243160943"
             particles.LightEmission = 0.9
-            particles.Color         = ColorSequence.new(Color3.fromRGB(0, 255, 100))
+            particles.Color         = ColorSequence.new(Color3.fromRGB(255, 215, 0))
             particles.Size          = NumberSequence.new({
                 NumberSequenceKeypoint.new(0, 0.6),
                 NumberSequenceKeypoint.new(1, 0),
@@ -506,7 +506,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
 
             -- Son de récolte
             local harvestSound = Instance.new("Sound")
-            harvestSound.SoundId   = "rbxassetid://6026984224"
+            harvestSound.SoundId   = "rbxassetid://5153734135"
             harvestSound.Volume    = 0.7
             harvestSound.RollOffMaxDistance = 30
             harvestSound.Parent    = plate
@@ -544,22 +544,21 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 accRef.accumulated = 0
                 accRef.label.Text  = "0 ⚡"
 
-                DataManager.AddGold(pl, amount)
-                local data = DataManager.GetData(pl)
-                if data then
-                    local ls = pl:FindFirstChild("leaderstats")
-                    local cv = ls and ls:FindFirstChild("Brainrot Coins")
-                    if cv then cv.Value = data.Stats.Gold end
-                end
+                -- Ajouter au leaderstat ⚡ Power (monnaie secondaire)
+                local ls = pl:FindFirstChild("leaderstats")
+                local pv = ls and ls:FindFirstChild("⚡ Power")
+                if pv then pv.Value = pv.Value + amount end
 
                 totalHarvested[pl.UserId] = (totalHarvested[pl.UserId] or 0) + amount
                 HarvestResult:FireClient(pl, amount, totalHarvested[pl.UserId])
 
-                -- Effet burst particules
-                accRef.particles.Enabled = true
+                -- Burst de particules jaunes + son
+                accRef.particles:Emit(30)
                 accRef.sound:Play()
-                task.delay(0.35, function()
-                    accRef.particles.Enabled = false
+                -- Éclat de la plaque : légère surbrillance temporaire
+                plate.Color = Color3.fromRGB(255, 255, 100)
+                task.delay(0.3, function()
+                    plate.Color = Color3.fromRGB(255, 215, 0)
                 end)
             end)
         end
