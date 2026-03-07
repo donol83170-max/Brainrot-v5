@@ -8,7 +8,7 @@ LootTables.Wheels = {
     -- ── Roue 1 : Roue Noob (centre, position 0,0,0) ───────────────────────────
     [1] = {
         Name = "Roue Noob",
-        Cost = 50,
+        Cost = 20,
         Currency = "Gold",
         Items = {
             -- NORMAL (60%) — segments 1, 2, 3
@@ -50,7 +50,7 @@ LootTables.Wheels = {
     -- ── Roue 2 : Roue Sigma (gauche, position -70,0,0) ────────────────────────
     [2] = {
         Name = "Roue Sigma",
-        Cost = 250,
+        Cost = 100,
         Currency = "Gold",
         Items = {
             -- NORMAL (60%) — segments 1, 2, 3
@@ -92,8 +92,8 @@ LootTables.Wheels = {
     -- ── Roue 3 : Roue Ultra (droite, position 70,0,0) ─────────────────────────
     [3] = {
         Name = "Roue Ultra",
-        Cost = 1,
-        Currency = "Tickets",
+        Cost = 500,
+        Currency = "Gold",
         Items = {
             -- NORMAL (60%) — segments 1, 2, 3
             { Id = "CosmicNoob",   Name = "Noob Cosmique",      Rarity = "NORMAL",    SegmentId = 1  },

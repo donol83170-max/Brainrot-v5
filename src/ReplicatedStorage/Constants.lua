@@ -16,9 +16,9 @@ Constants.COOLDOWNS = {
 }
 
 Constants.STARTING_STATS = {
-    GOLD = 300,   -- Assez pour 1 spin Noob (50) + 1 spin Sigma (250)
+    GOLD = 50,    -- Assez pour 2 spins Roue 1 (20) dès le départ
     XP = 0,
-    TICKETS = 1,  -- 1 spin Ultra
+    TICKETS = 0,
 }
 
 Constants.SELL_VALUES = {

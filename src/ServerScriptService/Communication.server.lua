@@ -1,114 +1,61 @@
 -- Communication.server.lua
-print("🚀 [Communication] DÉMARRAGE DU SCRIPT")
--- Initialise les RemoteEvents dans ReplicatedStorage
+-- Gère uniquement les RemoteEvents non-liés aux roues (données joueur, vente).
+-- Le système de spin sera câblé dans le nouveau script de roues.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
--- Dossier pour les events
-local EventsFolder = ReplicatedStorage:FindFirstChild("Events") or Instance.new("Folder", ReplicatedStorage)
-EventsFolder.Name = "Events"
-
--- Création des events si ils n'existent pas
-local function getOrCreateEvent(name)
-	local event = EventsFolder:FindFirstChild(name)
-	if not event then
-		event = Instance.new("RemoteEvent")
-		event.Name = name
-		event.Parent = EventsFolder
-	end
-	return event
-end
-
-local SpinRequest = getOrCreateEvent("SpinRequest")
-local SpinResult = getOrCreateEvent("SpinResult")
-local UpdateClientData = getOrCreateEvent("UpdateClientData")
-local SellRequest = getOrCreateEvent("SellRequest")
-local SellResult = getOrCreateEvent("SellResult")
-
-local GetPlayerData = EventsFolder:FindFirstChild("GetPlayerData") or Instance.new("RemoteFunction")
-GetPlayerData.Name = "GetPlayerData"
-GetPlayerData.Parent = EventsFolder
-
--- Liaison avec le WheelManager et DataManager
-local WheelManager = require(ServerScriptService:WaitForChild("WheelManager"))
 local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
-local Constants = require(ReplicatedStorage:WaitForChild("Constants"))
-local LootTables = require(ReplicatedStorage:WaitForChild("LootTables"))
+local Constants   = require(ReplicatedStorage:WaitForChild("Constants"))
 
--- Cooldown tracking
-local lastSpinTime = {}
+-- Dossier Events
+local EventsFolder = ReplicatedStorage:FindFirstChild("Events") or Instance.new("Folder")
+EventsFolder.Name   = "Events"
+EventsFolder.Parent = ReplicatedStorage
 
-SpinRequest.OnServerEvent:Connect(function(player, wheelId)
-	print("📡 [Server] Requête de spin reçue de " .. player.Name)
-
-	-- Cooldown check
-	local now = tick()
-	local lastSpin = lastSpinTime[player.UserId] or 0
-	if (now - lastSpin) < Constants.COOLDOWNS.FREE_SPIN then
-		local remaining = math.ceil(Constants.COOLDOWNS.FREE_SPIN - (now - lastSpin))
-		print("⏱️ [Server] Cooldown actif pour " .. player.Name .. " (" .. remaining .. "s restantes)")
-		return
-	end
-
-	local wheelData = LootTables.Wheels[wheelId or 1]
-	if not wheelData then return end
-	
-	local cost = wheelData.Cost or 0
-	local currency = wheelData.Currency or "Tickets"
-
-	-- Currency check
-	if currency == "Tickets" then
-		if not DataManager.SpendTicket(player, cost) then
-			print("🎟️ [Server] Pas assez de tickets pour " .. player.Name)
-			return
-		end
-	elseif currency == "Gold" then
-		if not DataManager.SpendGold(player, cost) then
-			print("💰 [Server] Pas assez d'or pour " .. player.Name)
-			return
-		end
-	end
-
-	lastSpinTime[player.UserId] = now
-
-	local result = WheelManager.Spin(player, wheelId or 1)
-	if result then
-		print("🎰 [Server] Envoi du résultat à " .. player.Name .. " : " .. result.Name)
-		SpinResult:FireClient(player, result)
-		-- Sync les données complètes vers le client
-		local data = DataManager.GetData(player)
-		if data then
-			UpdateClientData:FireClient(player, data)
-		end
-	else
-		print("⚠️ [Server] Erreur lors du spin pour " .. player.Name)
-	end
-end)
-
--- Fournit les données complètes du joueur au client (appelé au démarrage)
-GetPlayerData.OnServerInvoke = function(player)
-	return DataManager.GetData(player)
+local function getOrCreate(name, className)
+    local obj = EventsFolder:FindFirstChild(name)
+    if not obj then
+        obj        = Instance.new(className)
+        obj.Name   = name
+        obj.Parent = EventsFolder
+    end
+    return obj
 end
 
--- Vente d'un item
+local UpdateClientData = getOrCreate("UpdateClientData",  "RemoteEvent")
+local SellRequest      = getOrCreate("SellRequest",       "RemoteEvent")
+local SellResult       = getOrCreate("SellResult",        "RemoteEvent")
+-- Réservés pour le futur système de roues (créés ici pour que les clients ne crashent pas)
+getOrCreate("SpinRequest", "RemoteEvent")
+getOrCreate("SpinResult",  "RemoteEvent")
+
+local GetPlayerData    = getOrCreate("GetPlayerData", "RemoteFunction")
+
+-- ── Fournit les données complètes au client ────────────────────────────────────
+GetPlayerData.OnServerInvoke = function(player)
+    return DataManager.GetData(player)
+end
+
+-- ── Vente d'un item ────────────────────────────────────────────────────────────
 SellRequest.OnServerEvent:Connect(function(player, itemId)
-	local data = DataManager.GetData(player)
-	if not data or not data.Inventory[itemId] then return end
+    local data = DataManager.GetData(player)
+    if not data or not data.Inventory[itemId] then return end
 
-	local item = data.Inventory[itemId]
-	local sellValue = Constants.SELL_VALUES[string.upper(item.Rarity)] or 0
+    local item      = data.Inventory[itemId]
+    local sellValue = Constants.SELL_VALUES[string.upper(item.Rarity)] or 0
 
-	DataManager.RemoveItem(player, itemId)
-	DataManager.AddGold(player, sellValue)
+    DataManager.RemoveItem(player, itemId)
+    DataManager.AddGold(player, sellValue)
 
-	print("💰 [Server] " .. player.Name .. " a vendu " .. item.Name .. " pour " .. sellValue .. " gold")
+    print(string.format("[Communication] %s a vendu %s pour %d Coins",
+        player.Name, item.Name, sellValue))
 
-	local updatedData = DataManager.GetData(player)
-	if updatedData then
-		UpdateClientData:FireClient(player, updatedData)
-		SellResult:FireClient(player, itemId, sellValue)
-	end
+    local updatedData = DataManager.GetData(player)
+    if updatedData then
+        UpdateClientData:FireClient(player, updatedData)
+        SellResult:FireClient(player, itemId, sellValue)
+    end
 end)
 
-print("📡 [Communication] RemoteEvents prêts !")
+print("[Communication] Pret (spin desactive — en attente du nouveau systeme)")

@@ -1,15 +1,18 @@
 --!strict
--- BrainrotGallery.server.lua v2
--- Système multi-parcelles : chaque joueur reçoit sa propre galerie sur l'Avenue Brainrot.
--- Les galeries sont alignées le long de l'axe X, toutes orientées face à -Z (vers la route).
+-- BrainrotGallery.server.lua v3
+-- Boulevard à deux côtés :
+--   - Plots impairs  → côté NORD (Z = START_Z, galerie va vers +Z)
+--   - Plots pairs    → côté SUD  (Z = START_Z_SOUTH, galerie va vers -Z)
+-- Les deux rangées se font face à travers l'avenue centrale.
 
 local Workspace           = game:GetService("Workspace")
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
-local LootTables  = require(ReplicatedStorage:WaitForChild("LootTables"))
+local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
+local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
+local BrainrotData  = require(ReplicatedStorage:WaitForChild("BrainrotData"))
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DOSSIER MAP
@@ -66,63 +69,7 @@ for _, wheel in pairs(LootTables.Wheels) do
     end
 end
 
--- ══════════════════════════════════════════════════════════════════════════════
--- TABLE D'IMAGES BRAINROT
--- (rbxassetid://XXXXXXX — laisser à 0 = aucune image affichée)
--- ══════════════════════════════════════════════════════════════════════════════
-local BRAINROT_DATA: {[string]: number} = {
-    -- Roue Noob
-    BruhSound       = 0,
-    NoobFace        = 0,
-    DefaultPizza    = 0,
-    MewingEmoji     = 0,
-    BlueTie         = 0,
-    SigmaSmile      = 0,
-    GigachadJaw     = 0,
-    PizzaTower      = 0,
-    SkibidiHead     = 0,
-    GoldenSigma     = 0,
-    GalaxySigma     = 0,
-    DiamondSkibidi  = 0,
-    JokeCrafter     = 0,
-    BrainrotKing    = 0,
-    SkibidiGod      = 0,
-    UltimateNoob    = 0,
-    -- Roue Sigma
-    CrunchyCookie   = 0,
-    BasicRizzler    = 0,
-    NpcFace         = 0,
-    SigmaGrind      = 0,
-    Rizzler500      = 0,
-    BrainrotWave    = 0,
-    SigmaKing       = 0,
-    GlizzyGoblin    = 0,
-    UltraRizzler    = 0,
-    SigmaChad       = 0,
-    OmegaSigma      = 0,
-    DivineRizzler   = 0,
-    ChadVibes       = 0,
-    SigmaFlash      = 0,
-    MegaRizzler     = 0,
-    AbsoluteSigma   = 0,
-    -- Roue Ultra
-    CosmicNoob      = 0,
-    VoidPizza       = 0,
-    NebulaBruh      = 0,
-    StarSigma       = 0,
-    LunarSkibidi    = 0,
-    GalacticMewing  = 0,
-    NovaSigma       = 0,
-    BlackHoleRizz   = 0,
-    UniverseChad    = 0,
-    CosmicSkibidi   = 0,
-    AbsoluteGigachad = 0,
-    TrueOmegaSigma  = 0,
-    StarNoob        = 0,
-    NebulaSigma     = 0,
-    CelestialRizz   = 0,
-    CosmicGigachad  = 0,
-}
+-- Images gérées dans ReplicatedStorage/BrainrotData.lua (plus de table locale)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DIMENSIONS DE LA GALERIE
@@ -133,42 +80,49 @@ local SIDE_DIST   = 16         -- Distance X du centre au socle
 local CORRIDOR_W  = 44         -- Largeur du couloir (X)
 local WALL_H      = 20         -- Hauteur des murs
 local WALL_T      = 2          -- Épaisseur des murs
-local START_Z     = 110        -- Z de début de la galerie
-local FLOOR_Y     = 1          -- Y du sol de la galerie
-local GALLERY_LEN = (NUM_SIDES + 1) * PLACE_GAP  -- 96 studs de long
+local FLOOR_Y     = 1          -- Y du sol
+local GALLERY_LEN = (NUM_SIDES + 1) * PLACE_GAP  -- 96 studs
+
+-- ── Entrées des deux rangées de galeries ──────────────────────────────────────
+-- L'avenue est entre START_Z_SOUTH (bord sud) et START_Z (bord nord).
+-- La route fait 80 studs de large (70 à 150).
+local START_Z       = 142   -- Entrée côté NORD — Z = 110 + 32
+local START_Z_SOUTH =  78   -- Entrée côté SUD  — Z = 110 - 32
+-- Avenue = 64 studs de large (était 80), centre à Z = 110
 
 local SLOT_NAMES: {string} = {
-    [1]  = "???  Slot 1",
-    [2]  = "???  Slot 2",
-    [3]  = "???  Slot 3",
-    [4]  = "???  Slot 4",
-    [5]  = "???  Slot 5",
-    [6]  = "???  Slot 6",
-    [7]  = "???  Slot 7",
-    [8]  = "???  Slot 8",
-    [9]  = "???  Slot 9",
-    [10] = "???  Slot 10",
+    [1]="??? Slot 1",[2]="??? Slot 2",[3]="??? Slot 3",[4]="??? Slot 4",[5]="??? Slot 5",
+    [6]="??? Slot 6",[7]="??? Slot 7",[8]="??? Slot 8",[9]="??? Slot 9",[10]="??? Slot 10",
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- SYSTÈME DE PARCELLES (PLOTS)
--- Disposition : 1→X=0, 2→X=+STEP, 3→X=-STEP, 4→X=+2*STEP, ...
--- Les galeries s'alignent de chaque côté de l'avenue centrale (axe Z).
+-- SYSTÈME DE PARCELLES
+-- plotIndex impair  → côté nord (zDir=+1, baseZ=START_Z)
+-- plotIndex pair    → côté sud  (zDir=-1, baseZ=START_Z_SOUTH)
+-- Au sein de chaque côté, les galeries alternent +X / -X.
 -- ══════════════════════════════════════════════════════════════════════════════
-local PLOT_STEP   = CORRIDOR_W + 8   -- 52 studs entre les centres de galerie (axe X)
-local MAX_PLOTS   = 40
+local PLOT_STEP = CORRIDOR_W + 8   -- 52 studs entre galeries (axe X)
+local MAX_PLOTS = 40
 
-local nextPlotIndex                    = 1
+local nextPlotIndex                      = 1
 local plotAssignments: {[number]: number} = {}  -- [userId] = plotIndex
 
-local function getPlotOffsetX(plotIndex: number): number
-    if plotIndex == 1 then return 0 end
-    local n = math.ceil((plotIndex - 1) / 2)
-    if (plotIndex - 1) % 2 == 1 then
-        return n * PLOT_STEP    -- Droite : +STEP, +2*STEP, ...
+-- Retourne (offsetX, baseEntranceZ, zDir) pour un plotIndex donné
+local function getPlotParams(plotIndex: number): (number, number, number)
+    local isNorth = (plotIndex % 2 == 1)
+    local rank    = math.ceil(plotIndex / 2)  -- rang au sein du côté (1, 2, 3...)
+
+    local offsetX: number
+    if rank == 1 then
+        offsetX = 0
     else
-        return -n * PLOT_STEP   -- Gauche : -STEP, -2*STEP, ...
+        local n = math.ceil((rank - 1) / 2)
+        offsetX = ((rank - 1) % 2 == 1) and (n * PLOT_STEP) or (-n * PLOT_STEP)
     end
+
+    local baseZ = isNorth and START_Z or START_Z_SOUTH
+    local zDir  = isNorth and 1 or -1
+    return offsetX, baseZ, zDir
 end
 
 -- État par parcelle
@@ -182,19 +136,25 @@ type PlotState = {
 local plotState: {[number]: PlotState} = {}
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- CONSTRUCTEUR DE GALERIE (par parcelle)
+-- CONSTRUCTEUR DE GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
 local function buildGallery(player: Player, plotIndex: number): PlotState
-    local offsetX    = getPlotOffsetX(plotIndex)
+    local offsetX, baseEntranceZ, zDir = getPlotParams(plotIndex)
     local playerName = player.Name
     local userId     = player.UserId
 
-    -- Dossier unique par joueur (identifié par userId côté client)
+    -- worldZ : convertit un Z « local » (référencé sur START_Z nord) en monde réel
+    -- • côté nord (zDir=+1) : worldZ(z) = z          (aucun changement)
+    -- • côté sud  (zDir=-1) : worldZ(z) = 220 - z    (miroir autour de Z=110)
+    local function worldZ(localZ: number): number
+        return baseEntranceZ + zDir * (localZ - START_Z)
+    end
+
     local folder = Instance.new("Folder")
     folder.Name   = "BrainrotGallery_" .. tostring(userId)
     folder.Parent = mapFolder
 
-    -- Helper : crée une Part avec offset X automatique, parentée au dossier de la parcelle
+    -- Helper Part avec transform X+Z automatique
     local function mp(
         name    : string,
         size    : Vector3,
@@ -206,7 +166,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         local p = Instance.new("Part")
         p.Name          = name
         p.Size          = size
-        p.Position      = Vector3.new(localPos.X + offsetX, localPos.Y, localPos.Z)
+        p.Position      = Vector3.new(localPos.X + offsetX, localPos.Y, worldZ(localPos.Z))
         p.Anchored      = true
         p.CanCollide    = true
         p.Color         = color
@@ -219,14 +179,17 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     end
 
     -- ── 1. SOL ────────────────────────────────────────────────────────────────
+    -- Légèrement surélevé (+0.1) par rapport à l'avenue pour éviter le Z-fighting.
     mp("GalleryFloor",
         Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y - 0.5, START_Z + GALLERY_LEN / 2),
-        COL_FLOOR, Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+        Vector3.new(0, FLOOR_Y - 0.4, START_Z + GALLERY_LEN / 2),
+        COL_FLOOR, Enum.Material.DiamondPlate, Enum.SurfaceType.Smooth)
 
+    -- FLOOR_Y - 0.4 (centre sol) + 0.5 (demi-hauteur) = 1.1 (surface sol galerie)
+    -- La ligne doit être AU-DESSUS : 1.1 + 0.05 = FLOOR_Y + 0.15
     mp("CenterLine",
         Vector3.new(1.5, 0.1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y + 0.05, START_Z + GALLERY_LEN / 2),
+        Vector3.new(0, FLOOR_Y + 0.15, START_Z + GALLERY_LEN / 2),
         COL_RED_LINE, Enum.Material.SmoothPlastic, Enum.SurfaceType.Smooth)
 
     -- ── 2. MURS ───────────────────────────────────────────────────────────────
@@ -251,13 +214,15 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     -- ── 3. PLAFOND ────────────────────────────────────────────────────────────
     local ceiling = mp("GalleryCeiling",
         Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y + WALL_H + 0.5, START_Z + GALLERY_LEN / 2),
+        Vector3.new(0, FLOOR_Y + WALL_H + 0.5, WALL_CZ),
         Color3.fromRGB(40, 40, 40), Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
     ceiling.Reflectance = 0
 
+    -- Plafond centre à FLOOR_Y + WALL_H + 0.5, bottom à FLOOR_Y + WALL_H.
+    -- La ligne doit être 0.05 SOUS le plafond pour éviter le Z-fighting.
     mp("CeilingRedLine",
         Vector3.new(1.5, 0.1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y + WALL_H, START_Z + GALLERY_LEN / 2),
+        Vector3.new(0, FLOOR_Y + WALL_H - 0.05, WALL_CZ),
         COL_RED_LINE, Enum.Material.SmoothPlastic)
 
     -- ── 4. SOCLES D'EXPOSITION ────────────────────────────────────────────────
@@ -285,7 +250,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 Vector3.new(baseX, FLOOR_Y + 2.75, placeZ),
                 PEDESTAL_TOP_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
 
-            -- Numéro de la place (BillboardGui sur le socle)
             local slotIndex = (i - 1) * 2 + (side == -1 and 1 or 2)
 
             local numBillboard = Instance.new("BillboardGui")
@@ -305,7 +269,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             numLabel.TextStrokeTransparency = 0.8
             numLabel.Parent                 = numBillboard
 
-            -- ── Cadres en or (4 bordures) ────────────────────────────────────
+            -- Cadres en or
             local wallInnerX = side * (CORRIDOR_W / 2 - WALL_T - 0.05)
             local frameH  = 10
             local frameW  = 10
@@ -336,7 +300,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 COL_GOLD, Enum.Material.Metal)
             fRight.CanCollide = false
 
-            -- ── Plaque d'identification ───────────────────────────────────────
+            -- Plaque d'identification
             local slotName = SLOT_NAMES[slotIndex] or ("Slot " .. slotIndex)
 
             local plaque = mp("Plaque_" .. i .. sideLabel,
@@ -372,7 +336,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             nameLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
             nameLabel.Parent                 = sGui
 
-            -- ── Panneau image (fond du cadre) ─────────────────────────────────
+            -- Panneau image (fond du cadre)
             local innerH = frameH - bT * 2
             local innerW = frameW - bT * 2
             local imgPanel = mp("ImgPanel_" .. i .. sideLabel,
@@ -382,13 +346,14 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             imgPanel.CanCollide = false
 
             local decal = Instance.new("Decal")
+            decal.Name    = "MemeDisplay"
             decal.Texture = ""
             decal.Face    = side == -1 and Enum.NormalId.Right or Enum.NormalId.Left
             decal.Parent  = imgPanel
 
             pedestalRefs[slotIndex] = {top = topPart, nameLabel = nameLabel, decal = decal}
 
-            -- ── Spot au sol (uplighting) ──────────────────────────────────────
+            -- Spot au sol
             local floorSpotPart = mp("FloorSpot_" .. i .. sideLabel,
                 Vector3.new(0.6, 0.3, 0.6),
                 Vector3.new(baseX - side * 4, FLOOR_Y + 0.15, placeZ),
@@ -406,7 +371,16 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
     end
 
-    -- ── 5. ENSEIGNE "BASE DE [Joueur]" ────────────────────────────────────────
+    -- ── 5. SEUIL D'ENTRÉE ────────────────────────────────────────────────────
+    -- Petite marche noire qui fait la transition propre entre route (Y=1.0)
+    -- et sol de galerie (Y=1.1). Épaisseur = 0.1, largeur = ouverture du couloir.
+    local threshold = mp("EntryThreshold",
+        Vector3.new(CORRIDOR_W, 0.1, 1),
+        Vector3.new(0, FLOOR_Y + 0.05, START_Z - 0.5),
+        Color3.fromRGB(15, 15, 15), Enum.Material.SmoothPlastic)
+    threshold.CanCollide = false
+
+    -- ── 6. ENSEIGNE ──────────────────────────────────────────────────────────
     local signPlaque = mp("GallerySignPlaque",
         Vector3.new(CORRIDOR_W - 4, 5, 3),
         Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 6),
@@ -419,10 +393,10 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         COL_GOLD, Enum.Material.Metal)
     signRim.CanCollide = false
 
-    -- SurfaceGui : LightInfluence=0 → toujours visible même dans la galerie sombre
     local signSGui = Instance.new("SurfaceGui")
     signSGui.Name           = "GallerySignGui"
-    signSGui.Face           = Enum.NormalId.Front  -- -Z = face vers le spawn
+    -- Nord : face -Z (vers la route), Sud : face +Z (vers la route)
+    signSGui.Face           = zDir == 1 and Enum.NormalId.Front or Enum.NormalId.Back
     signSGui.CanvasSize     = Vector2.new(520, 100)
     signSGui.SizingMode     = Enum.SurfaceGuiSizingMode.FixedSize
     signSGui.LightInfluence = 0
@@ -456,7 +430,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         for _, side in ipairs({-1, 1}) do
             local sLbl = side == -1 and "L" or "R"
             local lx   = side * (CORRIDOR_W / 2 + 1)
-            local lz   = START_Z - 4
+            local lz   = START_Z - 4   -- worldZ() l'appliquera
 
             local pole = mp("EntryPole_" .. sLbl,
                 Vector3.new(1, poleH, 1),
@@ -502,21 +476,19 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         pt.Parent     = lightPart
     end
 
-    -- ── 8. LUMIÈRES D'AMBIANCE (8 points) ────────────────────────────────────
-    local edgeX  = CORRIDOR_W / 2 - WALL_T - 4
-    local midY   = FLOOR_Y + WALL_H / 2
-    local frontZ = START_Z + 2
-    local backZ  = START_Z + GALLERY_LEN + 2
+    -- ── 8. LUMIÈRES D'AMBIANCE ────────────────────────────────────────────────
+    local edgeX = CORRIDOR_W / 2 - WALL_T - 4
+    local midY  = FLOOR_Y + WALL_H / 2
 
     local ambPositions = {
-        Vector3.new(-edgeX, midY, frontZ),
-        Vector3.new( edgeX, midY, frontZ),
-        Vector3.new(-edgeX, midY, backZ),
-        Vector3.new( edgeX, midY, backZ),
-        Vector3.new(-edgeX, midY, START_Z + GALLERY_LEN * 0.33),
-        Vector3.new( edgeX, midY, START_Z + GALLERY_LEN * 0.33),
-        Vector3.new(-edgeX, midY, START_Z + GALLERY_LEN * 0.66),
-        Vector3.new( edgeX, midY, START_Z + GALLERY_LEN * 0.66),
+        Vector3.new(-edgeX, midY, worldZ(START_Z + 2)),
+        Vector3.new( edgeX, midY, worldZ(START_Z + 2)),
+        Vector3.new(-edgeX, midY, worldZ(START_Z + GALLERY_LEN + 2)),
+        Vector3.new( edgeX, midY, worldZ(START_Z + GALLERY_LEN + 2)),
+        Vector3.new(-edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.33)),
+        Vector3.new( edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.33)),
+        Vector3.new(-edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.66)),
+        Vector3.new( edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.66)),
     }
 
     for k, pos in ipairs(ambPositions) do
@@ -538,7 +510,30 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         pl.Parent     = amb
     end
 
-    print(string.format("[BrainrotGallery] Galerie #%d creee pour %s (X=%d)", plotIndex, playerName, offsetX))
+    -- ── BALISE DEBUG : colonne néon rouge au-dessus du toit ──────────────────
+    local ROOF_TOP    = FLOOR_Y + WALL_H + 0.5
+    local beaconCentZ = worldZ(START_Z + GALLERY_LEN / 2)
+    local beacon      = Instance.new("Part")
+    beacon.Name         = "DEBUG_Beacon_" .. plotIndex
+    beacon.Shape        = Enum.PartType.Cylinder
+    beacon.Size         = Vector3.new(1000, 2, 2)
+    beacon.CFrame       = CFrame.new(offsetX, ROOF_TOP + 500, beaconCentZ)
+                        * CFrame.Angles(0, 0, math.pi / 2)
+    beacon.Anchored     = true
+    beacon.CanCollide   = false
+    beacon.Material     = Enum.Material.Neon
+    beacon.Color        = Color3.fromRGB(255, 0, 0)
+    beacon.CastShadow   = false
+    beacon.Parent       = folder
+
+    -- Force l'ancrage de toutes les BaseParts
+    for _, v in pairs(folder:GetDescendants()) do
+        if v:IsA("BasePart") then v.Anchored = true end
+    end
+
+    local side_lbl = zDir == 1 and "Nord" or "Sud"
+    print(string.format("[BrainrotGallery] Galerie #%d (%s) → %s | X=%d | Z_entree=%d",
+        plotIndex, side_lbl, playerName, offsetX, baseEntranceZ))
 
     return {
         folder       = folder,
@@ -549,7 +544,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- FIGURINES (par état de parcelle)
+-- FIGURINES
 -- ══════════════════════════════════════════════════════════════════════════════
 local function createFigurine(state: PlotState, slotIndex: number, itemData: any)
     if state.displayParts[slotIndex] then
@@ -613,7 +608,7 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- MISE À JOUR DE LA GALERIE (inventaire du joueur → socles)
+-- MISE À JOUR DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
 local function refreshGallery(player: Player)
     local plotIndex = plotAssignments[player.UserId]
@@ -621,7 +616,6 @@ local function refreshGallery(player: Player)
     local state = plotState[plotIndex]
     if not state then return end
 
-    -- Polling : attend que DataManager ait chargé les données (max 10 sec)
     local data = nil
     for _ = 1, 20 do
         data = DataManager.GetData(player)
@@ -634,7 +628,6 @@ local function refreshGallery(player: Player)
         return
     end
 
-    -- Collecte des items possédés
     local ownedItems: {{Name: string, Rarity: string, Priority: number, Id: string}} = {}
     for itemId, invItem in pairs(data.Inventory) do
         local info = itemLookup[itemId]
@@ -648,32 +641,33 @@ local function refreshGallery(player: Player)
         end
     end
 
-    -- Tri par rareté décroissante, puis par nom
     table.sort(ownedItems, function(a, b)
         if a.Priority ~= b.Priority then return a.Priority > b.Priority end
         return a.Name < b.Name
     end)
 
-    -- Mise à jour des 10 socles
+    local lockedId   = BrainrotData.LockedImageId
+    local fallbackId = BrainrotData.FallbackImageId
+
     for slotIndex = 1, NUM_SIDES * 2 do
         local item = ownedItems[slotIndex]
         local refs = state.pedestalRefs[slotIndex]
         if refs then
             if item then
+                -- Slot débloqué : image réelle si dispo, sinon fallback (jamais carré gris)
                 refs.nameLabel.Text       = item.Name
                 refs.nameLabel.TextColor3 = RARITY_COLOR[item.Rarity] or COL_GOLD
                 createFigurine(state, slotIndex, item)
-                local imgId = BRAINROT_DATA[item.Id or ""]
-                if imgId and imgId ~= 0 then
-                    refs.decal.Texture = "rbxassetid://" .. imgId
-                else
-                    refs.decal.Texture = ""
-                end
+                -- GetImageId() retourne déjà FallbackImageId si l'item n'a pas d'image
+                local imgId = BrainrotData.GetImageId(item.Id)
+                refs.decal.Texture = "rbxassetid://" .. imgId
             else
+                -- Slot vide : image "Locked" si disponible, sinon vide
                 refs.nameLabel.Text       = "???  Slot " .. slotIndex
-                refs.nameLabel.TextColor3 = COL_GOLD
+                refs.nameLabel.TextColor3 = Color3.fromRGB(80, 80, 90)
                 createFigurine(state, slotIndex, nil)
-                refs.decal.Texture = ""
+                refs.decal.Texture = lockedId ~= 0
+                    and ("rbxassetid://" .. lockedId) or ""
             end
         end
     end
@@ -683,30 +677,29 @@ local function refreshGallery(player: Player)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- AVENUE CENTRALE (route le long de l'axe X, devant toutes les galeries)
+-- AVENUE CENTRALE
+-- Route entre les deux rangées de galeries (Z=70 à Z=150, soit 80 studs).
 -- ══════════════════════════════════════════════════════════════════════════════
 do
-    -- Largeur totale : couvre MAX_PLOTS/2 plots de chaque côté + marge
     local AVENUE_HALF_LEN = (MAX_PLOTS / 2 + 2) * PLOT_STEP + CORRIDOR_W / 2
-    -- Profondeur : du spawn (Z≈76) jusqu'à l'entrée des galeries (Z=START_Z-2)
-    local AVENUE_DEPTH = START_Z - 76
-    local AVENUE_CZ    = 76 + AVENUE_DEPTH / 2
+    local AVENUE_SOUTH_Z  = START_Z_SOUTH          -- 70
+    local AVENUE_NORTH_Z  = START_Z                -- 150
+    local AVENUE_DEPTH    = AVENUE_NORTH_Z - AVENUE_SOUTH_Z  -- 80
+    local AVENUE_CZ       = (AVENUE_SOUTH_Z + AVENUE_NORTH_Z) / 2  -- 110
 
-    -- Sol de la route (asphalte gris foncé)
     local roadPart = Instance.new("Part")
     roadPart.Name          = "CityAvenue"
     roadPart.Size          = Vector3.new(AVENUE_HALF_LEN * 2, 1, AVENUE_DEPTH)
     roadPart.Position      = Vector3.new(0, FLOOR_Y - 0.5, AVENUE_CZ)
     roadPart.Anchored      = true
     roadPart.CanCollide    = true
-    roadPart.Color         = Color3.fromRGB(72, 72, 72)
-    roadPart.Material      = Enum.Material.SmoothPlastic
+    roadPart.Color         = Color3.fromRGB(80, 78, 74)
+    roadPart.Material      = Enum.Material.Concrete
     roadPart.Reflectance   = 0
     roadPart.TopSurface    = Enum.SurfaceType.Smooth
     roadPart.BottomSurface = Enum.SurfaceType.Smooth
     roadPart.Parent        = mapFolder
 
-    -- Ligne centrale (marquage au sol jaune)
     local centerMark = Instance.new("Part")
     centerMark.Name          = "AvenueCenter"
     centerMark.Size          = Vector3.new(1, 0.1, AVENUE_DEPTH)
@@ -720,37 +713,41 @@ do
     centerMark.BottomSurface = Enum.SurfaceType.Smooth
     centerMark.Parent        = mapFolder
 
-    -- Bordures de trottoir (côté galeries)
+    -- Trottoirs : béton légèrement surélevé au bord de chaque rangée de galeries
     for _, side in ipairs({-1, 1}) do
-        local curb = Instance.new("Part")
-        curb.Name          = "AvenueCurb_" .. (side == -1 and "L" or "R")
-        curb.Size          = Vector3.new(AVENUE_HALF_LEN * 2, 0.4, 1)
-        curb.Position      = Vector3.new(0, FLOOR_Y + 0.2, AVENUE_CZ + side * (AVENUE_DEPTH / 2 - 0.5))
+        local curbZ = side == -1 and AVENUE_SOUTH_Z or AVENUE_NORTH_Z
+        local curb  = Instance.new("Part")
+        curb.Name          = "AvenueCurb_" .. (side == -1 and "S" or "N")
+        curb.Size          = Vector3.new(AVENUE_HALF_LEN * 2, 0.4, 1.5)
+        curb.Position      = Vector3.new(0, FLOOR_Y + 0.2, curbZ)
         curb.Anchored      = true
         curb.CanCollide    = true
-        curb.Color         = Color3.fromRGB(180, 180, 180)
-        curb.Material      = Enum.Material.SmoothPlastic
+        curb.Color         = Color3.fromRGB(190, 188, 182)
+        curb.Material      = Enum.Material.Concrete
         curb.Reflectance   = 0
         curb.Parent        = mapFolder
     end
 end
 
--- ══════════════════════════════════════════════════════════════════════════════
--- STREAMING ENABLED (optimisation : charge uniquement les parties proches)
--- ══════════════════════════════════════════════════════════════════════════════
-Workspace.StreamingEnabled = true
-pcall(function()
-    -- Ces propriétés sont configurables via Studio ou via script selon la version
-    (Workspace :: any).StreamingMinDistance    = 64
-    (Workspace :: any).StreamingTargetDistance = 512
-end)
-print("[BrainrotGallery] StreamingEnabled active (min=64, target=512)")
+-- (StreamingEnabled configuré manuellement dans Studio)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- GESTION DES JOUEURS
 -- ══════════════════════════════════════════════════════════════════════════════
+
+-- Téléporte devant l'entrée de la parcelle (côté route)
+local function teleportToPlot(character: Model, plotIndex: number)
+    local offsetX, baseEntranceZ, zDir = getPlotParams(plotIndex)
+    -- 12 studs vers la route depuis l'entrée de la galerie
+    local spawnPos = Vector3.new(offsetX, FLOOR_Y + 5, baseEntranceZ - zDir * 12)
+    local hrp = character:WaitForChild("HumanoidRootPart", 10)
+    if hrp then
+        hrp.CFrame = CFrame.new(spawnPos)
+    end
+end
+
 local function onPlayerAdded(player: Player)
-    if plotAssignments[player.UserId] then return end  -- Reconnexion : parcelle déjà assignée
+    if plotAssignments[player.UserId] then return end
 
     if nextPlotIndex > MAX_PLOTS then
         warn("[BrainrotGallery] Limite de " .. MAX_PLOTS .. " parcelles atteinte !")
@@ -761,19 +758,28 @@ local function onPlayerAdded(player: Player)
     nextPlotIndex  += 1
     plotAssignments[player.UserId] = plotIndex
 
-    -- Construire la galerie pour ce joueur
     local state = buildGallery(player, plotIndex)
     plotState[plotIndex] = state
+    print("[BrainrotGallery] Base generee pour : " .. player.Name)
 
-    -- Mettre les socles à jour selon l'inventaire
+    player.CharacterAdded:Connect(function(character)
+        task.wait(2)
+        teleportToPlot(character, plotIndex)
+    end)
+    if player.Character then
+        teleportToPlot(player.Character, plotIndex)
+    end
+
     task.spawn(refreshGallery, player)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
-
--- Joueurs déjà connectés au démarrage (mode Studio test)
 for _, p in ipairs(Players:GetPlayers()) do
     task.spawn(onPlayerAdded, p)
 end
 
-print("[BrainrotGallery] Systeme multi-parcelles pret. Max " .. MAX_PLOTS .. " joueurs.")
+print("[BrainrotGallery] Boulevard 2 cotes pret. Max " .. MAX_PLOTS .. " joueurs.")
+
+-- Le futur système de roues appellera refreshGallery via ce hook global.
+_G.BrainrotGallery_Refresh = refreshGallery
+print("[BrainrotGallery] Hook _G.BrainrotGallery_Refresh expose pour le nouveau systeme de roues.")
