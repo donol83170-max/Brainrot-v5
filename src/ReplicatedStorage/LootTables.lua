@@ -130,6 +130,33 @@ LootTables.Wheels = {
             { Id = "CosmicGigachad",   Name = "Gigachad Cosmique",  Rarity = "ULTRA",  SegmentId = 16 },
         }
     },
+    -- ── Roue 4 : Roue Brainrot (12 segments — Pool system) ────────────────────
+    [4] = {
+        Name = "Roue Brainrot",
+        Cost = 20,
+        Currency = "Gold",
+        Items = {
+            -- COMMON (60%) — 7 segments
+            { Id = "SkibidiHead",     Name = "Skibidi Toilet",       Rarity = "COMMON",    SegmentId = 1  },
+            { Id = "MaxwellCat",      Name = "Maxwell Cat",           Rarity = "COMMON",    SegmentId = 2  },
+            { Id = "NoobiniPizza",    Name = "Noobini Pizzanini",     Rarity = "COMMON",    SegmentId = 4  },
+            { Id = "PipiCorni",       Name = "Pipi Corni",            Rarity = "COMMON",    SegmentId = 5  },
+            { Id = "MaxwellCat",      Name = "Maxwell Cat",           Rarity = "COMMON",    SegmentId = 7  },
+            { Id = "SkibidiHead",     Name = "Skibidi Toilet",        Rarity = "COMMON",    SegmentId = 9  },
+            { Id = "PipiCorni",       Name = "Pipi Corni",            Rarity = "COMMON",    SegmentId = 11 },
+
+            -- RARE (25%) — 3 segments
+            { Id = "Tralalero",       Name = "Tralalero Tralala",     Rarity = "RARE",      SegmentId = 3  },
+            { Id = "DogeMeme",        Name = "Doge",                  Rarity = "RARE",      SegmentId = 8  },
+            { Id = "Tralalero",       Name = "Tralalero Tralala",     Rarity = "RARE",      SegmentId = 12 },
+
+            -- EPIC (12%) — 1 segment
+            { Id = "BrBrPatapim",     Name = "Br Br Patapim",         Rarity = "EPIC",      SegmentId = 10 },
+
+            -- LEGENDARY (3%) — 1 segment
+            { Id = "StrawberryEleph", Name = "Strawberry Elephant",   Rarity = "LEGENDARY", SegmentId = 6  },
+        }
+    },
 }
 
 return LootTables

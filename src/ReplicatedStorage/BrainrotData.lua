@@ -23,6 +23,17 @@ end
 -- ✅  = ID réel vérifié   |   0 = à renseigner après upload
 BrainrotData.Items = {
 
+    -- ── Roue Brainrot (Wheel 4 — 12 segments) ────────────────────────────────
+    MaxwellCat      = { ImageId = 12501659970 },  -- ✅ Maxwell the Cat
+    NoobiniPizza    = { ImageId = 0 },            -- à upload
+    PipiCorni       = { ImageId = 0 },            -- à upload
+    Tralalero       = { ImageId = 0 },            -- à upload
+    DogeMeme        = { ImageId = 0 },            -- à upload
+    BrBrPatapim     = { ImageId = 0 },            -- à upload
+    CappuccinoAss   = { ImageId = 0 },            -- à upload
+    StrawberryEleph = { ImageId = 0 },            -- à upload
+    DragonCannell   = { ImageId = 0 },            -- à upload
+
     -- ── Roue Noob ─────────────────────────────────────────────────────────────
     BruhSound       = { ImageId = 0 },
     NoobFace        = { ImageId = 0 },

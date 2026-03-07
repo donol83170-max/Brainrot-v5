@@ -59,10 +59,12 @@ local PEDESTAL_TOP_SHADES: {Color3} = {
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA=5, LEGENDARY=4, MYTHIC=3, RARE=2, NORMAL=1}
 -- Puissance générée par mème exposé (Coins/s ajoutés au revenu passif)
-local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, RARE=5, MYTHIC=10, LEGENDARY=25, ULTRA=50}
+local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, COMMON=2, RARE=5, EPIC=15, MYTHIC=10, LEGENDARY=25, ULTRA=50}
 local RARITY_COLOR: {[string]: Color3} = {
     NORMAL    = Color3.fromRGB(163, 162, 165),
+    COMMON    = Color3.fromRGB(120, 122, 126),
     RARE      = Color3.fromRGB(  0, 162, 255),
+    EPIC      = Color3.fromRGB(155,   0, 255),
     MYTHIC    = Color3.fromRGB(170,   0, 255),
     LEGENDARY = Color3.fromRGB(255, 170,   0),
     ULTRA     = Color3.fromRGB(255,   0, 127),
