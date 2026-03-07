@@ -9,6 +9,7 @@ local Workspace           = game:GetService("Workspace")
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local TweenService        = game:GetService("TweenService")
 
 local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
 local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
@@ -144,6 +145,53 @@ type PlotState = {
     signLabelRef : TextLabel?,
 }
 local plotState: {[number]: PlotState} = {}
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- TEXTE FLOTTANT DE RÉCOLTE
+-- ══════════════════════════════════════════════════════════════════════════════
+local FLOAT_TWEEN = TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function showFloatingText(worldPos: Vector3, amount: number)
+    -- Part invisible ancré au point de récolte
+    local anchor = Instance.new("Part")
+    anchor.Name        = "HarvestFloat"
+    anchor.Size        = Vector3.new(0.1, 0.1, 0.1)
+    anchor.CFrame      = CFrame.new(worldPos)
+    anchor.Anchored    = true
+    anchor.CanCollide  = false
+    anchor.Transparency = 1
+    anchor.CastShadow  = false
+    anchor.Parent      = Workspace
+
+    local bb = Instance.new("BillboardGui")
+    bb.Size        = UDim2.new(0, 160, 0, 44)
+    bb.StudsOffset = Vector3.new(0, 1.5, 0)
+    bb.AlwaysOnTop = false
+    bb.MaxDistance = 40
+    bb.Parent      = anchor
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size                   = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text                   = "+" .. amount .. " ⚡"
+    lbl.TextColor3             = Color3.fromRGB(255, 225, 0)
+    lbl.Font                   = Enum.Font.GothamBlack
+    lbl.TextScaled             = true
+    lbl.TextStrokeTransparency = 0
+    lbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+    lbl.Parent                 = bb
+
+    -- Monte de 5 studs en 1.5s
+    TweenService:Create(anchor, FLOAT_TWEEN,
+        { CFrame = CFrame.new(worldPos + Vector3.new(0, 5, 0)) }
+    ):Play()
+    -- Disparaît progressivement
+    TweenService:Create(lbl, FLOAT_TWEEN,
+        { TextTransparency = 1, TextStrokeTransparency = 1 }
+    ):Play()
+
+    task.delay(1.6, function() anchor:Destroy() end)
+end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONSTRUCTEUR DE GALERIE
@@ -462,7 +510,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             plate.Size      = Vector3.new(4, 0.2, 4)
             plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
             plate.Anchored  = true
-            plate.CanCollide = true
+            plate.CanCollide = false   -- trigger zone : Touched fire sans bloquer le passage
             plate.Material  = Enum.Material.Neon
             plate.Color     = Color3.fromRGB(255, 215, 0)   -- jaune vif
             plate.CastShadow = false
@@ -551,6 +599,9 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
 
                 totalHarvested[pl.UserId] = (totalHarvested[pl.UserId] or 0) + amount
                 HarvestResult:FireClient(pl, amount, totalHarvested[pl.UserId])
+
+                -- Texte flottant 3D au-dessus de la plaque
+                showFloatingText(plate.Position + Vector3.new(0, 0.5, 0), amount)
 
                 -- Burst de particules jaunes + son
                 accRef.particles:Emit(30)
