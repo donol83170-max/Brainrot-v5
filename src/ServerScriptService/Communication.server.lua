@@ -27,8 +27,9 @@ local UpdateClientData = getOrCreate("UpdateClientData",  "RemoteEvent")
 local SellRequest      = getOrCreate("SellRequest",       "RemoteEvent")
 local SellResult       = getOrCreate("SellResult",        "RemoteEvent")
 -- Réservés pour le futur système de roues (créés ici pour que les clients ne crashent pas)
-getOrCreate("SpinRequest", "RemoteEvent")
-getOrCreate("SpinResult",  "RemoteEvent")
+getOrCreate("SpinRequest",    "RemoteEvent")
+getOrCreate("SpinResult",     "RemoteEvent")
+getOrCreate("HarvestResult",  "RemoteEvent")
 
 local GetPlayerData    = getOrCreate("GetPlayerData", "RemoteFunction")
 

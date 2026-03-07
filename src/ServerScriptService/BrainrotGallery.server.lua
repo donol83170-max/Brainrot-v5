@@ -14,6 +14,14 @@ local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
 local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
 local BrainrotData  = require(ReplicatedStorage:WaitForChild("BrainrotData"))
 
+-- ── Récolte physique ──────────────────────────────────────────────────────────
+-- [plotIndex][slotIndex] = {rate, accumulated, label, particles, sound, lastTouch}
+local allAccumulators: {[number]: {[number]: any}} = {}
+local totalHarvested:  {[number]: number}          = {}  -- session, par userId
+
+local eventsFolder  = ReplicatedStorage:WaitForChild("Events")
+local HarvestResult = eventsFolder:WaitForChild("HarvestResult")
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DOSSIER MAP
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -446,6 +454,114 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             floorSpot.Color      = Color3.fromRGB(255, 240, 200)
             floorSpot.Shadows    = true
             floorSpot.Parent     = floorSpotPart
+
+            -- ── Plaque de récolte (Collector Plate) ──────────────────────────
+            local plateX = side * (SIDE_DIST - 4)   -- 4 studs vers le centre
+            local plate  = Instance.new("Part")
+            plate.Name      = "CollectorPlate_" .. i .. sideLabel
+            plate.Size      = Vector3.new(5, 0.2, 5)
+            plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
+            plate.Anchored  = true
+            plate.CanCollide = true
+            plate.Material  = Enum.Material.Neon
+            plate.Color     = Color3.fromRGB(0, 80, 30)
+            plate.CastShadow = false
+            plate.Parent    = folder
+
+            -- Label dynamique au-dessus de la plaque
+            local harvestBb = Instance.new("BillboardGui")
+            harvestBb.Size        = UDim2.new(0, 120, 0, 30)
+            harvestBb.StudsOffset = Vector3.new(0, 2.2, 0)
+            harvestBb.Adornee     = plate
+            harvestBb.AlwaysOnTop = false
+            harvestBb.MaxDistance = 30
+            harvestBb.Parent      = folder
+
+            local harvestLbl = Instance.new("TextLabel")
+            harvestLbl.Size                   = UDim2.new(1, 0, 1, 0)
+            harvestLbl.BackgroundTransparency = 1
+            harvestLbl.Text                   = "0 ⚡"
+            harvestLbl.TextColor3             = Color3.fromRGB(0, 255, 100)
+            harvestLbl.Font                   = Enum.Font.GothamBold
+            harvestLbl.TextScaled             = true
+            harvestLbl.TextStrokeTransparency = 0.3
+            harvestLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+            harvestLbl.Parent                 = harvestBb
+
+            -- Particules de récolte (désactivées par défaut)
+            local particles = Instance.new("ParticleEmitter")
+            particles.Texture       = "rbxassetid://243160943"
+            particles.LightEmission = 0.9
+            particles.Color         = ColorSequence.new(Color3.fromRGB(0, 255, 100))
+            particles.Size          = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.6),
+                NumberSequenceKeypoint.new(1, 0),
+            })
+            particles.Speed         = NumberRange.new(8, 16)
+            particles.Lifetime      = NumberRange.new(0.5, 1.0)
+            particles.Rate          = 0
+            particles.VelocitySpread = 55
+            particles.Enabled       = false
+            particles.Parent        = plate
+
+            -- Son de récolte
+            local harvestSound = Instance.new("Sound")
+            harvestSound.SoundId   = "rbxassetid://6026984224"
+            harvestSound.Volume    = 0.7
+            harvestSound.RollOffMaxDistance = 30
+            harvestSound.Parent    = plate
+
+            -- Référence accumulateur
+            if not allAccumulators[plotIndex] then
+                allAccumulators[plotIndex] = {}
+            end
+            local accRef = {
+                rate        = 0,
+                accumulated = 0,
+                label       = harvestLbl,
+                particles   = particles,
+                sound       = harvestSound,
+                lastTouch   = 0,
+            }
+            allAccumulators[plotIndex][slotIndex] = accRef
+
+            -- Connexion Touched : récolte uniquement par le propriétaire
+            plate.Touched:Connect(function(hit)
+                if not hit.Parent then return end
+                local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
+                if not humanoid then return end
+                local pl = Players:GetPlayerFromCharacter(hit.Parent)
+                if not pl then return end
+                if plotAssignments[pl.UserId] ~= plotIndex then return end
+
+                local now = tick()
+                if now - accRef.lastTouch < 1 then return end
+                accRef.lastTouch = now
+
+                local amount = math.floor(accRef.accumulated)
+                if amount <= 0 then return end
+
+                accRef.accumulated = 0
+                accRef.label.Text  = "0 ⚡"
+
+                DataManager.AddGold(pl, amount)
+                local data = DataManager.GetData(pl)
+                if data then
+                    local ls = pl:FindFirstChild("leaderstats")
+                    local cv = ls and ls:FindFirstChild("Brainrot Coins")
+                    if cv then cv.Value = data.Stats.Gold end
+                end
+
+                totalHarvested[pl.UserId] = (totalHarvested[pl.UserId] or 0) + amount
+                HarvestResult:FireClient(pl, amount, totalHarvested[pl.UserId])
+
+                -- Effet burst particules
+                accRef.particles.Enabled = true
+                accRef.sound:Play()
+                task.delay(0.35, function()
+                    accRef.particles.Enabled = false
+                end)
+            end)
         end
     end
 
@@ -765,6 +881,14 @@ local function refreshGallery(player: Player)
                 totalPower += pps
                 refs.powerLabel.Text       = "+" .. pps .. "⚡/s"
                 refs.powerLabel.TextColor3 = RARITY_COLOR[item.Rarity] or Color3.fromRGB(100, 220, 255)
+
+                -- Met à jour le taux d'accumulation de la plaque
+                local acc = allAccumulators[plotIndex] and allAccumulators[plotIndex][slotIndex]
+                if acc then
+                    acc.rate = pps
+                    -- Active le néon de la plaque selon la rareté
+                    acc.label.TextColor3 = RARITY_COLOR[item.Rarity] or Color3.fromRGB(0, 255, 100)
+                end
             else
                 -- Slot vide : image "Locked" si disponible, sinon vide
                 refs.nameLabel.Text       = "???  Slot " .. slotIndex
@@ -773,6 +897,10 @@ local function refreshGallery(player: Player)
                 refs.decal.Texture = lockedId ~= 0
                     and ("rbxassetid://" .. lockedId) or ""
                 refs.powerLabel.Text = ""
+
+                -- Coupe l'accumulation de la plaque
+                local acc = allAccumulators[plotIndex] and allAccumulators[plotIndex][slotIndex]
+                if acc then acc.rate = 0 end
             end
         end
     end
@@ -889,6 +1017,29 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 
 print("[BrainrotGallery] Boulevard 2 cotes pret. Max " .. MAX_PLOTS .. " joueurs.")
+
+-- ── Boucle d'accumulation (1 tick/s) ─────────────────────────────────────────
+-- Incrémente chaque accRef.accumulated selon son taux, met à jour le label.
+task.spawn(function()
+    while true do
+        task.wait(1)
+        for _, slotMap in pairs(allAccumulators) do
+            for _, acc in pairs(slotMap) do
+                if acc.rate > 0 then
+                    acc.accumulated += acc.rate
+                    -- Cap à 9999 pour éviter des nombres absurdes
+                    if acc.accumulated > 9999 then acc.accumulated = 9999 end
+                    acc.label.Text = math.floor(acc.accumulated) .. " ⚡"
+                end
+            end
+        end
+    end
+end)
+
+-- Nettoyage session joueur
+Players.PlayerRemoving:Connect(function(player)
+    totalHarvested[player.UserId] = nil
+end)
 
 -- Le futur système de roues appellera refreshGallery via ce hook global.
 _G.BrainrotGallery_Refresh = refreshGallery
