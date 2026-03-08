@@ -7,7 +7,7 @@ Constants.RARITIES = {
     NORMAL    = { Name = "NORMAL",    Weight = 60, Color = Color3.fromRGB(163, 162, 165) },
     COMMON    = { Name = "COMMON",    Weight = 60, Color = Color3.fromRGB(120, 122, 126) },
     RARE      = { Name = "RARE",      Weight = 25, Color = Color3.fromRGB(  0, 162, 255) },
-    EPIC      = { Name = "EPIC",      Weight = 12, Color = Color3.fromRGB(155,   0, 255) },
+    EPIC      = { Name = "EPIC",      Weight = 12, Color = Color3.fromRGB(255,   0, 255) },
     MYTHIC    = { Name = "MYTHIC",    Weight = 10, Color = Color3.fromRGB(170,   0, 255) },
     LEGENDARY = { Name = "LEGENDARY", Weight =  8, Color = Color3.fromRGB(255, 170,   0) },
     ULTRA     = { Name = "ULTRA",     Weight =  2, Color = Color3.fromRGB(255,   0, 127) },
