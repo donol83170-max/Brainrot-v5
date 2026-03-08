@@ -23,13 +23,46 @@ local inventory = {} :: {[string]: any}
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- VFX LÉGENDAIRE — déclenché par le serveur pour tout le monde
+-- Couleur et particules différenciées par item légendaire :
+--   Dragon Cannelloni   → Orange Feu  (255, 120,  20)
+--   Strawberry Elephant → Rose Cristal(255,  80, 180)
 -- ══════════════════════════════════════════════════════════════════════════════
+local LEGENDARY_VFX: {[string]: {chatColor: Color3, particleColor: ColorSequence, icon: string}} = {
+    ["Dragon Cannelloni"] = {
+        chatColor     = Color3.fromRGB(255, 120, 20),
+        particleColor = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 200,  50)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 100,  20)),
+            ColorSequenceKeypoint.new(1,   Color3.fromRGB(200,  40,   0)),
+        }),
+        icon = "🔥",
+    },
+    ["Strawberry Elephant"] = {
+        chatColor     = Color3.fromRGB(255, 80, 180),
+        particleColor = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 200, 230)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,  80, 180)),
+            ColorSequenceKeypoint.new(1,   Color3.fromRGB(180,  40, 140)),
+        }),
+        icon = "🍓",
+    },
+}
+-- Fallback doré pour tout légendaire non listé
+local DEFAULT_VFX = {
+    chatColor     = Color3.fromRGB(255, 215, 0),
+    particleColor = ColorSequence.new(Color3.fromRGB(255, 215, 0)),
+    icon          = "★",
+}
+
 LegendaryDrop.OnClientEvent:Connect(function(winner: Player, itemName: string)
-    -- Message doré dans le chat
+    local vfx = LEGENDARY_VFX[itemName] or DEFAULT_VFX
+
+    -- Message coloré dans le chat (couleur spécifique à l'item)
     local ok = pcall(function()
         game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-            Text     = "★ " .. winner.Name .. " a obtenu le LÉGENDAIRE [" .. itemName .. "] ! ★",
-            Color    = Color3.fromRGB(255, 215, 0),
+            Text     = vfx.icon .. " " .. winner.Name .. " a obtenu le LÉGENDAIRE ["
+                       .. itemName .. "] ! " .. vfx.icon,
+            Color    = vfx.chatColor,
             Font     = Enum.Font.GothamBlack,
             TextSize = 18,
         })
@@ -44,21 +77,18 @@ LegendaryDrop.OnClientEvent:Connect(function(winner: Player, itemName: string)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Lueur de fond (PointLight temporaire)
+    -- Lueur de fond (PointLight temporaire — couleur de l'item)
+    local lightColor = vfx.chatColor
     local light = Instance.new("PointLight")
     light.Brightness = 5
     light.Range      = 20
-    light.Color      = Color3.fromRGB(255, 215, 0)
+    light.Color      = lightColor
     light.Parent     = hrp
 
-    -- ParticleEmitter — explosion de paillettes dorées
+    -- ParticleEmitter — couleur spécifique à l'item
     local emitter = Instance.new("ParticleEmitter")
     emitter.Texture      = "rbxassetid://243160943"
-    emitter.Color        = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 100)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 215, 0)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 170, 0)),
-    })
+    emitter.Color        = vfx.particleColor
     emitter.LightEmission = 1
     emitter.Size         = NumberSequence.new({
         NumberSequenceKeypoint.new(0, 1.2),

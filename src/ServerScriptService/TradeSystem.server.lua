@@ -31,13 +31,15 @@ local TradeResult   = getOrCreate("TradeResult",  "RemoteEvent")
 local LegendaryDrop = getOrCreate("LegendaryDrop","RemoteEvent")
 
 -- ── Badges ────────────────────────────────────────────────────────────────────
--- Renseigne tes vrais IDs depuis le Creator Hub (Engagement → Badges).
-local BADGE_IDS = {
-    FIRST_LEGENDARY = 0,  -- ← remplace 0 par l'ID réel du badge
+-- Un badge distinct par item légendaire.
+-- 0 = non configuré → aucune erreur, le badge est simplement ignoré.
+local LEGENDARY_BADGES: {[string]: number} = {
+    ["Dragon Cannelloni"]   = 1216737457718835,
+    ["Strawberry Elephant"] = 848333503023627,
 }
 
 local function awardBadge(player: Player, badgeId: number)
-    if badgeId == 0 then return end
+    if not badgeId or badgeId == 0 then return end
     task.spawn(function()
         local ok, has = pcall(BadgeService.UserHasBadgeAsync, BadgeService, player.UserId, badgeId)
         if ok and not has then
@@ -46,16 +48,14 @@ local function awardBadge(player: Player, badgeId: number)
     end)
 end
 
--- Exposé pour WheelSystem : vérifie si le joueur possède maintenant un légendaire
-function _G.CheckLegendaryBadge(player: Player)
-    local data = DataManager.GetData(player)
-    if not data or not data.Inventory then return end
-    for _, item in pairs(data.Inventory) do
-        if string.upper(tostring(item.Rarity or "")) == "LEGENDARY"
-           and (item.Count or 0) > 0 then
-            awardBadge(player, BADGE_IDS.FIRST_LEGENDARY)
-            return
-        end
+-- Exposé pour WheelSystem : attribue le badge correspondant à l'item légendaire gagné.
+-- itemName : nom exact de l'item (ex. "Dragon Cannelloni")
+function _G.CheckLegendaryBadge(player: Player, itemName: string)
+    local badgeId = LEGENDARY_BADGES[itemName]
+    if badgeId then
+        awardBadge(player, badgeId)
+    else
+        warn(string.format("[TradeSystem] Pas de badge configuré pour '%s'", tostring(itemName)))
     end
 end
 
@@ -483,6 +483,14 @@ local function executeTrade()
 
     TradeResult:FireClient(pA, true, "Tu as reçu : " .. itemDataB.Name)
     TradeResult:FireClient(pB, true, "Tu as reçu : " .. itemDataA.Name)
+
+    -- Badge si un légendaire change de mains via trade
+    if string.upper(tostring(itemDataB.Rarity or "")) == "LEGENDARY" then
+        _G.CheckLegendaryBadge(pA, itemDataB.Name)
+    end
+    if string.upper(tostring(itemDataA.Rarity or "")) == "LEGENDARY" then
+        _G.CheckLegendaryBadge(pB, itemDataA.Name)
+    end
 
     clearDisplayModel(tradeA)
     clearDisplayModel(tradeB)

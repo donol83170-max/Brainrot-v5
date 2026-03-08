@@ -367,7 +367,7 @@ local function ActionSpin(player: Player)
             ldEvent:FireAllClients(player, winItem.name)
         end
         if _G.CheckLegendaryBadge then
-            task.spawn(_G.CheckLegendaryBadge, player)
+            task.spawn(_G.CheckLegendaryBadge, player, winItem.name)
         end
     end
     local updated = DataManager.GetData(player)
