@@ -15,6 +15,19 @@ local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
 local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
 local BrainrotData  = require(ReplicatedStorage:WaitForChild("BrainrotData"))
 
+-- Dossier des modèles 3D (placeholders ou vrais modèles Toolbox)
+-- BrainrotModelsSetup.server.lua le crée au démarrage → WaitForChild safe
+local brainrotModelsFolder: Folder? = nil
+task.spawn(function()
+    brainrotModelsFolder = ReplicatedStorage:WaitForChild("BrainrotModels", 20) :: Folder?
+    if brainrotModelsFolder then
+        print(string.format("[BrainrotGallery] BrainrotModels trouvé — %d modèles",
+            #(brainrotModelsFolder :: Folder):GetChildren()))
+    else
+        warn("[BrainrotGallery] BrainrotModels introuvable après 20s — mode cube de couleur")
+    end
+end)
+
 -- ── Récolte physique ──────────────────────────────────────────────────────────
 -- [plotIndex][slotIndex] = {rate, accumulated, label, particles, sound, lastTouch}
 local allAccumulators: {[number]: {[number]: any}} = {}
@@ -809,11 +822,52 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- FIGURINES
+-- FIGURINES — modèle 3D depuis BrainrotModels, sinon cube de couleur
 -- ══════════════════════════════════════════════════════════════════════════════
+local MAX_FIGURINE_DIM = 3.5   -- taille max sur n'importe quel axe (studs)
+
+local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)
+    local isHigh = rarity == "EPIC" or rarity == "LEGENDARY" or rarity == "ULTRA"
+    if isHigh then
+        local light      = Instance.new("PointLight")
+        light.Color      = rarityColor
+        light.Brightness = 1.5
+        light.Range      = 7
+        light.Parent     = root
+    end
+    if rarity == "ULTRA" then
+        local sp        = Instance.new("Sparkles")
+        sp.SparkleColor = rarityColor
+        sp.Parent       = root
+    end
+end
+
+local function addFigurineBillboard(adornee: Instance, offsetY: number,
+                                    itemName: string, rarityColor: Color3)
+    local bb = Instance.new("BillboardGui")
+    bb.Size        = UDim2.new(0, 200, 0, 38)
+    bb.StudsOffset = Vector3.new(0, offsetY, 0)
+    bb.AlwaysOnTop = false
+    bb.MaxDistance = 40
+    bb.Adornee     = adornee
+    bb.Parent      = adornee
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size                   = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text                   = itemName
+    lbl.TextColor3             = rarityColor
+    lbl.Font                   = Enum.Font.GothamBold
+    lbl.TextScaled             = true
+    lbl.TextStrokeTransparency = 0.3
+    lbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+    lbl.Parent                 = bb
+end
+
 local function createFigurine(state: PlotState, slotIndex: number, itemData: any)
+    -- Détruire l'ancienne figurine (vente ou refresh)
     if state.displayParts[slotIndex] then
-        (state.displayParts[slotIndex] :: Part):Destroy()
+        (state.displayParts[slotIndex] :: Instance):Destroy()
         state.displayParts[slotIndex] = nil
     end
     if not itemData then return end
@@ -821,55 +875,69 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
     local refs = state.pedestalRefs[slotIndex]
     if not refs then return end
 
-    local topPos       = refs.top.Position
-    local rarityColor  = RARITY_COLOR[itemData.Rarity] or RARITY_COLOR.NORMAL
-    local isHighRarity = itemData.Rarity == "ULTRA" or itemData.Rarity == "LEGENDARY"
+    local topPart     = refs.top
+    local surfaceY    = topPart.Position.Y + topPart.Size.Y / 2  -- dessus du plateau
+    local centerX     = topPart.Position.X
+    local centerZ     = topPart.Position.Z
+    local rarityColor = RARITY_COLOR[itemData.Rarity] or RARITY_COLOR.NORMAL
 
-    local fig = Instance.new("Part")
-    fig.Name        = "Figurine_" .. slotIndex
-    fig.Size        = Vector3.new(3, 4, 3)
-    fig.Position    = topPos + Vector3.new(0, 2.25, 0)
-    fig.Anchored    = true
-    fig.CanCollide  = false
-    fig.Color       = rarityColor
-    fig.Material    = Enum.Material.SmoothPlastic
-    fig.Reflectance = isHighRarity and 0.1 or 0
-    fig.Parent      = state.folder
+    -- ── Chercher le modèle dans BrainrotModels ────────────────────────────────
+    local template = brainrotModelsFolder and
+                     (brainrotModelsFolder :: Folder):FindFirstChild(itemData.Name)
 
-    if itemData.Rarity == "ULTRA" then
-        local sparkles = Instance.new("Sparkles")
-        sparkles.SparkleColor = rarityColor
-        sparkles.Parent       = fig
+    if template and template:IsA("Model") then
+        -- ── MODÈLE 3D (placeholder coloré ou vrai modèle Toolbox) ─────────────
+        local clone = (template :: Model):Clone()
+        clone.Name  = "Figurine_" .. slotIndex
+
+        -- Auto-scaling : ramener dans MAX_FIGURINE_DIM studs
+        local ok1, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
+        if ok1 and rawBB then
+            local maxDim = math.max((rawBB :: Vector3).X, (rawBB :: Vector3).Y, (rawBB :: Vector3).Z)
+            if maxDim > MAX_FIGURINE_DIM then
+                local scale = MAX_FIGURINE_DIM / maxDim
+                pcall(function() (clone :: Model):ScaleTo(scale) end)
+            end
+        end
+
+        -- Repositionner : bounding box bottom = surface du socle
+        local _, scaledBB = clone:GetBoundingBox()
+        local sizeY       = scaledBB and scaledBB.Y or MAX_FIGURINE_DIM
+        clone:PivotTo(CFrame.new(centerX, surfaceY + sizeY / 2, centerZ))
+        clone.Parent = state.folder
+
+        -- Effets et billboard sur le PrimaryPart (ou premier BasePart)
+        local pp: BasePart? = (clone :: Model).PrimaryPart
+                           or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
+        if pp then
+            addFigurineEffects(pp :: BasePart, rarityColor, itemData.Rarity)
+            addFigurineBillboard(pp :: BasePart, sizeY / 2 + 1.5, itemData.Name, rarityColor)
+        end
+
+        state.displayParts[slotIndex] = clone
+
+    else
+        -- ── FALLBACK : cube coloré si aucun modèle trouvé ────────────────────
+        if not template then
+            warn(string.format("[BrainrotGallery] Modèle '%s' absent de BrainrotModels — cube placeholder", itemData.Name))
+        end
+
+        local cube        = Instance.new("Part")
+        cube.Name         = "Figurine_" .. slotIndex
+        cube.Size         = Vector3.new(3, 4, 3)
+        cube.Position     = Vector3.new(centerX, surfaceY + 2, centerZ)
+        cube.Anchored     = true
+        cube.CanCollide   = false
+        cube.Color        = rarityColor
+        cube.Material     = Enum.Material.SmoothPlastic
+        cube.Reflectance  = (itemData.Rarity == "LEGENDARY" or itemData.Rarity == "ULTRA") and 0.1 or 0
+        cube.Parent       = state.folder
+
+        addFigurineEffects(cube, rarityColor, itemData.Rarity)
+        addFigurineBillboard(cube, 3.2, itemData.Name, rarityColor)
+
+        state.displayParts[slotIndex] = cube
     end
-
-    if isHighRarity then
-        local light = Instance.new("PointLight")
-        light.Color      = rarityColor
-        light.Brightness = 1.5
-        light.Range      = 6
-        light.Parent     = fig
-    end
-
-    local bb = Instance.new("BillboardGui")
-    bb.Size        = UDim2.new(0, 160, 0, 36)
-    bb.StudsOffset = Vector3.new(0, 3, 0)
-    bb.AlwaysOnTop = false
-    bb.MaxDistance = 40
-    bb.Adornee     = fig
-    bb.Parent      = fig
-
-    local lbl = Instance.new("TextLabel")
-    lbl.Size                   = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text                   = itemData.Name
-    lbl.TextColor3             = rarityColor
-    lbl.Font                   = Enum.Font.GothamBold
-    lbl.TextScaled             = true
-    lbl.TextStrokeTransparency = 0.3
-    lbl.TextStrokeColor3       = Color3.new(0, 0, 0)
-    lbl.Parent                 = bb
-
-    state.displayParts[slotIndex] = fig
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
