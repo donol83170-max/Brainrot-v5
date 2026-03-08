@@ -308,12 +308,13 @@ local function buildUI(segments)
     local reSpinBtn = makeBtn("RE-SPIN (20G)", Color3.fromRGB(30, 185, 30), 2)
     reSpinBtn.Font = Enum.Font.LuckiestGuy
 
-    -- ── Pop-up victoire (ZIndex 200, enfant direct de spinGui — hors tout) ────
+    -- ── Pop-up victoire (ZIndex 200, enfant direct de spinGui, TOUJOURS visible) ─
+    -- Position fixe en haut de l'écran (30px du bord) — indépendant de la résolution
     winPopup = Instance.new("Frame")
     winPopup.Name                  = "WinPopup"
     winPopup.Size                  = UDim2.new(0, 440, 0, 110)
-    winPopup.AnchorPoint           = Vector2.new(0.5, 1)
-    winPopup.Position              = UDim2.new(0.5, 0, 0.5, -(LIST_H/2 + 52 + 20))
+    winPopup.AnchorPoint           = Vector2.new(0.5, 0)
+    winPopup.Position              = UDim2.new(0.5, 0, 0, 30)
     winPopup.BackgroundColor3      = Color3.fromRGB(14, 14, 20)
     winPopup.BorderSizePixel       = 0
     winPopup.Visible               = false
@@ -370,16 +371,25 @@ SpinResult.OnClientEvent:Connect(function(res)
     spinGui.Enabled   = true
 
     local nSeg    = #res.segments
-    local centerY = LIST_H / 2
+    local centerY = LIST_H / 2   -- centre vertical de mainFrame (px)
 
-    -- Index global du segment gagnant (dans la dernière boucle complète)
-    local targetIdx    = (LOOPS - 1) * nSeg + res.winSegment
-    local lineCenterY  = (targetIdx - 1) * EFF + ROW_H / 2
-    local finalYPos    = centerY - lineCenterY
+    -- ── Index du segment gagnant ─────────────────────────────────────────────
+    -- La liste est construite avec (LOOPS+1) boucles de nSeg lignes.
+    -- On cible la boucle n°TARGET_LOOP (0-indexed) pour laisser du "rebond" après.
+    -- Exemple nSeg=12, TARGET_LOOP=3, winSegment=5 → targetIdx = 3*12+5 = 41
+    local TARGET_LOOP = 3
+    local targetIdx   = TARGET_LOOP * nSeg + res.winSegment   -- ligne 1-indexée
 
-    -- Départ aligné sur la ligne 1 au centre
-    local startYPos    = centerY - ROW_H / 2
-    scrollList.Position = UDim2.new(0, 0, 0, startYPos)
+    -- Centre de cette ligne dans le scrollList :
+    -- Ligne N démarre à (N-1)*EFF, son centre est à (N-1)*EFF + ROW_H/2
+    local lineCenterY = (targetIdx - 1) * EFF + ROW_H / 2
+
+    -- Position finale du scrollList : on veut que lineCenterY coïncide avec centerY
+    -- scrollList.Y + lineCenterY = centerY  →  scrollList.Y = centerY - lineCenterY
+    local finalYPos = centerY - lineCenterY   -- toujours négatif (liste monte)
+
+    -- Départ : item 1 visible en haut de mainFrame (Y=0, pas de décalage)
+    scrollList.Position = UDim2.new(0, 0, 0, 0)
 
     local duration  = res.duration or 5.5
     local tween = TweenService:Create(

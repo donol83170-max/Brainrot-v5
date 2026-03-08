@@ -326,10 +326,12 @@ local function ActionSpin(player: Player)
     wheelLocked = true
 
     -- Tirage pondéré
+    -- On choisit D'ABORD le segment (ce qui s'affiche sur la machine),
+    -- puis on dérive l'item DEPUIS ce segment. Garantit que popup = case arrêtée.
     local winRarity    = pickRarity()
-    local winItem      = pickItem(winRarity)
     local segsOfRarity = SEGS_BY_RARITY[winRarity]
     local winSegIdx    = segsOfRarity[math.random(1, #segsOfRarity)]
+    local winItem      = SEGMENTS[winSegIdx].item   -- dérivé du segment ✓
 
     -- Calcul de l'angle pour la logique pure (non utilisé en 3D mais transmis au besoin)
     local winAngle = (360 - ((winSegIdx - 1) * SEG_ANGLE)) % 360
