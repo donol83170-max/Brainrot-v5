@@ -946,8 +946,25 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             end
         end
 
+        -- FIX 2 : garantir qu'un PrimaryPart existe avant PivotTo
+        if not clone.PrimaryPart then
+            local bp = clone:FindFirstChildWhichIsA("BasePart", true)
+            if bp then
+                clone.PrimaryPart = bp :: BasePart
+                warn(string.format("[BrainrotGallery] '%s' sans PrimaryPart — '%s' assigné automatiquement",
+                    itemData.Name, (bp :: BasePart).Name))
+            end
+        end
+
         -- Pose : pivot du modèle à 2 studs au-dessus de la surface du socle
-        clone:PivotTo(socleTopCF * CFrame.new(0, 2, 0))
+        local targetCF = socleTopCF * CFrame.new(0, 2, 0)
+        if clone.PrimaryPart then
+            clone:PivotTo(targetCF)
+        else
+            -- Secours si le modèle n'a aucun BasePart (ne devrait pas arriver)
+            clone:MoveTo(targetCF.Position)
+            warn(string.format("[BrainrotGallery] '%s' sans aucun BasePart — MoveTo de secours utilisé", itemData.Name))
+        end
         clone.Parent = state.folder
 
         -- Effets sur le PrimaryPart (ou premier BasePart trouvé)
@@ -1011,10 +1028,16 @@ local function refreshGallery(player: Player)
     for itemId, invItem in pairs(data.Inventory) do
         local info = itemLookup[itemId]
         if info then
-            print(string.format("  ✓ '%s' (x%d) → Name='%s' Rarity='%s'",
-                itemId, invItem.Count or 0, info.Name, info.Rarity))
+            -- FIX 3 : afficher si le nom stocké diffère du nom LootTables
+            if invItem.Name ~= info.Name then
+                warn(string.format("  ⚠ '%s' désync : stocké='%s' / LootTables='%s' → on utilise stocké",
+                    itemId, tostring(invItem.Name), info.Name))
+            else
+                print(string.format("  ✓ '%s' (x%d) → Name='%s' Rarity='%s'",
+                    itemId, invItem.Count or 0, invItem.Name, invItem.Rarity or info.Rarity))
+            end
         else
-            warn(string.format("  ✗ '%s' (x%d) → INCONNU dans itemLookup — absent de LootTables !",
+            warn(string.format("  ✗ '%s' (x%d) → INCONNU dans itemLookup (item d'un ancien système)",
                 itemId, invItem.Count or 0))
         end
     end
@@ -1022,13 +1045,18 @@ local function refreshGallery(player: Player)
 
     local ownedItems: {{Name: string, Rarity: string, Priority: number, Id: string}} = {}
     for itemId, invItem in pairs(data.Inventory) do
+        -- FIX 3 : utilise en priorité le nom stocké dans l'inventaire (DataStore),
+        -- qui correspond exactement à ce qui a été gagné via WheelSystem.
+        -- itemLookup ne sert qu'à la rareté si elle manque dans le stockage.
         local info = itemLookup[itemId]
-        if info and invItem.Count > 0 then
+        local itemName   = (invItem.Name   and invItem.Name   ~= "") and invItem.Name   or (info and info.Name)
+        local itemRarity = (invItem.Rarity and invItem.Rarity ~= "") and invItem.Rarity or (info and info.Rarity)
+        if itemName and itemRarity and (invItem.Count or 0) > 0 then
             table.insert(ownedItems, {
                 Id       = itemId,
-                Name     = info.Name,
-                Rarity   = info.Rarity,
-                Priority = RARITY_PRIORITY[info.Rarity] or 0,
+                Name     = itemName,
+                Rarity   = itemRarity,
+                Priority = RARITY_PRIORITY[itemRarity] or 0,
             })
         end
     end
@@ -1214,7 +1242,19 @@ local function onPlayerAdded(player: Player)
         teleportToPlot(player.Character, plotIndex)
     end
 
-    task.spawn(refreshGallery, player)
+    -- FIX 1 : attendre que brainrotModelsFolder soit chargé avant le premier refresh
+    task.spawn(function()
+        if not brainrotModelsFolder then
+            brainrotModelsFolder = ReplicatedStorage:WaitForChild("BrainrotModels", 25) :: Folder?
+            if brainrotModelsFolder then
+                print(string.format("[BrainrotGallery] BrainrotModels chargé (%d enfants) avant refresh de %s",
+                    #(brainrotModelsFolder :: Folder):GetChildren(), player.Name))
+            else
+                warn("[BrainrotGallery] BrainrotModels introuvable — refresh sans modèles 3D")
+            end
+        end
+        refreshGallery(player)
+    end)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
