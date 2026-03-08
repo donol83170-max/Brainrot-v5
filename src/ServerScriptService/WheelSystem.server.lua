@@ -155,18 +155,45 @@ wheelFolder.Parent      = Workspace
 local MACHINE_X = WHEEL_CENTER.X
 local MACHINE_Z = WHEEL_CENTER.Z
 
--- Socle rectangulaire principal (Métal Gris)
+-- Socle rectangulaire principal (Métal Gris -> Peinture Rouge)
 local machineBase       = Instance.new("Part")
 machineBase.Name        = "MachineBase"
--- Taille d'un gros frigo / borne
 machineBase.Size        = Vector3.new(6, 12, 8) 
-machineBase.Position    = Vector3.new(MACHINE_X, 6, MACHINE_Z) -- Milieu à Y=6, sol à Y=0
+machineBase.Position    = Vector3.new(MACHINE_X, 6, MACHINE_Z)
 machineBase.Anchored    = true
-machineBase.Material    = Enum.Material.Metal
-machineBase.Color       = Color3.fromRGB(180, 180, 180)
+machineBase.Material    = Enum.Material.SmoothPlastic
+machineBase.Color       = Color3.fromRGB(200, 0, 0)
 machineBase.Parent      = wheelFolder
 
--- Lumières Néon sur les bords
+-- Dégradé de Rouge "High Quality Paint" avec SurfaceGuis
+local function applyGradientToFace(part, face)
+    local sg = Instance.new("SurfaceGui")
+    sg.Face = face
+    sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    sg.PixelsPerStud = 50
+    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    sg.Parent = part
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    frame.BorderSizePixel = 0
+    frame.Parent = sg
+    
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 0, 0)),   -- Rouge profond
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 25, 25))  -- Rouge écarlate brillant
+    })
+    grad.Rotation = -90 -- Bas vers le haut
+    grad.Parent = frame
+end
+applyGradientToFace(machineBase, Enum.NormalId.Left)   -- Face avant (-X local est Left)
+applyGradientToFace(machineBase, Enum.NormalId.Right)  -- Dos
+applyGradientToFace(machineBase, Enum.NormalId.Front)  -- Côté
+applyGradientToFace(machineBase, Enum.NormalId.Back)   -- Côté
+
+-- Lumières Néon sur les bords (Or brillant fixe)
 local neonLeft = Instance.new("Part")
 neonLeft.Name = "NeonLeft"
 neonLeft.Size = Vector3.new(6.1, 12.2, 0.4)
@@ -181,18 +208,27 @@ neonRight.Position = Vector3.new(MACHINE_X, 6, MACHINE_Z + 3.8)
 neonRight.Anchored = true; neonRight.Material = Enum.Material.Neon
 neonRight.Color = Color3.fromRGB(255, 215, 0); neonRight.Parent = wheelFolder
 
+-- Cadre doré de l'écran
+local screenBorder = Instance.new("Part")
+screenBorder.Name = "ScreenBorder"
+screenBorder.Size = Vector3.new(0.6, 6.4, 7.4)
+screenBorder.CFrame = CFrame.new(MACHINE_X - 3.05, 9, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
+screenBorder.Anchored = true
+screenBorder.Material = Enum.Material.Metal
+screenBorder.Color = Color3.fromRGB(255, 215, 0)
+screenBorder.Parent = wheelFolder
+
 -- Écran incliné noir
 local screenPart        = Instance.new("Part")
 screenPart.Name         = "ScreenPart"
-screenPart.Size         = Vector3.new(0.5, 6, 7)
--- Placé sur la face avant (-X), incliné pour regarder vers le haut/fontaine
+screenPart.Size         = Vector3.new(0.65, 6, 7)
 screenPart.CFrame       = CFrame.new(MACHINE_X - 3.1, 9, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
 screenPart.Anchored     = true
 screenPart.Material     = Enum.Material.SmoothPlastic
 screenPart.Color        = Color3.fromRGB(15, 15, 15)
 screenPart.Parent       = wheelFolder
 
--- SurfaceGui sur l'écran (Face = Left car l'axe local X est la profondeur, on veut le côté -X)
+-- SurfaceGui sur l'écran (Face = Left)
 local screenGui         = Instance.new("SurfaceGui")
 screenGui.Face          = Enum.NormalId.Left
 screenGui.CanvasSize    = Vector2.new(800, 600)
@@ -209,8 +245,12 @@ titleText.TextStrokeTransparency = 0
 titleText.TextStrokeColor3 = Color3.new(0, 0, 0)
 titleText.Parent = screenGui
 
--- Levier doré sur le côté (+Z)
-local leverBaseCF = CFrame.new(MACHINE_X, 6, MACHINE_Z + 4) * CFrame.Angles(0, math.rad(90), 0)
+-- Levier doré sur la face avant (-X), en bas à droite (+Z du point de vue face avant)
+-- CFrame.Angles(0, math.rad(-90), 0) fait pointer -Z (Front de Part) vers -X monde. L'axe Y monte.
+-- CFrame.Angles(math.rad(30), 0, 0) incline l'axe Y de 30° vers le monde -X (avant).
+local leverBaseCF = CFrame.new(MACHINE_X - 3.2, 5.5, MACHINE_Z + 2.5) 
+                  * CFrame.Angles(0, math.rad(-90), 0) 
+                  * CFrame.Angles(math.rad(30), 0, 0)
 
 local leverArm        = Instance.new("Part")
 leverArm.Shape        = Enum.PartType.Cylinder
@@ -230,14 +270,14 @@ leverBall.Parent      = wheelFolder
 
 -- Fonction de mise à jour du levier
 local function updateLever(angleDeg)
-    -- Levier tourne autour de l'axe X local de leverBaseCF
+    -- Levier pivote via l'axe X local. Une augmentation de angleDeg bascule le levier vers le bas.
     local pivotCF = leverBaseCF * CFrame.Angles(math.rad(angleDeg), 0, 0)
-    leverArm.CFrame = pivotCF * CFrame.new(0, 1.5, 0) * CFrame.Angles(0, 0, math.rad(90))
+    leverArm.CFrame = pivotCF * CFrame.new(0, 1.5, 0) 
     leverBall.CFrame = pivotCF * CFrame.new(0, 3, 0)
 end
-updateLever(30) -- Position initiale inclinée vers l'avant (fontaine)
+updateLever(0) -- Position repos (déjà incliné de 30° par leverBaseCF)
 
--- ClickDetector sur la boule
+-- ClickDetector sur la boule rouge à l'avant
 local clickDetector = Instance.new("ClickDetector")
 clickDetector.MaxActivationDistance = 40
 clickDetector.Parent = leverBall
@@ -301,14 +341,14 @@ clickDetector.MouseClick:Connect(function(player: Player)
         player.Name, winRarity, winItem.name, winSegIdx))
 
     local angleVal = Instance.new("NumberValue")
-    angleVal.Value = 30
+    angleVal.Value = 0
     local conn = RunService.Heartbeat:Connect(function()
         updateLever(angleVal.Value)
     end)
 
-    -- Tween du levier vers le bas (ex: -50 degrés)
-    local tweenDown = TweenService:Create(angleVal, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = -50 })
-    local tweenUp   = TweenService:Create(angleVal, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Value = 30 })
+    -- Tween du levier vers le bas (ex: +60 degrés pour basculer en bas)
+    local tweenDown = TweenService:Create(angleVal, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = 60 })
+    local tweenUp   = TweenService:Create(angleVal, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Value = 0 })
 
     tweenDown.Completed:Connect(function()
         tickSound:Play()
