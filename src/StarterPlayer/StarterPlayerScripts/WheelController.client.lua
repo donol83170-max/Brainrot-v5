@@ -1,296 +1,325 @@
 -- WheelController.client.lua
+-- Slot Machine UI — liste défilante verticale, zéro chevauchement
+--
+-- ARCHITECTURE :
+--   overlay (plein écran, fond sombre)
+--   └─ container (colonne centrée, BG transparent)
+--        ├─ title         — "BRAINROT SPIN"  (hors mainFrame)
+--        ├─ arrows        — flèches gauche/droite (hors mainFrame, jamais clippées)
+--        ├─ centerLine    — surbrillance dorée   (hors mainFrame, superposée)
+--        ├─ mainFrame     — SEULE zone clippée, contient scrollList
+--        │    └─ scrollList + UIListLayout
+--        ├─ winLabel      — texte victoire
+--        ├─ closeBtn
+--        └─ reSpinBtn
+
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService      = game:GetService("TweenService")
 local RunService        = game:GetService("RunService")
 
-local player = Players.LocalPlayer
+local player    = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 
 local Events     = ReplicatedStorage:WaitForChild("Events")
 local SpinResult = Events:WaitForChild("SpinResult")
 
 local RARITY_COLORS = {
-    COMMON    = Color3.fromRGB(160, 162, 168),
-    RARE      = Color3.fromRGB(  0, 130, 255),
-    EPIC      = Color3.fromRGB(255,   0, 255),
-    LEGENDARY = Color3.fromRGB(255, 190,   0),
+    COMMON    = Color3.fromRGB(120, 122, 128),
+    RARE      = Color3.fromRGB(  0, 120, 255),
+    EPIC      = Color3.fromRGB(180,   0, 255),
+    LEGENDARY = Color3.fromRGB(255, 180,   0),
 }
 
 -- Sons
-local guiTickSound = Instance.new("Sound")
-guiTickSound.SoundId = "rbxassetid://6026984224"
-guiTickSound.Volume = 0.5
-guiTickSound.Parent = script
+local guiTickSound  = Instance.new("Sound")
+guiTickSound.SoundId  = "rbxassetid://6026984224"
+guiTickSound.Volume   = 0.5
+guiTickSound.Parent   = script
 
-local guiWinSound = Instance.new("Sound")
-guiWinSound.SoundId = "rbxassetid://5153734135"
-guiWinSound.Volume = 1.0
-guiWinSound.Parent = script
+local guiWinSound   = Instance.new("Sound")
+guiWinSound.SoundId   = "rbxassetid://5153734135"
+guiWinSound.Volume    = 1.0
+guiWinSound.Parent    = script
 
-local fanfareSound = Instance.new("Sound")
-fanfareSound.SoundId = "rbxassetid://3205426741"
-fanfareSound.Volume = 1.0
-fanfareSound.Parent = script
+local fanfareSound  = Instance.new("Sound")
+fanfareSound.SoundId  = "rbxassetid://3205426741"
+fanfareSound.Volume   = 1.0
+fanfareSound.Parent   = script
 
--- ── DÉCLARATION DE L'UI ────────────
-local spinGui
-local overlay
-local mainFrame
-local scrollList
-local winLabel
-local closeBtn
-local reSpinBtn
-local flashFrame
-
-local SPIN_COOLDOWN = 6
-local lastSpinTime = 0
-
-local ROW_HEIGHT = 80
+-- ── Constantes layout ────────────────────────────────────────────────────────
+local ROW_H        = 52        -- hauteur d'une ligne (px)
+local ROW_PAD      = 6         -- espacement entre lignes (UIListLayout Padding)
+local EFF_ROW_H    = ROW_H + ROW_PAD   -- hauteur effective par slot
 local VISIBLE_ROWS = 5
-local TOTAL_LOOPS = 5  -- Nombre de fois qu'on répète les 12 segments pour faire "tourner" la liste
+local LIST_H       = ROW_H * VISIBLE_ROWS + ROW_PAD * (VISIBLE_ROWS - 1)  -- 284 px
+local TOTAL_LOOPS  = 5         -- boucles complètes avant l'arrêt
+local SPIN_COOLDOWN = 6
+local lastSpinTime  = 0
 
+-- ── Références UI (remplacées à chaque spin) ─────────────────────────────────
+local spinGui, overlay, mainFrame, scrollList
+local winLabel, closeBtn, reSpinBtn, flashFrame
+
+-- ────────────────────────────────────────────────────────────────────────────
 local function createSlotUI(segments)
     if spinGui then spinGui:Destroy() end
 
     spinGui = Instance.new("ScreenGui")
-    spinGui.Name = "SpinGui"
+    spinGui.Name          = "SpinGui"
     spinGui.IgnoreGuiInset = true
-    spinGui.ResetOnSpawn = false
-    spinGui.Enabled = false
-    spinGui.Parent = PlayerGui
+    spinGui.ResetOnSpawn  = false
+    spinGui.Enabled       = false
+    spinGui.Parent        = PlayerGui
 
-    -- Fond translucide
+    -- Fond sombre plein écran
     overlay = Instance.new("Frame")
-    overlay.Name = "Overlay"
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.6
-    overlay.BorderSizePixel = 0
-    overlay.Parent = spinGui
+    overlay.Size                  = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3      = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 0.52
+    overlay.BorderSizePixel       = 0
+    overlay.Parent                = spinGui
 
-    -- Flash d'écran (victoire)
+    -- Flash blanc (victoire)
     flashFrame = Instance.new("Frame")
-    flashFrame.Name = "Flash"
-    flashFrame.Size = UDim2.new(1, 0, 1, 0)
-    flashFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+    flashFrame.Size                  = UDim2.new(1, 0, 1, 0)
+    flashFrame.BackgroundColor3      = Color3.new(1, 1, 1)
     flashFrame.BackgroundTransparency = 1
-    flashFrame.BorderSizePixel = 0
-    flashFrame.ZIndex = 100
-    flashFrame.Parent = spinGui
+    flashFrame.BorderSizePixel       = 0
+    flashFrame.ZIndex                = 100
+    flashFrame.Parent                = spinGui
 
-    -- ── Le Cadre Principal (Machine à sous) ──────────────────
-    local uiHeight = ROW_HEIGHT * VISIBLE_ROWS
+    -- ── Colonne principale (BG transparent — guide tout) ──────────────────────
+    local CONT_W = 420
+    local container = Instance.new("Frame")
+    container.Name             = "Container"
+    container.Size             = UDim2.new(0, CONT_W, 0, LIST_H + 180)
+    container.AnchorPoint      = Vector2.new(0.5, 0.5)
+    container.Position         = UDim2.new(0.5, 0, 0.5, 0)
+    container.BackgroundTransparency = 1
+    container.Parent           = overlay
+
+    -- Titre
+    local title = Instance.new("TextLabel")
+    title.Size                   = UDim2.new(1, 0, 0, 52)
+    title.AnchorPoint            = Vector2.new(0.5, 0)
+    title.Position               = UDim2.new(0.5, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text                   = "BRAINROT SPIN"
+    title.TextColor3             = Color3.fromRGB(255, 225, 0)
+    title.Font                   = Enum.Font.LuckiestGuy
+    title.TextScaled             = true
+    title.TextStrokeTransparency = 0
+    title.TextStrokeColor3       = Color3.new(0, 0, 0)
+    title.ZIndex                 = 5
+    title.Parent                 = container
+
+    -- ── Fenêtre clippée (SEUL endroit avec ClipsDescendants) ──────────────────
+    local FRAME_TOP = 58   -- offset depuis le haut du container
 
     mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    -- Large de 400px, haut de (5 lignes de 80px = 400px)
-    mainFrame.Size = UDim2.new(0, 400, 0, uiHeight)
-    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35) -- Métal sombre 
-    mainFrame.ClipsDescendants = true -- EFFET DE DÉFILEMENT ICI
-    mainFrame.ZIndex = 2
-    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
-    mainFrame.Parent = overlay
+    mainFrame.Name               = "MainFrame"
+    mainFrame.Size               = UDim2.new(1, 0, 0, LIST_H)
+    mainFrame.Position           = UDim2.new(0, 0, 0, FRAME_TOP)
+    mainFrame.BackgroundColor3   = Color3.fromRGB(18, 18, 24)
+    mainFrame.BorderSizePixel    = 0
+    mainFrame.ClipsDescendants   = true   -- ← clip UNIQUEMENT ici
+    mainFrame.ZIndex             = 2
+    mainFrame.Parent             = container
 
-    -- Bordure or (Stroke sur le mainFrame)
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 215, 0)
-    stroke.Thickness = 4
-    stroke.Parent = mainFrame
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 
-    -- Ombre interne optionnelle
-    local shadow = Instance.new("UIGradient")
-    shadow.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.new(0,0,0)),
-        ColorSequenceKeypoint.new(0.2, Color3.new(1,1,1)),
-        ColorSequenceKeypoint.new(0.8, Color3.new(1,1,1)),
-        ColorSequenceKeypoint.new(1, Color3.new(0,0,0))
-    })
-    shadow.Rotation = 90
-    shadow.Parent = mainFrame
-    
-    -- La liste défilante qui contient tous les items
-    local nSeg = #segments
-    local totalItems = nSeg * TOTAL_LOOPS + nSeg -- Plusieurs boucles + 1 boucle bonus pour l'arrêt
-    local totalHeight = totalItems * ROW_HEIGHT
+    local rimStroke = Instance.new("UIStroke")
+    rimStroke.Color     = Color3.fromRGB(255, 215, 0)
+    rimStroke.Thickness = 4
+    rimStroke.Parent    = mainFrame
+
+    -- ── Flèches (enfants du CONTAINER, jamais clippées) ──────────────────────
+    local ARROW_Y  = FRAME_TOP + LIST_H / 2   -- milieu vertical de mainFrame
+
+    local arrowL = Instance.new("TextLabel")
+    arrowL.Size              = UDim2.new(0, 32, 0, 32)
+    arrowL.AnchorPoint       = Vector2.new(1, 0.5)
+    arrowL.Position          = UDim2.new(0, -12, 0, ARROW_Y)
+    arrowL.BackgroundTransparency = 1
+    arrowL.Text              = "▶"
+    arrowL.TextColor3        = Color3.fromRGB(255, 215, 0)
+    arrowL.Font              = Enum.Font.GothamBlack
+    arrowL.TextScaled        = true
+    arrowL.TextStrokeTransparency = 0
+    arrowL.ZIndex            = 10
+    arrowL.Parent            = container
+
+    local arrowR = Instance.new("TextLabel")
+    arrowR.Size              = UDim2.new(0, 32, 0, 32)
+    arrowR.AnchorPoint       = Vector2.new(0, 0.5)
+    arrowR.Position          = UDim2.new(1, 12, 0, ARROW_Y)
+    arrowR.BackgroundTransparency = 1
+    arrowR.Text              = "◀"
+    arrowR.TextColor3        = Color3.fromRGB(255, 215, 0)
+    arrowR.Font              = Enum.Font.GothamBlack
+    arrowR.TextScaled        = true
+    arrowR.TextStrokeTransparency = 0
+    arrowR.ZIndex            = 10
+    arrowR.Parent            = container
+
+    -- ── Surbrillance centrale (enfant du CONTAINER, au-dessus de mainFrame) ───
+    local centerLine = Instance.new("Frame")
+    centerLine.Size              = UDim2.new(1, 8, 0, ROW_H + 8)
+    centerLine.AnchorPoint       = Vector2.new(0.5, 0.5)
+    centerLine.Position          = UDim2.new(0.5, 0, 0, ARROW_Y)
+    centerLine.BackgroundTransparency = 1
+    centerLine.BorderSizePixel   = 0
+    centerLine.ZIndex            = 9
+    centerLine.Parent            = container
+
+    local clStroke = Instance.new("UIStroke")
+    clStroke.Color     = Color3.fromRGB(255, 215, 0)
+    clStroke.Thickness = 3
+    clStroke.Parent    = centerLine
+
+    -- ── Liste défilante ───────────────────────────────────────────────────────
+    local nSeg       = #segments
+    local totalItems = nSeg * (TOTAL_LOOPS + 1)
+    local totalH     = totalItems * EFF_ROW_H + ROW_PAD   -- hauteur totale
 
     scrollList = Instance.new("Frame")
-    scrollList.Name = "ScrollList"
-    scrollList.Size = UDim2.new(1, 0, 0, totalHeight)
-    scrollList.Position = UDim2.new(0, 0, 0, 0)
+    scrollList.Name                  = "ScrollList"
+    scrollList.Size                  = UDim2.new(1, 0, 0, totalH)
+    scrollList.Position              = UDim2.new(0, 0, 0, 0)
     scrollList.BackgroundTransparency = 1
-    scrollList.Parent = mainFrame
+    scrollList.Parent                = mainFrame
 
-    -- Remplissage de la liste avec UIListLayout
+    -- UIListLayout gère tout l'alignement — pas de Position manuelle sur les lignes
     local listLayout = Instance.new("UIListLayout")
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Padding = UDim.new(0, 0)
-    listLayout.Parent = scrollList
+    listLayout.SortOrder          = Enum.SortOrder.LayoutOrder
+    listLayout.FillDirection      = Enum.FillDirection.Vertical
+    listLayout.VerticalAlignment  = Enum.VerticalAlignment.Top
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    listLayout.Padding            = UDim.new(0, ROW_PAD)
+    listLayout.Parent             = scrollList
 
-    local index = 1
-    for loop = 0, TOTAL_LOOPS do
+    -- Remplissage des lignes
+    local idx = 1
+    for _ = 0, TOTAL_LOOPS do
         for i = 1, nSeg do
-            local segData = segments[i]
-            local rCol = RARITY_COLORS[segData.rarity] or Color3.fromRGB(100, 100, 100)
+            local seg  = segments[i]
+            local rCol = RARITY_COLORS[seg.rarity] or Color3.fromRGB(90, 90, 90)
 
             local row = Instance.new("Frame")
-            row.Name = "Row_" .. index
-            row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
+            row.Name             = "Row_" .. idx
+            row.Size             = UDim2.new(0.94, 0, 0, ROW_H)
             row.BackgroundColor3 = rCol
-            row.BorderSizePixel = 0
-            row.LayoutOrder = index
-            row.ZIndex = 3
-            row.Parent = scrollList
-
-            -- Ombre/relief sur chaque ligne pour faire "bloc"
-            local lineStroke = Instance.new("UIStroke")
-            lineStroke.Color = Color3.new(0, 0, 0)
-            lineStroke.Thickness = 2
-            lineStroke.Parent = row
+            row.BorderSizePixel  = 0
+            row.LayoutOrder      = idx
+            row.ZIndex           = 3
+            row.Parent           = scrollList
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
 
             local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(0.9, 0, 0.8, 0)
-            lbl.AnchorPoint = Vector2.new(0.5, 0.5)
-            lbl.Position = UDim2.new(0.5, 0, 0.5, 0)
+            lbl.Size                   = UDim2.new(1, -24, 1, 0)
+            lbl.AnchorPoint            = Vector2.new(0.5, 0.5)
+            lbl.Position               = UDim2.new(0.5, 0, 0.5, 0)
             lbl.BackgroundTransparency = 1
-            lbl.Text = string.upper(segData.item.name)
-            lbl.TextColor3 = Color3.new(1, 1, 1)
-            lbl.Font = Enum.Font.LuckiestGuy
-            lbl.TextScaled = true
+            lbl.Text                   = string.upper(seg.item.name)
+            lbl.TextColor3             = Color3.new(1, 1, 1)
+            lbl.Font                   = Enum.Font.LuckiestGuy
+            lbl.TextScaled             = true
+            lbl.TextXAlignment         = Enum.TextXAlignment.Center
+            lbl.TextYAlignment         = Enum.TextYAlignment.Center
             lbl.TextStrokeTransparency = 0
-            lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
-            lbl.ZIndex = 4
-            lbl.Parent = row
+            lbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+            lbl.ZIndex                 = 4
+            lbl.Parent                 = row
 
-            if segData.rarity == "LEGENDARY" then
-                local sl = Instance.new("TextLabel")
-                sl.Size = UDim2.new(0.2, 0, 1, 0)
-                sl.Position = UDim2.new(0.8, 0, 0, 0)
-                sl.BackgroundTransparency = 1
-                sl.Text = "★"
-                sl.TextColor3 = Color3.fromRGB(255, 240, 60)
-                sl.Font = Enum.Font.GothamBlack
-                sl.TextScaled = true
-                sl.TextStrokeTransparency = 0
-                sl.ZIndex = 5
-                sl.Parent = row
-                
-                local sl2 = sl:Clone()
-                sl2.Position = UDim2.new(0, 0, 0, 0)
-                sl2.Parent = row
+            if seg.rarity == "LEGENDARY" then
+                for _, xPct in ipairs({0, 1}) do
+                    local star = Instance.new("TextLabel")
+                    star.Size              = UDim2.new(0, 26, 1, 0)
+                    star.AnchorPoint       = Vector2.new(xPct, 0.5)
+                    star.Position          = UDim2.new(xPct, xPct == 0 and 4 or -4, 0.5, 0)
+                    star.BackgroundTransparency = 1
+                    star.Text              = "★"
+                    star.TextColor3        = Color3.fromRGB(255, 240, 60)
+                    star.Font              = Enum.Font.GothamBlack
+                    star.TextScaled        = true
+                    star.TextStrokeTransparency = 0
+                    star.ZIndex            = 5
+                    star.Parent            = row
+                end
             end
 
-            index = index + 1
+            idx = idx + 1
         end
     end
 
-    -- Les Pointeurs (Curseur au milieu) 
-    -- Milieu de mainFrame = uiHeight / 2
-    local pointerLeft = Instance.new("ImageLabel")
-    pointerLeft.Name = "ArrowLeft"
-    pointerLeft.Size = UDim2.new(0, 40, 0, 40)
-    pointerLeft.AnchorPoint = Vector2.new(0.5, 0.5)
-    pointerLeft.Position = UDim2.new(0, -10, 0.5, 0)
-    pointerLeft.BackgroundTransparency = 1
-    pointerLeft.Image = "rbxassetid://4483362458" -- Triangle générique
-    pointerLeft.ImageColor3 = Color3.fromRGB(255, 215, 0)
-    pointerLeft.Rotation = 90 -- Pointe vers la droite
-    pointerLeft.ZIndex = 10
-    pointerLeft.Parent = mainFrame
-
-    local pointerRight = Instance.new("ImageLabel")
-    pointerRight.Name = "ArrowRight"
-    pointerRight.Size = UDim2.new(0, 40, 0, 40)
-    pointerRight.AnchorPoint = Vector2.new(0.5, 0.5)
-    pointerRight.Position = UDim2.new(1, 10, 0.5, 0)
-    pointerRight.BackgroundTransparency = 1
-    pointerRight.Image = "rbxassetid://4483362458"
-    pointerRight.ImageColor3 = Color3.fromRGB(255, 215, 0)
-    pointerRight.Rotation = -90 -- Pointe vers la gauche
-    pointerRight.ZIndex = 10
-    pointerRight.Parent = mainFrame
-
-    -- Ligne de visée centrale (Overlay transparent rouge)
-    local centerLine = Instance.new("Frame")
-    centerLine.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-    centerLine.AnchorPoint = Vector2.new(0, 0.5)
-    centerLine.Position = UDim2.new(0, 0, 0.5, 0)
-    centerLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    centerLine.BackgroundTransparency = 0.85
-    centerLine.BorderSizePixel = 0
-    centerLine.ZIndex = 9
-    centerLine.Parent = mainFrame
-    local clStroke = Instance.new("UIStroke")
-    clStroke.Color = Color3.fromRGB(255, 215, 0)
-    clStroke.Thickness = 2
-    clStroke.Parent = centerLine
-
-    -- ── UI de Victoire ────────────────────────────────────────────────────────
+    -- ── Message de victoire (au-dessus du container, visible après spin) ──────
     winLabel = Instance.new("TextLabel")
-    winLabel.Size = UDim2.new(0.8, 0, 0, 100)
-    winLabel.AnchorPoint = Vector2.new(0.5, 0)
-    winLabel.Position = UDim2.new(0.5, 0, 0.1, 0) -- Au-dessus de la machine
+    winLabel.Size                   = UDim2.new(1, 0, 0, 60)
+    winLabel.AnchorPoint            = Vector2.new(0.5, 1)
+    winLabel.Position               = UDim2.new(0.5, 0, 0, FRAME_TOP - 8)
     winLabel.BackgroundTransparency = 1
-    winLabel.Text = ""
-    winLabel.TextColor3 = Color3.new(1, 1, 1)
-    winLabel.Font = Enum.Font.LuckiestGuy
-    winLabel.TextScaled = true
+    winLabel.Text                   = ""
+    winLabel.TextColor3             = Color3.new(1, 1, 1)
+    winLabel.Font                   = Enum.Font.LuckiestGuy
+    winLabel.TextScaled             = true
     winLabel.TextStrokeTransparency = 0
-    winLabel.Visible = false
-    winLabel.ZIndex = 20
-    winLabel.Parent = overlay
+    winLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
+    winLabel.Visible                = false
+    winLabel.ZIndex                 = 20
+    winLabel.Parent                 = container
+
+    -- ── Boutons (sous le container, côte à côte, bien séparés) ───────────────
+    local BTN_TOP = FRAME_TOP + LIST_H + 14
 
     closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 240, 0, 60)
-    closeBtn.AnchorPoint = Vector2.new(0.5, 1)
-    closeBtn.Position = UDim2.new(0.5, -130, 0.9, 0) -- Décalé à gauche
-    closeBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
-    closeBtn.Text = "FERMER"
-    closeBtn.TextColor3 = Color3.new(1, 1, 1)
-    closeBtn.Font = Enum.Font.GothamBlack
-    closeBtn.TextSize = 28
-    closeBtn.Visible = false
-    closeBtn.ZIndex = 20
-    closeBtn.Parent = overlay
-    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0.2, 0)
-    local closeStroke = Instance.new("UIStroke")
-    closeStroke.Color = Color3.new(0, 0, 0); closeStroke.Thickness = 2; closeStroke.Parent = closeBtn
+    closeBtn.Size             = UDim2.new(0, 190, 0, 54)
+    closeBtn.AnchorPoint      = Vector2.new(1, 0)
+    closeBtn.Position         = UDim2.new(0.5, -6, 0, BTN_TOP)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(210, 35, 35)
+    closeBtn.Text             = "FERMER"
+    closeBtn.TextColor3       = Color3.new(1, 1, 1)
+    closeBtn.Font             = Enum.Font.GothamBlack
+    closeBtn.TextSize         = 24
+    closeBtn.Visible          = false
+    closeBtn.ZIndex           = 20
+    closeBtn.Parent           = container
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 10)
+    local cs = Instance.new("UIStroke"); cs.Color = Color3.new(0,0,0); cs.Thickness = 2; cs.Parent = closeBtn
 
     reSpinBtn = Instance.new("TextButton")
-    reSpinBtn.Size = UDim2.new(0, 240, 0, 60)
-    reSpinBtn.AnchorPoint = Vector2.new(0.5, 1)
-    reSpinBtn.Position = UDim2.new(0.5, 130, 0.9, 0) -- Décalé à droite
-    reSpinBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
-    reSpinBtn.Text = "RE-SPIN"
-    reSpinBtn.TextColor3 = Color3.new(1, 1, 1)
-    reSpinBtn.Font = Enum.Font.LuckiestGuy
-    reSpinBtn.TextSize = 28
-    reSpinBtn.Visible = false
-    reSpinBtn.ZIndex = 20
-    reSpinBtn.Parent = overlay
-    Instance.new("UICorner", reSpinBtn).CornerRadius = UDim.new(0.2, 0)
-    local reSpinStroke = Instance.new("UIStroke")
-    reSpinStroke.Color = Color3.new(0, 0, 0); reSpinStroke.Thickness = 2; reSpinStroke.Parent = reSpinBtn
+    reSpinBtn.Size             = UDim2.new(0, 190, 0, 54)
+    reSpinBtn.AnchorPoint      = Vector2.new(0, 0)
+    reSpinBtn.Position         = UDim2.new(0.5, 6, 0, BTN_TOP)
+    reSpinBtn.BackgroundColor3 = Color3.fromRGB(30, 185, 30)
+    reSpinBtn.Text             = "RE-SPIN (20G)"
+    reSpinBtn.TextColor3       = Color3.new(1, 1, 1)
+    reSpinBtn.Font             = Enum.Font.LuckiestGuy
+    reSpinBtn.TextSize         = 22
+    reSpinBtn.Visible          = false
+    reSpinBtn.ZIndex           = 20
+    reSpinBtn.Parent           = container
+    Instance.new("UICorner", reSpinBtn).CornerRadius = UDim.new(0, 10)
+    local rs = Instance.new("UIStroke"); rs.Color = Color3.new(0,0,0); rs.Thickness = 2; rs.Parent = reSpinBtn
 
     closeBtn.MouseButton1Click:Connect(function()
         spinGui.Enabled = false
     end)
 
     reSpinBtn.MouseButton1Click:Connect(function()
-        local RequestSpin = Events:FindFirstChild("RequestSpin")
-        if RequestSpin then
+        local req = Events:FindFirstChild("RequestSpin")
+        if req then
             spinGui.Enabled = false
-            RequestSpin:FireServer()
+            req:FireServer()
         end
     end)
 end
 
--- ── ANIMATION TWEENSERVICE ──────────────────────────────
+-- ── ANIMATION ────────────────────────────────────────────────────────────────
 SpinResult.OnClientEvent:Connect(function(res)
     if not res.success then return end
 
+    -- (Re)construction de l'UI si segments transmis
     if res.segments then
         createSlotUI(res.segments)
     end
@@ -300,66 +329,66 @@ SpinResult.OnClientEvent:Connect(function(res)
     if now - lastSpinTime < SPIN_COOLDOWN then return end
     lastSpinTime = now
 
-    winLabel.Visible = false
-    closeBtn.Visible = false
-    if reSpinBtn then reSpinBtn.Visible = false end
+    winLabel.Visible   = false
+    closeBtn.Visible   = false
+    reSpinBtn.Visible  = false
     flashFrame.BackgroundTransparency = 1
-    spinGui.Enabled = true
+    spinGui.Enabled    = true
 
-    local nSeg = #res.segments
-    
-    -- Le segment gagnant (1 à 12). On le choisit dans la dernière boucle.
-    -- ex: Si 5 boucles, la 5eme boucle commence à index = 4 * 12 + 1 = 49.
-    local targetGlobalIndex = (TOTAL_LOOPS - 1) * nSeg + res.winSegment
-    
-    -- Position Y voulue : On veut que le centre de la ligne = centre du container.
-    -- Ligne "targetGlobalIndex" commence à Y = (targetGlobalIndex - 1) * ROW_HEIGHT.
-    -- Son centre est Y_start + ROW_HEIGHT/2.
-    -- Centre de la MainFrame = (ROW_HEIGHT * VISIBLE_ROWS)/2.
-    -- Donc ScrollList.Position.Y.Offset sera = Centre_MainFrame - Centre_Ligne
-    
-    local centerY_MainFrame = (ROW_HEIGHT * VISIBLE_ROWS) / 2
-    local centerY_TargetLine = (targetGlobalIndex - 1) * ROW_HEIGHT + (ROW_HEIGHT / 2)
-    local finalYPos = centerY_MainFrame - centerY_TargetLine
+    local nSeg     = #res.segments
+    local centerY  = LIST_H / 2   -- centre vertical de mainFrame
 
-    -- Reset pour effet de retour rapide ou de continuité 
-    -- -> On démarre d'une boucle lointaine (la première)
-    local startTargetIndex = 1 * nSeg + res.winSegment -- Optionnel: Si on veut démarrer aligné
-    -- Ou mieux : On démarre à Y=0 ou aléatoire en haut
-    local startYPos = centerY_MainFrame - (ROW_HEIGHT / 2) -- On cache le 1er au milieu
-    
-    scrollList.Position = UDim2.new(0, 0, 0, 0)
+    -- Index du segment gagnant dans la dernière boucle
+    -- (TOTAL_LOOPS - 1) boucles complètes + winSegment
+    local targetIdx = (TOTAL_LOOPS - 1) * nSeg + res.winSegment
 
-    local duration = res.duration or 5.5
-    
+    -- Position Y du centre de la ligne targetIdx :
+    --   top de la ligne = (targetIdx - 1) * EFF_ROW_H
+    --   centre de la ligne = top + ROW_H / 2
+    local lineCenterY = (targetIdx - 1) * EFF_ROW_H + ROW_H / 2
+
+    -- On veut que lineCenterY soit au centre de mainFrame (= centerY) :
+    --   scrollList.Position.Y.Offset = centerY - lineCenterY   (valeur négative)
+    local finalYPos = centerY - lineCenterY
+
+    -- Départ depuis le haut (Row 1 au centre)
+    local startLineCenterY = (1 - 1) * EFF_ROW_H + ROW_H / 2
+    local startYPos        = centerY - startLineCenterY
+    scrollList.Position    = UDim2.new(0, 0, 0, startYPos)
+
+    local duration  = res.duration or 5.5
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(scrollList, tweenInfo, { Position = UDim2.new(0, 0, 0, finalYPos) })
+    local tween     = TweenService:Create(scrollList, tweenInfo, {
+        Position = UDim2.new(0, 0, 0, finalYPos)
+    })
 
-    local lastTickRow = 0
+    -- Son de tick à chaque nouveau segment au centre
+    local lastTick = -1
     local conn = RunService.RenderStepped:Connect(function()
-        -- scrollList.Position.Y.Offset descend vers le négatif.
-        -- Clic quand on passe une case au centre :
-        local currentY = scrollList.Position.Y.Offset
-        -- Index au centre = (centerY_MainFrame - currentY) / ROW_HEIGHT (approximatif)
-        local passedIndex = math.floor((centerY_MainFrame - currentY) / ROW_HEIGHT)
-        if passedIndex ~= lastTickRow then
-            lastTickRow = passedIndex
+        local curY     = scrollList.Position.Y.Offset
+        local topY     = centerY - curY            -- Y absolu du haut de la liste dans mainFrame
+        local midSlot  = math.floor((topY) / EFF_ROW_H)
+        if midSlot ~= lastTick then
+            lastTick = midSlot
             guiTickSound:Play()
         end
     end)
 
     tween.Completed:Connect(function()
         conn:Disconnect()
-        
-        -- Flash Blanc Stylisé
-        flashFrame.BackgroundTransparency = 0
-        TweenService:Create(flashFrame, TweenInfo.new(1.2), {BackgroundTransparency = 1}):Play()
 
-        -- Textes et son "Jackpot"
-        winLabel.Text = "TU AS GAGNÉ : " .. string.upper(res.memeName) .. " !"
+        -- Flash victoire
+        flashFrame.BackgroundTransparency = 0
+        TweenService:Create(flashFrame,
+            TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            { BackgroundTransparency = 1 }
+        ):Play()
+
+        -- Texte résultat
         local rCol = RARITY_COLORS[res.memeRarity] or Color3.new(1, 1, 1)
+        winLabel.Text       = "TU AS GAGNÉ : " .. string.upper(res.memeName) .. " !"
         winLabel.TextColor3 = rCol
-        winLabel.Visible = true
+        winLabel.Visible    = true
 
         if res.memeRarity == "LEGENDARY" or res.memeRarity == "EPIC" then
             fanfareSound:Play()
@@ -367,8 +396,8 @@ SpinResult.OnClientEvent:Connect(function(res)
             guiWinSound:Play()
         end
 
-        closeBtn.Visible = true
-        if reSpinBtn then reSpinBtn.Visible = true end
+        closeBtn.Visible  = true
+        reSpinBtn.Visible = true
     end)
 
     tween:Play()
