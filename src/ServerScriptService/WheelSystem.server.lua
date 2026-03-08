@@ -616,10 +616,12 @@ clickDetector.MouseClick:Connect(function(player: Player)
     local segsOfRarity = SEGS_BY_RARITY[winRarity]
     local winSegIdx    = segsOfRarity[math.random(1, #segsOfRarity)]
 
-    -- Calcul de l'angle final (après les 5 tours de phase 1)
+    -- Calcul de l'angle final corrigé (inversion pour le pointeur)
+    -- Le pointeur est fixe à 0°. Pour qu'un segment arrivé à l'indice N
+    -- se retrouve SOUS le pointeur, on cible (360 - N×30°) % 360.
     local currentAngle = pivot:GetAttribute("SpinAngle") or 0
     local phase1End    = currentAngle + FULL_ROTATIONS * 360
-    local winAngle     = (winSegIdx - 1) * SEG_ANGLE
+    local winAngle     = (360 - ((winSegIdx - 1) * SEG_ANGLE)) % 360
     local phase1Mod    = phase1End % 360
     local needed       = (winAngle - phase1Mod + 360) % 360
     if needed < 5 then needed = needed + 360 end
