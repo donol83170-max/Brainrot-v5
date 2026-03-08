@@ -130,31 +130,36 @@ LootTables.Wheels = {
             { Id = "CosmicGigachad",   Name = "Gigachad Cosmique",  Rarity = "ULTRA",  SegmentId = 16 },
         }
     },
-    -- ── Roue 4 : Roue Brainrot (12 segments — Pool system) ────────────────────
+    -- ── Roue 4 : Roue Brainrot v2.0 (16 segments — Pool system) ──────────────
+    -- IDs synchronisés avec WheelSystem.server.lua (POOL table)
     [4] = {
         Name = "Roue Brainrot",
         Cost = 20,
         Currency = "Gold",
         Items = {
-            -- COMMON (60%) — 7 segments
-            { Id = "SkibidiHead",     Name = "Skibidi Toilet",       Rarity = "COMMON",    SegmentId = 1  },
-            { Id = "MaxwellCat",      Name = "Bombardini Gusini",           Rarity = "COMMON",    SegmentId = 2  },
-            { Id = "NoobiniPizza",    Name = "Noobini Pizzanini",     Rarity = "COMMON",    SegmentId = 4  },
-            { Id = "PipiCorni",       Name = "Lirilì Larilà",            Rarity = "COMMON",    SegmentId = 5  },
-            { Id = "MaxwellCat",      Name = "Bombardini Gusini",           Rarity = "COMMON",    SegmentId = 7  },
-            { Id = "SkibidiHead",     Name = "Skibidi Toilet",        Rarity = "COMMON",    SegmentId = 9  },
-            { Id = "PipiCorni",       Name = "Lirilì Larilà",            Rarity = "COMMON",    SegmentId = 11 },
+            -- COMMON (60%) — 8 items uniques
+            { Id = "SkibidiHead",    Name = "Skibidi Toilet",                 Rarity = "COMMON",    SegmentId = 1  },
+            { Id = "LVaccaSaturno",  Name = "La Vacca Saturno Saturnita",     Rarity = "COMMON",    SegmentId = 2  },
+            { Id = "BallerinaCapp",  Name = "Ballerina Cappuccina",           Rarity = "COMMON",    SegmentId = 4  },
+            { Id = "NoobiniPizza",   Name = "Noobini Pizzanini",              Rarity = "COMMON",    SegmentId = 5  },
+            { Id = "NuclearoDino",   Name = "Nuclearo Dinossauro",            Rarity = "COMMON",    SegmentId = 7  },
+            { Id = "LirilaLarila",   Name = "Lirilì Larilà",                  Rarity = "COMMON",    SegmentId = 9  },
+            { Id = "BombombiniGus",  Name = "Bombombini Gusini",              Rarity = "COMMON",    SegmentId = 11 },
+            { Id = "CappuccinoAss",  Name = "Cappuccino Assassino",           Rarity = "COMMON",    SegmentId = 13 },
 
-            -- RARE (25%) — 3 segments
-            { Id = "Tralalero",       Name = "Tralalero Tralala",     Rarity = "RARE",      SegmentId = 3  },
-            { Id = "DogeMeme",        Name = "Doge",                  Rarity = "RARE",      SegmentId = 8  },
-            { Id = "Tralalero",       Name = "Tralalero Tralala",     Rarity = "RARE",      SegmentId = 12 },
+            -- RARE (25%) — 4 items uniques
+            { Id = "Tralalero",      Name = "Tralalero Tralala",              Rarity = "RARE",      SegmentId = 3  },
+            { Id = "TrippiTroppi",   Name = "Trippi Troppi",                  Rarity = "RARE",      SegmentId = 8  },
+            { Id = "BombardiroCroc", Name = "Bombardiro Crocodilo",           Rarity = "RARE",      SegmentId = 12 },
+            { Id = "LosTaTasitos",   Name = "Los Ta ta Tasitos dicen Sahur",  Rarity = "RARE",      SegmentId = 16 },
 
-            -- EPIC (12%) — 1 segment
-            { Id = "BrBrPatapim",     Name = "Br Br Patapim",         Rarity = "EPIC",      SegmentId = 10 },
+            -- EPIC (14%) — 2 items
+            { Id = "BrBrPatapim",    Name = "Br Br Patapim",                  Rarity = "EPIC",      SegmentId = 10 },
+            { Id = "TungTungSahur",  Name = "Tung Tung Tung Sahur",           Rarity = "EPIC",      SegmentId = 14 },
 
-            -- LEGENDARY (3%) — 1 segment
-            { Id = "StrawberryEleph", Name = "Strawberry Elephant",   Rarity = "LEGENDARY", SegmentId = 6  },
+            -- LEGENDARY (1%) — 2 items
+            { Id = "StrawberryEleph", Name = "Strawberry Elephant",           Rarity = "LEGENDARY", SegmentId = 6  },
+            { Id = "DragonCannell",   Name = "Dragon Cannelloni",             Rarity = "LEGENDARY", SegmentId = 15 },
         }
     },
 }

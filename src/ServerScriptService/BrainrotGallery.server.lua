@@ -15,16 +15,22 @@ local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
 local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
 local BrainrotData  = require(ReplicatedStorage:WaitForChild("BrainrotData"))
 
+print("--- DIAGNOSTIC BRAINROT --- BrainrotGallery.server.lua démarre")
+
 -- Dossier des modèles 3D (placeholders ou vrais modèles Toolbox)
 -- BrainrotModelsSetup.server.lua le crée au démarrage → WaitForChild safe
 local brainrotModelsFolder: Folder? = nil
 task.spawn(function()
+    task.wait(2)   -- laisse les modèles Toolbox finir de charger
     brainrotModelsFolder = ReplicatedStorage:WaitForChild("BrainrotModels", 20) :: Folder?
     if brainrotModelsFolder then
-        print(string.format("[BrainrotGallery] BrainrotModels trouvé — %d modèles",
-            #(brainrotModelsFolder :: Folder):GetChildren()))
+        local children = (brainrotModelsFolder :: Folder):GetChildren()
+        print(string.format("[BrainrotGallery] BrainrotModels trouvé — %d enfants", #children))
+        for _, child in ipairs(children) do
+            print(string.format("  [BrainrotModels] '%s' (%s)", child.Name, child.ClassName))
+        end
     else
-        warn("[BrainrotGallery] BrainrotModels introuvable après 20s — mode cube de couleur")
+        warn("[BrainrotGallery] BrainrotModels INTROUVABLE après 20s — vérifie le chemin ReplicatedStorage.BrainrotModels")
     end
 end)
 
@@ -876,18 +882,32 @@ end
 -- Si plusieurs enfants ont le même nom (ex. placeholder + vrai modèle),
 -- préfère le plus complexe (le plus de descendants = vrai modèle Toolbox).
 local function findBrainrotModel(name: string): Model?
-    if not brainrotModelsFolder then return nil end
+    if not brainrotModelsFolder then
+        warn("[BrainrotGallery] findBrainrotModel: brainrotModelsFolder est nil — modèles pas encore chargés")
+        return nil
+    end
     local lowerName = string.lower(name)
     local best: Model? = nil
     local bestCount = -1
     for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
-        if child:IsA("Model") and string.lower(child.Name) == lowerName then
-            local n = #child:GetDescendants()
-            if n > bestCount then
-                bestCount = n
-                best      = child :: Model
+        if child:IsA("Model") then
+            local childLower = string.lower(child.Name)
+            if childLower == lowerName then
+                local n = #child:GetDescendants()
+                if n > bestCount then
+                    bestCount = n
+                    best      = child :: Model
+                end
+            else
+                -- Avertir si nom similaire (aide à repérer les fautes de frappe)
+                if string.find(childLower, lowerName, 1, true) or string.find(lowerName, childLower, 1, true) then
+                    warn(string.format("[BrainrotGallery] Nom similaire trouvé : cherché='%s' / trouvé='%s' — faute de frappe ?", name, child.Name))
+                end
             end
         end
+    end
+    if best then
+        print(string.format("[BrainrotGallery] Modèle trouvé pour '%s' (%d descendants)", name, bestCount))
     end
     return best
 end
@@ -983,6 +1003,22 @@ local function refreshGallery(player: Player)
         print("[BrainrotGallery] Aucune donnee pour " .. player.Name .. " — socles vides")
         return
     end
+
+    -- ── DIAGNOSTIC : inventaire brut ────────────────────────────────────────
+    local invCount = 0
+    for _ in pairs(data.Inventory) do invCount += 1 end
+    print(string.format("[BrainrotGallery] Inventaire de %s : %d item(s)", player.Name, invCount))
+    for itemId, invItem in pairs(data.Inventory) do
+        local info = itemLookup[itemId]
+        if info then
+            print(string.format("  ✓ '%s' (x%d) → Name='%s' Rarity='%s'",
+                itemId, invItem.Count or 0, info.Name, info.Rarity))
+        else
+            warn(string.format("  ✗ '%s' (x%d) → INCONNU dans itemLookup — absent de LootTables !",
+                itemId, invItem.Count or 0))
+        end
+    end
+    -- ── Fin diagnostic ───────────────────────────────────────────────────────
 
     local ownedItems: {{Name: string, Rarity: string, Priority: number, Id: string}} = {}
     for itemId, invItem in pairs(data.Inventory) do
@@ -1127,6 +1163,9 @@ local function teleportToPlot(character: Model, plotIndex: number)
     end
 end
 
+-- Mettre à true pour forcer un cube de test sur le slot 1 (indépendant de l'inventaire)
+local DIAGNOSTIC_FORCE_SLOT1 = true
+
 local function onPlayerAdded(player: Player)
     if plotAssignments[player.UserId] then return end
 
@@ -1141,7 +1180,31 @@ local function onPlayerAdded(player: Player)
 
     local state = buildGallery(player, plotIndex)
     plotState[plotIndex] = state
-    print("[BrainrotGallery] Base generee pour : " .. player.Name)
+    print("[BrainrotGallery] Base generee pour : " .. player.Name .. " (plot #" .. plotIndex .. ")")
+
+    -- ── Test de positionnement forcé sur le slot 1 ───────────────────────────
+    if DIAGNOSTIC_FORCE_SLOT1 then
+        task.spawn(function()
+            task.wait(1)   -- attendre que buildGallery termine
+            local refs = state.pedestalRefs[1]
+            if refs and refs.top then
+                local top = refs.top
+                local testCube = Instance.new("Part")
+                testCube.Name        = "DiagnosticCube_Slot1"
+                testCube.Size        = Vector3.new(2, 2, 2)
+                testCube.CFrame      = top.CFrame * CFrame.new(0, top.Size.Y / 2 + 1, 0)
+                testCube.Anchored    = true
+                testCube.CanCollide  = false
+                testCube.Color       = Color3.fromRGB(255, 0, 255)
+                testCube.Material    = Enum.Material.Neon
+                testCube.Parent      = state.folder
+                print("[BrainrotGallery] DIAG: cube magenta posé sur slot 1 — si visible, le positionnement fonctionne")
+            else
+                warn("[BrainrotGallery] DIAG: refs.top introuvable pour slot 1 !")
+            end
+        end)
+    end
+    -- ── Fin test ─────────────────────────────────────────────────────────────
 
     player.CharacterAdded:Connect(function(character)
         task.wait(2)
