@@ -285,6 +285,11 @@ local clickDetector = Instance.new("ClickDetector")
 clickDetector.MaxActivationDistance = 40
 clickDetector.Parent = leverBall
 
+-- ClickDetector sur l'écran (même effet que le levier, distance réduite)
+local screenClickDetector = Instance.new("ClickDetector")
+screenClickDetector.MaxActivationDistance = 15
+screenClickDetector.Parent = screenPart
+
 local tickSound = Instance.new("Sound")
 tickSound.SoundId = "rbxassetid://6026984224"
 tickSound.Volume = 0.5
@@ -387,6 +392,7 @@ end
 
 -- Connexions
 clickDetector.MouseClick:Connect(ActionSpin)
+screenClickDetector.MouseClick:Connect(ActionSpin)
 RequestSpin.OnServerEvent:Connect(ActionSpin)
 
 print(string.format(

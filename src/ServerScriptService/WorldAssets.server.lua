@@ -115,4 +115,36 @@ task.defer(function()
 end)
 
 print("[WorldAssets] Spawn configure au centre de l'avenue (Z=110)")
+
+-- ── Zone de Vente (entre la fontaine et la machine) ────────────────────────────
+local sellZone = Instance.new("Part")
+sellZone.Name         = "SellZone"
+sellZone.Size         = Vector3.new(9, 0.4, 9)
+sellZone.Position     = Vector3.new(15, 0.3, 0)
+sellZone.Anchored     = true
+sellZone.CanCollide   = false
+sellZone.Material     = Enum.Material.Neon
+sellZone.Color        = Color3.fromRGB(0, 210, 80)
+sellZone.Transparency = 0.35
+sellZone.Parent       = Workspace
+
+local sellBillboard = Instance.new("BillboardGui")
+sellBillboard.Size           = UDim2.new(0, 260, 0, 70)
+sellBillboard.StudsOffset    = Vector3.new(0, 4, 0)
+sellBillboard.LightInfluence = 0
+sellBillboard.AlwaysOnTop    = false
+sellBillboard.Parent         = sellZone
+
+local sellLbl = Instance.new("TextLabel")
+sellLbl.Size                   = UDim2.new(1, 0, 1, 0)
+sellLbl.BackgroundTransparency = 1
+sellLbl.Text                   = "💰 ZONE VENTE"
+sellLbl.TextColor3             = Color3.fromRGB(0, 255, 110)
+sellLbl.Font                   = Enum.Font.GothamBlack
+sellLbl.TextScaled             = true
+sellLbl.TextStrokeTransparency = 0
+sellLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+sellLbl.Parent                 = sellBillboard
+
+print("[WorldAssets] Zone de vente creee a X=15, Z=0")
 print("[WorldAssets] Pret — roues a ajouter dans un nouveau script dedie")
