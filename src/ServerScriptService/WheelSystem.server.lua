@@ -39,8 +39,12 @@ local FULL_ROTATIONS   = 5     -- tours complets en phase 1
 local PHASE1_DURATION  = 3.5   -- secondes — spin rapide constant
 local PHASE2_DURATION  = 2.0   -- secondes — TweenService QuartOut (décélération)
 local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
-local WHEEL_CENTER     = Vector3.new(0, 10, 55)
-local WHEEL_RADIUS     = 7
+-- ── Position & taille ────────────────────────────────────────────────────────
+-- Centre de l'avenue (Z=110), Y=18 pour dépasser la fontaine.
+-- Face du disque vers -Z (sud) = face aux joueurs arrivant des bases sud.
+-- Pour bases nord : même axe (la jante néon est visible des deux côtés).
+local WHEEL_CENTER     = Vector3.new(0, 18, 110)
+local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les bases
 
 local RARITY_COLORS = {
     COMMON    = Color3.fromRGB(160, 162, 168),
@@ -139,10 +143,11 @@ local wheelFolder       = Instance.new("Folder")
 wheelFolder.Name        = "BrainrotWheel"
 wheelFolder.Parent      = Workspace
 
--- ── Poteau ────────────────────────────────────────────────────────────────────
+-- ── Poteau (hauteur dynamique selon WHEEL_CENTER.Y) ──────────────────────────
+local POST_H        = WHEEL_CENTER.Y + 2   -- dépasse légèrement le centre du disque
 local post          = Instance.new("Part")
-post.Name           = "WheelPost"; post.Size = Vector3.new(1.5, 14, 1.5)
-post.Position       = Vector3.new(WHEEL_CENTER.X, 7, WHEEL_CENTER.Z + 0.9)
+post.Name           = "WheelPost"; post.Size = Vector3.new(1.8, POST_H, 1.8)
+post.Position       = Vector3.new(WHEEL_CENTER.X, POST_H / 2, WHEEL_CENTER.Z + 1.1)
 post.Anchored       = true   -- STATIQUE ✓
 post.Material       = Enum.Material.Metal
 post.Color          = Color3.fromRGB(45, 45, 50)
@@ -240,9 +245,24 @@ dome.Color          = Color3.fromRGB(255, 220, 50); dome.Reflectance = 0.6
 dome.CanCollide     = false; dome.CastShadow = false
 dome.Parent         = wheelFolder
 
+-- Lumière omnidirectionnelle (nuit) — portée suffisante pour éclairer toute la roue
 local domeLight         = Instance.new("PointLight")
 domeLight.Color         = Color3.fromRGB(255, 215, 0)
-domeLight.Brightness    = 2.0; domeLight.Range = 12; domeLight.Parent = dome
+domeLight.Brightness    = 5; domeLight.Range = 30; domeLight.Parent = dome
+
+-- SpotLight vers le sud (-Z) : éclaire l'approche des joueurs venant des bases sud
+local spotSouth         = Instance.new("SpotLight")
+spotSouth.Color         = Color3.fromRGB(255, 240, 200)
+spotSouth.Brightness    = 6; spotSouth.Range = 70; spotSouth.Angle = 55
+spotSouth.Face          = Enum.NormalId.Front   -- NormalId.Front = -Z (sud) pour part sans rotation ✓
+spotSouth.Parent        = dome
+
+-- SpotLight vers le nord (+Z) : éclaire les joueurs venant du côté galerie nord
+local spotNorth         = Instance.new("SpotLight")
+spotNorth.Color         = Color3.fromRGB(255, 240, 200)
+spotNorth.Brightness    = 4; spotNorth.Range = 60; spotNorth.Angle = 50
+spotNorth.Face          = Enum.NormalId.Back    -- NormalId.Back = +Z (nord) ✓
+spotNorth.Parent        = dome
 
 -- ── Pointeur (STATIQUE) ────────────────────────────────────────────────────────
 local POINTER_CY = WHEEL_CENTER.Y + WHEEL_RADIUS + 2.2
@@ -271,7 +291,7 @@ pointerLight.Brightness   = 2.5; pointerLight.Range = 7; pointerLight.Parent = p
 
 -- ── ClickDetector sur le Dôme (visible, or, cliquable) ────────────────────────
 local clickDetector = Instance.new("ClickDetector")
-clickDetector.MaxActivationDistance = 30
+clickDetector.MaxActivationDistance = 40   -- agrandi avec le rayon de la roue
 clickDetector.Parent = dome
 
 -- ══════════════════════════════════════════════════════════════════════════════
