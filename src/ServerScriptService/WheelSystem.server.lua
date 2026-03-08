@@ -66,8 +66,8 @@ local POOL = {
     COMMON = {
         { itemId = "SkibidiHead",     imageId = 15263881432, name = "Skibidi Toilet"       },
         { itemId = "NoobiniPizza",    imageId = 0,           name = "Noobini Pizzanini"    },
-        { itemId = "PipiCorni",       imageId = 0,           name = "Pipi Corni"           },
-        { itemId = "MaxwellCat",      imageId = 12501659970, name = "Maxwell Cat"          },
+        { itemId = "PipiCorni",       imageId = 0,           name = "Lirilì Larilà"           },
+        { itemId = "MaxwellCat",      imageId = 12501659970, name = "Bombardini Gusini"          },
     },
     RARE = {
         { itemId = "Tralalero",       imageId = 0,           name = "Tralalero Tralala"    },

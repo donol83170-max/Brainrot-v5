@@ -308,33 +308,60 @@ local function buildUI(segments)
     local reSpinBtn = makeBtn("RE-SPIN (20G)", Color3.fromRGB(30, 185, 30), 2)
     reSpinBtn.Font = Enum.Font.LuckiestGuy
 
-    -- ── Pop-up victoire (ZIndex 200, enfant direct de spinGui, TOUJOURS visible) ─
-    -- Position fixe en haut de l'écran (30px du bord) — indépendant de la résolution
+    -- ── Pop-up victoire (ZIndex 200, toujours au-dessus, position fixe) ─────────
+    -- Structure :  [  BADGE RARETÉ  ]   (fond = couleur rareté)
+    --              [ NOM DU BRAINROT ]  (fond sombre)
     winPopup = Instance.new("Frame")
     winPopup.Name                  = "WinPopup"
-    winPopup.Size                  = UDim2.new(0, 440, 0, 110)
+    winPopup.Size                  = UDim2.new(0, 460, 0, 120)
     winPopup.AnchorPoint           = Vector2.new(0.5, 0)
-    winPopup.Position              = UDim2.new(0.5, 0, 0, 30)
-    winPopup.BackgroundColor3      = Color3.fromRGB(14, 14, 20)
+    winPopup.Position              = UDim2.new(0.5, 0, 0, 26)
+    winPopup.BackgroundColor3      = Color3.fromRGB(12, 12, 18)
     winPopup.BorderSizePixel       = 0
+    winPopup.ClipsDescendants      = true
     winPopup.Visible               = false
     winPopup.ZIndex                = 200
     winPopup.Parent                = spinGui
     Instance.new("UICorner", winPopup).CornerRadius = UDim.new(0, 14)
-    local ws = Instance.new("UIStroke"); ws.Color = Color3.fromRGB(255,215,0); ws.Thickness = 4; ws.Parent = winPopup
 
+    -- Bande de couleur rareté (haut du popup) — couleur mise à jour au gain
+    local rarityBand = Instance.new("Frame")
+    rarityBand.Name                  = "RarityBand"
+    rarityBand.Size                  = UDim2.new(1, 0, 0, 38)
+    rarityBand.Position              = UDim2.new(0, 0, 0, 0)
+    rarityBand.BackgroundColor3      = Color3.fromRGB(255, 215, 0)  -- remplacé au gain
+    rarityBand.BorderSizePixel       = 0
+    rarityBand.ZIndex                = 201
+    rarityBand.Parent                = winPopup
+
+    local rarityLbl = Instance.new("TextLabel")
+    rarityLbl.Name                   = "RarityLabel"
+    rarityLbl.Size                   = UDim2.new(1, 0, 1, 0)
+    rarityLbl.BackgroundTransparency = 1
+    rarityLbl.Text                   = "LEGENDARY"   -- remplacé au gain
+    rarityLbl.TextColor3             = Color3.new(1, 1, 1)
+    rarityLbl.Font                   = Enum.Font.GothamBlack
+    rarityLbl.TextScaled             = true
+    rarityLbl.TextStrokeTransparency = 0.3
+    rarityLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+    rarityLbl.ZIndex                 = 202
+    rarityLbl.Parent                 = rarityBand
+
+    -- Nom du brainrot (zone principale)
     winPopupLabel = Instance.new("TextLabel")
-    winPopupLabel.Size                   = UDim2.new(1, -20, 1, 0)
-    winPopupLabel.AnchorPoint            = Vector2.new(0.5, 0.5)
-    winPopupLabel.Position               = UDim2.new(0.5, 0, 0.5, 0)
+    winPopupLabel.Name                   = "NameLabel"
+    winPopupLabel.Size                   = UDim2.new(1, -16, 0, 72)
+    winPopupLabel.AnchorPoint            = Vector2.new(0.5, 1)
+    winPopupLabel.Position               = UDim2.new(0.5, 0, 1, -6)
     winPopupLabel.BackgroundTransparency = 1
     winPopupLabel.Text                   = ""
     winPopupLabel.TextColor3             = Color3.new(1, 1, 1)
     winPopupLabel.Font                   = Enum.Font.LuckiestGuy
-    winPopupLabel.TextScaled             = true
+    winPopupLabel.TextScaled             = true   -- gère "Bombardini Gusini" sans débord
+    winPopupLabel.TextXAlignment         = Enum.TextXAlignment.Center
     winPopupLabel.TextStrokeTransparency = 0
     winPopupLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
-    winPopupLabel.ZIndex                 = 201
+    winPopupLabel.ZIndex                 = 202
     winPopupLabel.Parent                 = winPopup
 
     -- Callbacks boutons
@@ -422,13 +449,21 @@ SpinResult.OnClientEvent:Connect(function(res)
         -- Cache le titre, affiche le popup de victoire
         if title then title.Visible = false end
 
-        local rCol = RARITY_COLORS[res.memeRarity] or Color3.new(1,1,1)
-        winPopup.Visible       = true
-        winPopupLabel.Text     = "🎉 " .. string.upper(res.memeName) .. "\n" .. res.memeRarity
-        winPopupLabel.TextColor3 = rCol
-        -- Bordure de couleur de rareté
-        local popStroke = winPopup:FindFirstChildOfClass("UIStroke")
-        if popStroke then popStroke.Color = rCol end
+        local rCol = RARITY_COLORS[res.memeRarity] or Color3.fromRGB(160, 162, 168)
+
+        -- Bande de rareté (couleur + label)
+        local band = winPopup:FindFirstChild("RarityBand")
+        if band then
+            band.BackgroundColor3 = rCol
+            local rl = band:FindFirstChild("RarityLabel")
+            if rl then rl.Text = "✦ " .. (res.memeRarity or "?") .. " ✦" end
+        end
+
+        -- Nom du brainrot (TextScaled gère les noms longs comme "Bombardini Gusini")
+        winPopupLabel.Text       = string.upper(res.memeName)
+        winPopupLabel.TextColor3 = Color3.new(1, 1, 1)
+
+        winPopup.Visible = true
 
         if res.memeRarity == "LEGENDARY" or res.memeRarity == "EPIC" then
             sndFanfare:Play()

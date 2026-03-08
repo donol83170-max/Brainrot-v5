@@ -138,12 +138,12 @@ LootTables.Wheels = {
         Items = {
             -- COMMON (60%) — 7 segments
             { Id = "SkibidiHead",     Name = "Skibidi Toilet",       Rarity = "COMMON",    SegmentId = 1  },
-            { Id = "MaxwellCat",      Name = "Maxwell Cat",           Rarity = "COMMON",    SegmentId = 2  },
+            { Id = "MaxwellCat",      Name = "Bombardini Gusini",           Rarity = "COMMON",    SegmentId = 2  },
             { Id = "NoobiniPizza",    Name = "Noobini Pizzanini",     Rarity = "COMMON",    SegmentId = 4  },
-            { Id = "PipiCorni",       Name = "Pipi Corni",            Rarity = "COMMON",    SegmentId = 5  },
-            { Id = "MaxwellCat",      Name = "Maxwell Cat",           Rarity = "COMMON",    SegmentId = 7  },
+            { Id = "PipiCorni",       Name = "Lirilì Larilà",            Rarity = "COMMON",    SegmentId = 5  },
+            { Id = "MaxwellCat",      Name = "Bombardini Gusini",           Rarity = "COMMON",    SegmentId = 7  },
             { Id = "SkibidiHead",     Name = "Skibidi Toilet",        Rarity = "COMMON",    SegmentId = 9  },
-            { Id = "PipiCorni",       Name = "Pipi Corni",            Rarity = "COMMON",    SegmentId = 11 },
+            { Id = "PipiCorni",       Name = "Lirilì Larilà",            Rarity = "COMMON",    SegmentId = 11 },
 
             -- RARE (25%) — 3 segments
             { Id = "Tralalero",       Name = "Tralalero Tralala",     Rarity = "RARE",      SegmentId = 3  },

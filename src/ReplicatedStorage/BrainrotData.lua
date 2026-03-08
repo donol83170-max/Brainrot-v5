@@ -24,7 +24,7 @@ end
 BrainrotData.Items = {
 
     -- ── Roue Brainrot (Wheel 4 — 12 segments) ────────────────────────────────
-    MaxwellCat      = { ImageId = 12501659970 },  -- ✅ Maxwell the Cat
+    MaxwellCat      = { ImageId = 12501659970 },  -- ✅ Bombardini Gusini (anciennement Maxwell)
     NoobiniPizza    = { ImageId = 0 },            -- à upload
     PipiCorni       = { ImageId = 0 },            -- à upload
     Tralalero       = { ImageId = 0 },            -- à upload
