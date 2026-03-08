@@ -131,7 +131,7 @@ end
 -- CFrame.Angles(0, +90°, 0) → local +X pointe vers world +Z (nord, vers joueurs) ✓
 -- Spin = CFrame.Angles(deg, 0, 0) → rotation autour de local X = axe du disque ✓
 -- ══════════════════════════════════════════════════════════════════════════════
-local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(-90), 0)
+local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(90), 0)
 
 -- Retourne le CFrame du Pivot pour un angle de spin donné (en degrés, cumulatif).
 -- Toutes les rotations TweenService sont relatives à ORIGINAL_CFRAME.
