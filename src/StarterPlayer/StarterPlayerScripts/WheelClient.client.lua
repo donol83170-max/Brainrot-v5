@@ -12,23 +12,26 @@ local Events     = ReplicatedStorage:WaitForChild("Events")
 local SpinResult = Events:WaitForChild("SpinResult")
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- COULEURS DE RARETÉ
+-- COULEURS DE RARETÉ — TABLE OFFICIELLE (insensible à la casse via string.find)
 -- ══════════════════════════════════════════════════════════════════════════════
-local RARITY_COLORS = {
-    NORMAL    = Color3.fromRGB(163, 162, 165),
-    RARE      = Color3.fromRGB(  0, 162, 255),
-    MYTHIC    = Color3.fromRGB(170,   0, 255),
-    LEGENDARY = Color3.fromRGB(255, 170,   0),
-    ULTRA     = Color3.fromRGB(255,   0, 127),
-}
+local function getRarityColor(rarity: string): Color3
+    local r = string.upper(tostring(rarity or ""))
+    if string.find(r, "EPIC")   or string.find(r, "PIQUE")  then return Color3.fromRGB(255,   0, 255) end  -- VIOLET
+    if string.find(r, "LEGEND")                              then return Color3.fromRGB(255, 215,   0) end  -- DORÉ
+    if string.find(r, "RARE")                                then return Color3.fromRGB(  0, 130, 255) end  -- BLEU
+    if string.find(r, "COMMON") or string.find(r, "COMMUN") then return Color3.fromRGB(  0, 255,   0) end  -- VERT
+    warn("[WheelClient] Rareté inconnue : '" .. tostring(rarity) .. "'")
+    return Color3.fromRGB(255, 120, 0)  -- ORANGE = visible, jamais gris
+end
 
-local RARITY_LABELS = {
-    NORMAL    = "NORMAL",
-    RARE      = "RARE",
-    MYTHIC    = "MYTHIQUE",
-    LEGENDARY = "LEGENDAIRE",
-    ULTRA     = "ULTRA",
-}
+local function getRarityLabel(rarity: string): string
+    local r = string.upper(tostring(rarity or ""))
+    if string.find(r, "EPIC")   or string.find(r, "PIQUE")  then return "ÉPIQUE"    end
+    if string.find(r, "LEGEND")                              then return "LÉGENDAIRE" end
+    if string.find(r, "RARE")                                then return "RARE"       end
+    if string.find(r, "COMMON") or string.find(r, "COMMUN") then return "COMMUN"     end
+    return tostring(rarity or "?")
+end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- NOTIFICATION "PAS ASSEZ DE COINS"
@@ -90,8 +93,9 @@ local function showResult(data)
     local old = playerGui:FindFirstChild("SpinResultGui")
     if old then old:Destroy() end
 
-    local rarityColor = RARITY_COLORS[data.memeRarity] or RARITY_COLORS.NORMAL
-    local rarityLabel = RARITY_LABELS[data.memeRarity] or data.memeRarity
+    local rarityColor = getRarityColor(data.memeRarity)
+    local rarityLabel = getRarityLabel(data.memeRarity)
+    print("[WheelClient] showResult — memeRarity='" .. tostring(data.memeRarity) .. "' → couleur appliquée")
 
     local sg = Instance.new("ScreenGui")
     sg.Name           = "SpinResultGui"

@@ -29,13 +29,17 @@ local PlayerGui = player:WaitForChild("PlayerGui")
 local Events     = ReplicatedStorage:WaitForChild("Events")
 local SpinResult = Events:WaitForChild("SpinResult")
 
--- ── Couleurs de rareté (identiques serveur + client) ─────────────────────────
-local RARITY_COLORS = {
-    COMMON    = Color3.fromRGB(100, 102, 108),
-    RARE      = Color3.fromRGB(  0, 110, 255),
-    EPIC      = Color3.fromRGB(255,   0, 255),   -- MAGENTA ✓
-    LEGENDARY = Color3.fromRGB(255, 175,   0),
-}
+-- ── Couleurs de rareté — TABLE OFFICIELLE, insensible à la casse ─────────────
+-- Jamais de fallback gris : rareté inconnue → orange vif pour diagnostiquer.
+local function getRarityColor(rarity: string): Color3
+    local r = string.upper(rarity or "")
+    if r == "LEGENDARY" then return Color3.fromRGB(255, 215,   0) end  -- DORÉ
+    if r == "EPIC"      then return Color3.fromRGB(255,   0, 255) end  -- VIOLET
+    if r == "RARE"      then return Color3.fromRGB(  0, 130, 255) end  -- BLEU
+    if r == "COMMON"    then return Color3.fromRGB(  0, 255,   0) end  -- VERT
+    -- Rareté inconnue → orange vif = visible immédiatement en test
+    return Color3.fromRGB(255, 120, 0)
+end
 
 -- ── Sons ──────────────────────────────────────────────────────────────────────
 local function makeSound(id, vol)
@@ -135,32 +139,48 @@ local function buildUI(segments)
     machineRow.Parent                = container
 
     -- Flèche gauche (HORS mainFrame — jamais clippée)
-    local arrowL = Instance.new("TextLabel")
-    arrowL.Size              = UDim2.new(0, 30, 0, 30)
+    local arrowL = Instance.new("Frame")
+    arrowL.Size              = UDim2.new(0, 44, 0, 44)
     arrowL.AnchorPoint       = Vector2.new(1, 0.5)
-    arrowL.Position          = UDim2.new(0, -10, 0.5, 0)
-    arrowL.BackgroundTransparency = 1
-    arrowL.Text              = "▶"
-    arrowL.TextColor3        = Color3.fromRGB(255, 215, 0)
-    arrowL.Font              = Enum.Font.GothamBlack
-    arrowL.TextScaled        = true
-    arrowL.TextStrokeTransparency = 0
+    arrowL.Position          = UDim2.new(0, -6, 0.5, 0)
+    arrowL.BackgroundColor3  = Color3.fromRGB(255, 200, 0)
+    arrowL.BorderSizePixel   = 0
     arrowL.ZIndex            = 10
     arrowL.Parent            = machineRow
+    Instance.new("UICorner", arrowL).CornerRadius = UDim.new(0, 8)
+    local arrowLStroke = Instance.new("UIStroke", arrowL)
+    arrowLStroke.Color     = Color3.new(0, 0, 0)
+    arrowLStroke.Thickness = 2
+    local arrowLLbl = Instance.new("TextLabel", arrowL)
+    arrowLLbl.Size                   = UDim2.new(1, 0, 1, 0)
+    arrowLLbl.BackgroundTransparency = 1
+    arrowLLbl.Text                   = ">"
+    arrowLLbl.TextColor3             = Color3.new(0, 0, 0)
+    arrowLLbl.Font                   = Enum.Font.GothamBold
+    arrowLLbl.TextScaled             = true
+    arrowLLbl.ZIndex                 = 11
 
     -- Flèche droite (HORS mainFrame — jamais clippée)
-    local arrowR = Instance.new("TextLabel")
-    arrowR.Size              = UDim2.new(0, 30, 0, 30)
+    local arrowR = Instance.new("Frame")
+    arrowR.Size              = UDim2.new(0, 44, 0, 44)
     arrowR.AnchorPoint       = Vector2.new(0, 0.5)
-    arrowR.Position          = UDim2.new(1, 10, 0.5, 0)
-    arrowR.BackgroundTransparency = 1
-    arrowR.Text              = "◀"
-    arrowR.TextColor3        = Color3.fromRGB(255, 215, 0)
-    arrowR.Font              = Enum.Font.GothamBlack
-    arrowR.TextScaled        = true
-    arrowR.TextStrokeTransparency = 0
+    arrowR.Position          = UDim2.new(1, 6, 0.5, 0)
+    arrowR.BackgroundColor3  = Color3.fromRGB(255, 200, 0)
+    arrowR.BorderSizePixel   = 0
     arrowR.ZIndex            = 10
     arrowR.Parent            = machineRow
+    Instance.new("UICorner", arrowR).CornerRadius = UDim.new(0, 8)
+    local arrowRStroke = Instance.new("UIStroke", arrowR)
+    arrowRStroke.Color     = Color3.new(0, 0, 0)
+    arrowRStroke.Thickness = 2
+    local arrowRLbl = Instance.new("TextLabel", arrowR)
+    arrowRLbl.Size                   = UDim2.new(1, 0, 1, 0)
+    arrowRLbl.BackgroundTransparency = 1
+    arrowRLbl.Text                   = "<"
+    arrowRLbl.TextColor3             = Color3.new(0, 0, 0)
+    arrowRLbl.Font                   = Enum.Font.GothamBold
+    arrowRLbl.TextScaled             = true
+    arrowRLbl.ZIndex                 = 11
 
     -- Fenêtre clippée
     mainFrame = Instance.new("Frame")
@@ -241,7 +261,7 @@ local function buildUI(segments)
     for _ = 0, LOOPS do
         for i = 1, nSeg do
             local seg  = segments[i]
-            local rCol = RARITY_COLORS[seg.rarity] or Color3.fromRGB(80, 80, 80)
+            local rCol = getRarityColor(seg.rarity)
 
             local row = Instance.new("Frame")
             row.Name             = "R" .. idx
@@ -446,26 +466,54 @@ SpinResult.OnClientEvent:Connect(function(res)
             { BackgroundTransparency = 1 }
         ):Play()
 
-        -- Cache le titre, affiche le popup de victoire
+        -- Cache le titre
         if title then title.Visible = false end
 
-        local rCol = RARITY_COLORS[res.memeRarity] or Color3.fromRGB(160, 162, 168)
+        -- ── COULEUR POPUP — logique directe, zéro fonction externe ──────────
+        -- Le serveur envoie "COMMON", "RARE", "EPIC", "LEGENDARY" (anglais, majuscule).
+        -- string.upper + string.find couvre aussi les variantes accentuées éventuelles.
+        local rawRarity = tostring(res.memeRarity or "")
+        local r         = string.upper(rawRarity)
+        print("[WheelController] memeRarity reçu = '" .. rawRarity .. "' → upper = '" .. r .. "'")
 
-        -- Bande de rareté (couleur + label)
-        local band = winPopup:FindFirstChild("RarityBand")
-        if band then
-            band.BackgroundColor3 = rCol
-            local rl = band:FindFirstChild("RarityLabel")
-            if rl then rl.Text = "✦ " .. (res.memeRarity or "?") .. " ✦" end
+        local popupColor
+        if string.find(r, "EPIC") or string.find(r, "PIQUE") then
+            popupColor = Color3.fromRGB(255,   0, 255)   -- VIOLET  — Br Br Patapim
+        elseif string.find(r, "LEGEND") then
+            popupColor = Color3.fromRGB(255, 215,   0)   -- DORÉ    — Strawberry Elephant
+        elseif string.find(r, "RARE") then
+            popupColor = Color3.fromRGB(  0, 130, 255)   -- BLEU    — Tralalero, Doge
+        elseif string.find(r, "COMMON") or string.find(r, "COMMUN") then
+            popupColor = Color3.fromRGB(  0, 255,   0)   -- VERT    — Skibidi, Bombardini…
+        else
+            popupColor = Color3.fromRGB(255, 120,   0)   -- ORANGE  — rareté inconnue
+            warn("[WheelController] Rareté inconnue : '" .. rawRarity .. "'")
         end
 
-        -- Nom du brainrot (TextScaled gère les noms longs comme "Bombardini Gusini")
-        winPopupLabel.Text       = string.upper(res.memeName)
-        winPopupLabel.TextColor3 = Color3.new(1, 1, 1)
+        -- Fond ENTIER du popup = couleur de rareté
+        winPopup.BackgroundColor3 = popupColor
+
+        -- Bande du haut : voile noir semi-transparent pour faire ressortir le texte
+        local band = winPopup:FindFirstChild("RarityBand")
+        if band then
+            band.BackgroundColor3       = Color3.new(0, 0, 0)
+            band.BackgroundTransparency = 0.45
+            local rl = band:FindFirstChild("RarityLabel")
+            if rl then
+                rl.Text       = "✦ " .. r .. " ✦"
+                rl.TextColor3 = Color3.new(1, 1, 1)
+            end
+        end
+
+        -- Nom du brainrot — blanc + contour noir (lisible sur toutes les couleurs)
+        winPopupLabel.Text                   = string.upper(res.memeName or "???")
+        winPopupLabel.TextColor3             = Color3.new(1, 1, 1)
+        winPopupLabel.TextStrokeTransparency = 0
+        winPopupLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
 
         winPopup.Visible = true
 
-        if res.memeRarity == "LEGENDARY" or res.memeRarity == "EPIC" then
+        if string.find(r, "LEGEND") or string.find(r, "EPIC") or string.find(r, "PIQUE") then
             sndFanfare:Play()
         else
             sndWin:Play()

@@ -53,10 +53,10 @@ local WHEEL_CENTER     = Vector3.new(40, 18, 0)
 local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 
 local RARITY_COLORS = {
-    COMMON    = Color3.fromRGB(160, 162, 168),
-    RARE      = Color3.fromRGB(  0, 130, 255),
-    EPIC      = Color3.fromRGB(255,   0, 255),
-    LEGENDARY = Color3.fromRGB(255, 190,   0),
+    COMMON    = Color3.fromRGB(  0, 255,   0),  -- VERT (table officielle)
+    RARE      = Color3.fromRGB(  0, 130, 255),  -- BLEU
+    EPIC      = Color3.fromRGB(255,   0, 255),  -- VIOLET
+    LEGENDARY = Color3.fromRGB(255, 215,   0),  -- DORÉ
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -75,11 +75,9 @@ local POOL = {
     },
     EPIC = {
         { itemId = "BrBrPatapim",     imageId = 0,           name = "Br Br Patapim"        },
-        { itemId = "CappuccinoAss",   imageId = 0,           name = "Cappuccino Assassino" },
     },
     LEGENDARY = {
         { itemId = "StrawberryEleph", imageId = 0,           name = "Strawberry Elephant"  },
-        { itemId = "DragonCannell",   imageId = 0,           name = "Dragon Cannelloni"    },
     },
 }
 
