@@ -40,10 +40,10 @@ local PHASE1_DURATION  = 3.5   -- secondes — spin rapide constant
 local PHASE2_DURATION  = 2.0   -- secondes — TweenService QuartOut (décélération)
 local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
 -- ── Position & taille ────────────────────────────────────────────────────────
--- Fontaine centrale à X=0, Z=0 (WorldAssets). Roue à droite de la fontaine.
--- WHEEL_CENTER.X = +20 (20 studs à droite de la fontaine).
--- Face du disque vers -X (OUEST) = face à la fontaine ✓
-local WHEEL_CENTER     = Vector3.new(20, 18, 0)
+-- Fontaine centrale à X=0, Z=0 (WorldAssets). Roue reculée loin de la fontaine.
+-- WHEEL_CENTER.X = +40 (40 studs à droite → large espace de circulation devant).
+-- Z=0 → centrée sur l'allée centrale. Face du disque vers -X (fontaine) ✓
+local WHEEL_CENTER     = Vector3.new(40, 18, 0)
 local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 
 local RARITY_COLORS = {
