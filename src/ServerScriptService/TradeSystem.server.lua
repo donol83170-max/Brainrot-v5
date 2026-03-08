@@ -280,6 +280,14 @@ type TradeSlot = {
 local tradeA: TradeSlot = { player=nil, itemId=nil, itemName=nil, confirmed=false, displayModel=nil }
 local tradeB: TradeSlot = { player=nil, itemId=nil, itemName=nil, confirmed=false, displayModel=nil }
 
+-- ── Verrou de vente — appelé par Communication.server.lua ────────────────────
+-- Retourne true si l'item est actuellement déposé dans la machine à échange.
+function _G.IsItemInTrade(player: Player, itemId: string): boolean
+    if tradeA.player == player and tradeA.itemId == itemId then return true end
+    if tradeB.player == player and tradeB.itemId == itemId then return true end
+    return false
+end
+
 local MAX_FIGURINE_DIM = 3
 
 -- Positions au-dessus des compartiments (centre de l'espace de display)

@@ -42,6 +42,13 @@ end
 
 -- ── Vente d'un item ────────────────────────────────────────────────────────────
 SellRequest.OnServerEvent:Connect(function(player, itemId)
+    -- Bloquer la vente si l'item est actuellement déposé dans la machine à échange
+    if _G.IsItemInTrade and _G.IsItemInTrade(player, itemId) then
+        warn(string.format("[Communication] %s tente de vendre '%s' mais il est en trade — bloqué",
+            player.Name, tostring(itemId)))
+        return
+    end
+
     local data = DataManager.GetData(player)
     if not data or not data.Inventory[itemId] then return end
 
