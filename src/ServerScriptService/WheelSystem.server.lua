@@ -359,6 +359,17 @@ local function ActionSpin(player: Player)
     if _G.BrainrotGallery_Refresh then
         task.spawn(_G.BrainrotGallery_Refresh, player)
     end
+
+    -- VFX + badge si LÉGENDAIRE
+    if winRarity == "LEGENDARY" then
+        local ldEvent = Events:FindFirstChild("LegendaryDrop")
+        if ldEvent then
+            ldEvent:FireAllClients(player, winItem.name)
+        end
+        if _G.CheckLegendaryBadge then
+            task.spawn(_G.CheckLegendaryBadge, player)
+        end
+    end
     local updated = DataManager.GetData(player)
     if updated then UpdateClientData:FireClient(player, updated) end
 
