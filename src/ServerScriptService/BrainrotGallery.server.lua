@@ -872,8 +872,28 @@ local function addFigurineBillboard(adornee: Instance, offsetY: number,
     lbl.Parent                 = bb
 end
 
+-- Recherche insensible à la casse dans BrainrotModels.
+-- Si plusieurs enfants ont le même nom (ex. placeholder + vrai modèle),
+-- préfère le plus complexe (le plus de descendants = vrai modèle Toolbox).
+local function findBrainrotModel(name: string): Model?
+    if not brainrotModelsFolder then return nil end
+    local lowerName = string.lower(name)
+    local best: Model? = nil
+    local bestCount = -1
+    for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
+        if child:IsA("Model") and string.lower(child.Name) == lowerName then
+            local n = #child:GetDescendants()
+            if n > bestCount then
+                bestCount = n
+                best      = child :: Model
+            end
+        end
+    end
+    return best
+end
+
 local function createFigurine(state: PlotState, slotIndex: number, itemData: any)
-    -- Détruire l'ancienne figurine (vente ou refresh)
+    -- Détruire l'ancienne figurine (cube ou modèle) avant tout remplacement
     if state.displayParts[slotIndex] then
         (state.displayParts[slotIndex] :: Instance):Destroy()
         state.displayParts[slotIndex] = nil
@@ -884,62 +904,57 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
     if not refs then return end
 
     local topPart     = refs.top
-    local surfaceY    = topPart.Position.Y + topPart.Size.Y / 2  -- dessus du plateau
-    local centerX     = topPart.Position.X
-    local centerZ     = topPart.Position.Z
     local rarityColor = RARITY_COLOR[itemData.Rarity] or RARITY_COLOR.NORMAL
 
-    -- ── Chercher le modèle dans BrainrotModels ────────────────────────────────
-    local template = brainrotModelsFolder and
-                     (brainrotModelsFolder :: Folder):FindFirstChild(itemData.Name)
+    -- CFrame du dessus du socle (surface sur laquelle le modèle est posé)
+    local socleTopCF = topPart.CFrame * CFrame.new(0, topPart.Size.Y / 2, 0)
 
-    if template and template:IsA("Model") then
-        -- ── MODÈLE 3D (placeholder coloré ou vrai modèle Toolbox) ─────────────
-        local clone = (template :: Model):Clone()
+    -- ── Cherche le vrai modèle (insensible à la casse) ───────────────────────
+    local template = findBrainrotModel(itemData.Name)
+
+    if template then
+        -- ── MODÈLE 3D TOOLBOX ────────────────────────────────────────────────
+        local clone = template:Clone()
         clone.Name  = "Figurine_" .. slotIndex
 
-        -- Auto-scaling : ramener dans MAX_FIGURINE_DIM studs
-        local ok1, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
-        if ok1 and rawBB then
+        -- Auto-scaling : contenir dans MAX_FIGURINE_DIM studs
+        local ok, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
+        if ok and rawBB then
             local maxDim = math.max((rawBB :: Vector3).X, (rawBB :: Vector3).Y, (rawBB :: Vector3).Z)
-            if maxDim > MAX_FIGURINE_DIM then
-                local scale = MAX_FIGURINE_DIM / maxDim
-                pcall(function() (clone :: Model):ScaleTo(scale) end)
+            if maxDim > 0.01 and maxDim > MAX_FIGURINE_DIM then
+                pcall(function() clone:ScaleTo(MAX_FIGURINE_DIM / maxDim) end)
             end
         end
 
-        -- Repositionner : bounding box bottom = surface du socle
-        local _, scaledBB = clone:GetBoundingBox()
-        local sizeY       = scaledBB and scaledBB.Y or MAX_FIGURINE_DIM
-        clone:PivotTo(CFrame.new(centerX, surfaceY + sizeY / 2, centerZ))
+        -- Pose : pivot du modèle à 2 studs au-dessus de la surface du socle
+        clone:PivotTo(socleTopCF * CFrame.new(0, 2, 0))
         clone.Parent = state.folder
 
-        -- Effets et billboard sur le PrimaryPart (ou premier BasePart)
-        local pp: BasePart? = (clone :: Model).PrimaryPart
-                           or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
+        -- Effets sur le PrimaryPart (ou premier BasePart trouvé)
+        local pp: BasePart? = clone.PrimaryPart
+                           or clone:FindFirstChildOfClass("BasePart") :: BasePart?
         if pp then
             addFigurineEffects(pp :: BasePart, rarityColor, itemData.Rarity)
-            addFigurineBillboard(pp :: BasePart, sizeY / 2 + 1.5, itemData.Name, rarityColor)
+            addFigurineBillboard(pp :: BasePart, 2.5, itemData.Name, rarityColor)
         end
 
         state.displayParts[slotIndex] = clone
+        print(string.format("[BrainrotGallery] Modèle 3D '%s' posé sur slot %d", itemData.Name, slotIndex))
 
     else
-        -- ── FALLBACK : cube coloré si aucun modèle trouvé ────────────────────
-        if not template then
-            warn(string.format("[BrainrotGallery] Modèle '%s' absent de BrainrotModels — cube placeholder", itemData.Name))
-        end
+        -- ── FALLBACK : cube coloré si modèle introuvable ─────────────────────
+        warn(string.format("[BrainrotGallery] '%s' introuvable dans BrainrotModels — cube placeholder", itemData.Name))
 
-        local cube        = Instance.new("Part")
-        cube.Name         = "Figurine_" .. slotIndex
-        cube.Size         = Vector3.new(3, 4, 3)
-        cube.Position     = Vector3.new(centerX, surfaceY + 2, centerZ)
-        cube.Anchored     = true
-        cube.CanCollide   = false
-        cube.Color        = rarityColor
-        cube.Material     = Enum.Material.SmoothPlastic
-        cube.Reflectance  = (itemData.Rarity == "LEGENDARY" or itemData.Rarity == "ULTRA") and 0.1 or 0
-        cube.Parent       = state.folder
+        local cube = Instance.new("Part")
+        cube.Name        = "Figurine_" .. slotIndex
+        cube.Size        = Vector3.new(3, 4, 3)
+        cube.CFrame      = socleTopCF * CFrame.new(0, 2, 0)
+        cube.Anchored    = true
+        cube.CanCollide  = false
+        cube.Color       = rarityColor
+        cube.Material    = Enum.Material.SmoothPlastic
+        cube.Reflectance = (itemData.Rarity == "LEGENDARY" or itemData.Rarity == "ULTRA") and 0.1 or 0
+        cube.Parent      = state.folder
 
         addFigurineEffects(cube, rarityColor, itemData.Rarity)
         addFigurineBillboard(cube, 3.2, itemData.Name, rarityColor)
