@@ -151,363 +151,101 @@ local wheelFolder       = Instance.new("Folder")
 wheelFolder.Name        = "BrainrotWheel"
 wheelFolder.Parent      = Workspace
 
--- ── Socle bas (face avant 100% dégagée — pas de poteau devant le disque) ──────
--- Un socle plat au sol + un bras arrière caché derrière le disque.
-local pedestal      = Instance.new("Part")
-pedestal.Name       = "WheelBase"
-pedestal.Size       = Vector3.new(7, 2, 7)
-pedestal.Position   = Vector3.new(WHEEL_CENTER.X, 1, WHEEL_CENTER.Z)
-pedestal.Anchored   = true; pedestal.Material = Enum.Material.Metal
-pedestal.Color      = Color3.fromRGB(180, 180, 180); pedestal.CastShadow = false
-pedestal.Parent     = wheelFolder
+-- ── Borne de Casino (Slot Machine) ────────────────────────────────────────────────
+local MACHINE_X = WHEEL_CENTER.X
+local MACHINE_Z = WHEEL_CENTER.Z
 
--- Bras de liaison vertical (côté dos = +Z local = derrière le disque, invisible de face)
-local ARM_H         = WHEEL_CENTER.Y - 2
-local arm           = Instance.new("Part")
-arm.Name            = "WheelArm"
-arm.Size            = Vector3.new(1.4, ARM_H, 1.4)
-arm.Position        = Vector3.new(WHEEL_CENTER.X + 1.2, 2 + ARM_H / 2, WHEEL_CENTER.Z)
-arm.Anchored        = true; arm.Material = Enum.Material.Metal
-arm.Color           = Color3.fromRGB(180, 180, 180); arm.CastShadow = false
-arm.Parent          = wheelFolder
--- ── PIVOT (invisible, seul à être ancré, reçoit toutes les rotations) ─────────
-local pivot         = Instance.new("Part")
-pivot.Name          = "Pivot"
-pivot.Shape         = Enum.PartType.Cylinder
-pivot.Size          = Vector3.new(0.3, WHEEL_RADIUS * 2, WHEEL_RADIUS * 2)
-pivot.CFrame        = ORIGINAL_CFRAME
-pivot.Anchored      = true   -- SEUL ANCRÉ ✓
-pivot.Transparency  = 1
-pivot.CanCollide    = false
-pivot.CastShadow    = false
-pivot.Parent        = wheelFolder
-pivot:SetAttribute("SpinAngle", 0)
+-- Socle rectangulaire principal (Métal Gris)
+local machineBase       = Instance.new("Part")
+machineBase.Name        = "MachineBase"
+-- Taille d'un gros frigo / borne
+machineBase.Size        = Vector3.new(6, 12, 8) 
+machineBase.Position    = Vector3.new(MACHINE_X, 6, MACHINE_Z) -- Milieu à Y=6, sol à Y=0
+machineBase.Anchored    = true
+machineBase.Material    = Enum.Material.Metal
+machineBase.Color       = Color3.fromRGB(180, 180, 180)
+machineBase.Parent      = wheelFolder
 
--- ── WheelDisk (visuel, NON ancré, soudé au Pivot) ─────────────────────────────
-local wheelDisk     = Instance.new("Part")
-wheelDisk.Name      = "WheelDisk"
-wheelDisk.Shape     = Enum.PartType.Cylinder
-wheelDisk.Size      = Vector3.new(0.82, WHEEL_RADIUS * 2 + 0.2, WHEEL_RADIUS * 2 + 0.2) -- slightly larger
-wheelDisk.CFrame    = ORIGINAL_CFRAME
-wheelDisk.Anchored     = false  -- NON ancré ✓ (suit le Pivot via WeldConstraint)
-wheelDisk.CanCollide   = false
-wheelDisk.CastShadow   = false
-wheelDisk.Material     = Enum.Material.SmoothPlastic
-wheelDisk.Color        = Color3.fromRGB(12, 12, 18) -- Dark rim
-wheelDisk.Transparency = 0      -- visible : fond cylindrique parfait
-wheelDisk.Parent       = wheelFolder
+-- Lumières Néon sur les bords
+local neonLeft = Instance.new("Part")
+neonLeft.Name = "NeonLeft"
+neonLeft.Size = Vector3.new(6.1, 12.2, 0.4)
+neonLeft.Position = Vector3.new(MACHINE_X, 6, MACHINE_Z - 3.8)
+neonLeft.Anchored = true; neonLeft.Material = Enum.Material.Neon
+neonLeft.Color = Color3.fromRGB(255, 215, 0); neonLeft.Parent = wheelFolder
 
-local diskWeld      = Instance.new("WeldConstraint")
-diskWeld.Part0      = pivot      -- base = Pivot (ancré)
-diskWeld.Part1      = wheelDisk  -- suit le Pivot
-diskWeld.Parent     = pivot
+local neonRight = Instance.new("Part")
+neonRight.Name = "NeonRight"
+neonRight.Size = Vector3.new(6.1, 12.2, 0.4)
+neonRight.Position = Vector3.new(MACHINE_X, 6, MACHINE_Z + 3.8)
+neonRight.Anchored = true; neonRight.Material = Enum.Material.Neon
+neonRight.Color = Color3.fromRGB(255, 215, 0); neonRight.Parent = wheelFolder
 
--- ── Jante chrome (STATIQUE, non soudée) ──────────────────────────────────────
-local chromeRim     = Instance.new("Part")
-chromeRim.Shape     = Enum.PartType.Cylinder
-chromeRim.Size      = Vector3.new(0.7, WHEEL_RADIUS * 2 + 2.2, WHEEL_RADIUS * 2 + 2.2)
-chromeRim.CFrame    = ORIGINAL_CFRAME
-chromeRim.Anchored  = true   -- STATIQUE ✓
-chromeRim.Material  = Enum.Material.Metal
-chromeRim.Color     = Color3.fromRGB(210, 215, 222); chromeRim.Reflectance = 0.45
-chromeRim.CanCollide = false; chromeRim.CastShadow = false
-chromeRim.Parent    = wheelFolder
+-- Écran incliné noir
+local screenPart        = Instance.new("Part")
+screenPart.Name         = "ScreenPart"
+screenPart.Size         = Vector3.new(0.5, 6, 7)
+-- Placé sur la face avant (-X), incliné pour regarder vers le haut/fontaine
+screenPart.CFrame       = CFrame.new(MACHINE_X - 3.1, 9, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
+screenPart.Anchored     = true
+screenPart.Material     = Enum.Material.SmoothPlastic
+screenPart.Color        = Color3.fromRGB(15, 15, 15)
+screenPart.Parent       = wheelFolder
 
--- ── Anneau néon doré (STATIQUE) ───────────────────────────────────────────────
-local neonRing      = Instance.new("Part")
-neonRing.Shape      = Enum.PartType.Cylinder
-neonRing.Size       = Vector3.new(0.22, WHEEL_RADIUS * 2 + 3.2, WHEEL_RADIUS * 2 + 3.2)
-neonRing.CFrame     = ORIGINAL_CFRAME
-neonRing.Anchored   = true   -- STATIQUE ✓
-neonRing.Material   = Enum.Material.Neon
-neonRing.Color      = Color3.fromRGB(255, 215, 0)
-neonRing.CanCollide = false; neonRing.CastShadow = false
-neonRing.Parent     = wheelFolder
+-- SurfaceGui sur l'écran (Face = Left car l'axe local X est la profondeur, on veut le côté -X)
+local screenGui         = Instance.new("SurfaceGui")
+screenGui.Face          = Enum.NormalId.Left
+screenGui.CanvasSize    = Vector2.new(800, 600)
+screenGui.Parent        = screenPart
 
--- ── 16 Billes néon (STATIQUES) ────────────────────────────────────────────────
-local BEAD_PALETTE = {
-    Color3.fromRGB(255,  40,  40), Color3.fromRGB(255, 140,   0),
-    Color3.fromRGB(255, 245,   0), Color3.fromRGB( 60, 255,  80),
-    Color3.fromRGB(  0, 170, 255), Color3.fromRGB(170,   0, 255),
-    Color3.fromRGB(255,   0, 180), Color3.fromRGB(255, 255, 255),
-}
-local N_BEADS  = 16
-local BEAD_R   = WHEEL_RADIUS + 2.1
-local BEAD_X   = WHEEL_CENTER.X - 0.5   -- côté fontaine = -X
-local neonBeads = {}
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, 0, 1, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "SPIN TO WIN\nBRAINROT"
+titleText.TextColor3 = Color3.fromRGB(255, 215, 0)
+titleText.Font = Enum.Font.LuckiestGuy
+titleText.TextScaled = true
+titleText.TextStrokeTransparency = 0
+titleText.TextStrokeColor3 = Color3.new(0, 0, 0)
+titleText.Parent = screenGui
 
-for i = 1, N_BEADS do
-    local a    = math.rad((i - 1) * (360 / N_BEADS))
-    local bead = Instance.new("Part")
-    bead.Shape      = Enum.PartType.Ball; bead.Size = Vector3.new(0.55, 0.55, 0.55)
-    bead.Position   = Vector3.new(
-        BEAD_X,
-        WHEEL_CENTER.Y + math.sin(a) * BEAD_R,
-        WHEEL_CENTER.Z + math.cos(a) * BEAD_R)
-    bead.Anchored   = true   -- STATIQUE ✓
-    bead.Material   = Enum.Material.Neon
-    bead.Color      = BEAD_PALETTE[((i - 1) % #BEAD_PALETTE) + 1]
-    bead.CanCollide = false; bead.CastShadow = false
-    bead.Parent     = wheelFolder
-    neonBeads[i]    = bead
+-- Levier doré sur le côté (+Z)
+local leverBaseCF = CFrame.new(MACHINE_X, 6, MACHINE_Z + 4) * CFrame.Angles(0, math.rad(90), 0)
+
+local leverArm        = Instance.new("Part")
+leverArm.Shape        = Enum.PartType.Cylinder
+leverArm.Size         = Vector3.new(0.4, 3, 0.4)
+leverArm.Anchored     = true
+leverArm.Material     = Enum.Material.Metal
+leverArm.Color        = Color3.fromRGB(255, 215, 0)
+leverArm.Parent       = wheelFolder
+
+local leverBall       = Instance.new("Part")
+leverBall.Shape       = Enum.PartType.Ball
+leverBall.Size        = Vector3.new(1.2, 1.2, 1.2)
+leverBall.Anchored    = true
+leverBall.Material    = Enum.Material.SmoothPlastic
+leverBall.Color       = Color3.fromRGB(255, 40, 40)
+leverBall.Parent      = wheelFolder
+
+-- Fonction de mise à jour du levier
+local function updateLever(angleDeg)
+    -- Levier tourne autour de l'axe X local de leverBaseCF
+    local pivotCF = leverBaseCF * CFrame.Angles(math.rad(angleDeg), 0, 0)
+    leverArm.CFrame = pivotCF * CFrame.new(0, 1.5, 0) * CFrame.Angles(0, 0, math.rad(90))
+    leverBall.CFrame = pivotCF * CFrame.new(0, 3, 0)
 end
+updateLever(30) -- Position initiale inclinée vers l'avant (fontaine)
 
--- ── Dôme central (STATIQUE — ClickDetector ici, visible et cliquable) ─────────
-local dome          = Instance.new("Part")
-dome.Name           = "Dome"
-dome.Shape          = Enum.PartType.Ball; dome.Size = Vector3.new(2.6, 2.6, 2.6)
-dome.Position       = WHEEL_CENTER + Vector3.new(-0.7, 0, 0)   -- côté fontaine = -X
-dome.Anchored       = true   -- STATIQUE ✓
-dome.Material       = Enum.Material.SmoothPlastic
-dome.Color          = Color3.fromRGB(255, 220, 50); dome.Reflectance = 0.6
-dome.CanCollide     = false; dome.CastShadow = false
-dome.Parent         = wheelFolder
-
--- Lumière omnidirectionnelle (nuit) — portée suffisante pour éclairer toute la roue
-local domeLight         = Instance.new("PointLight")
-domeLight.Color         = Color3.fromRGB(255, 215, 0)
-domeLight.Brightness    = 5; domeLight.Range = 30; domeLight.Parent = dome
-
--- SpotLight principal vers la FONTAINE (-X) : éclaire la roue depuis la fontaine ✓
--- Dome sans rotation → NormalId.Left = local -X = world -X (vers fontaine) ✓
-local spotMain          = Instance.new("SpotLight")
-spotMain.Color          = Color3.fromRGB(255, 240, 200)
-spotMain.Brightness     = 7; spotMain.Range = 80; spotMain.Angle = 60
-spotMain.Face           = Enum.NormalId.Left
-spotMain.Parent         = dome
-
--- SpotLight secondaire opposé (+X) : contre-éclairage depuis l'arrière
-local spotBack          = Instance.new("SpotLight")
-spotBack.Color          = Color3.fromRGB(200, 220, 255)
-spotBack.Brightness     = 3; spotBack.Range = 40; spotBack.Angle = 45
-spotBack.Face           = Enum.NormalId.Right   -- +X (arrière de la roue)
-spotBack.Parent         = dome
-
--- ── Pointeur (STATIQUE) ────────────────────────────────────────────────────────
-local POINTER_CY = WHEEL_CENTER.Y + WHEEL_RADIUS + 2.2
-local PTR_X      = WHEEL_CENTER.X - 0.5   -- côté fontaine = -X
-
-local pShaft        = Instance.new("Part")
-pShaft.Size         = Vector3.new(0.45, 2.2, 0.35)
-pShaft.CFrame       = CFrame.new(PTR_X, POINTER_CY + 1.6, WHEEL_CENTER.Z)
-pShaft.Anchored     = true   -- STATIQUE ✓
-pShaft.Material     = Enum.Material.Neon
-pShaft.Color        = Color3.fromRGB(255, 90, 0)
-pShaft.CanCollide   = false; pShaft.CastShadow = false; pShaft.Parent = wheelFolder
-
-local pointer       = Instance.new("WedgePart")
-pointer.Size        = Vector3.new(1.3, 1.8, 0.65)
-pointer.CFrame      = CFrame.new(PTR_X, POINTER_CY, WHEEL_CENTER.Z)
-                   * CFrame.Angles(0, 0, math.rad(180))
-pointer.Anchored    = true   -- STATIQUE ✓
-pointer.Material    = Enum.Material.Neon
-pointer.Color       = Color3.fromRGB(255, 30, 30)
-pointer.CanCollide  = false; pointer.CastShadow = false; pointer.Parent = wheelFolder
-
-local pointerLight        = Instance.new("PointLight")
-pointerLight.Color        = Color3.fromRGB(255, 60, 0)
-pointerLight.Brightness   = 2.5; pointerLight.Range = 7; pointerLight.Parent = pointer
-
--- ── ClickDetector sur le Dôme (visible, or, cliquable) ────────────────────────
+-- ClickDetector sur la boule
 local clickDetector = Instance.new("ClickDetector")
-clickDetector.MaxActivationDistance = 40   -- agrandi avec le rayon de la roue
-clickDetector.Parent = dome
+clickDetector.MaxActivationDistance = 40
+clickDetector.Parent = leverBall
 
--- ══════════════════════════════════════════════════════════════════════════════
--- SONS
--- ══════════════════════════════════════════════════════════════════════════════
-local soundPart         = Instance.new("Part")
-soundPart.Size          = Vector3.new(0.1, 0.1, 0.1)
-soundPart.Position      = WHEEL_CENTER
-soundPart.Anchored      = true; soundPart.Transparency = 1; soundPart.CanCollide = false
-soundPart.Parent        = wheelFolder
-
-local tickSound         = Instance.new("Sound")
-tickSound.SoundId       = "rbxassetid://6026984224"
-tickSound.Volume        = 0.35; tickSound.RollOffMaxDistance = 35; tickSound.Parent = soundPart
-
-local winSound          = Instance.new("Sound")
-winSound.SoundId        = "rbxassetid://5153734135"
-winSound.Volume         = 0.9;  winSound.RollOffMaxDistance = 50;  winSound.Parent = soundPart
-
-local fanfareSound      = Instance.new("Sound")
-fanfareSound.SoundId    = "rbxassetid://3205426741"
-fanfareSound.Volume     = 1.0;  fanfareSound.RollOffMaxDistance = 60; fanfareSound.Parent = soundPart
-
--- ══════════════════════════════════════════════════════════════════════════════
--- DISQUE PHYSIQUE : 12 Parts radiales colorées + séparateurs néon + hub central
--- Chaque Part est soudée au Pivot → tourne avec lui automatiquement.
--- Pas de SurfaceGui global (= carré noir visible) : chaque segment a le sien.
--- ══════════════════════════════════════════════════════════════════════════════
-local SEG_T = 0.95                                                    -- épaisseur axiale
-local SEG_L = WHEEL_RADIUS                                            -- longueur radiale
-local SEG_W = 2 * WHEEL_RADIUS * math.sin(math.rad(SEG_ANGLE / 2))   -- largeur chord ≈ 5.18
-
-for i = 1, N_SEGMENTS do
-    local segData  = SEGMENTS[i]
-    local midRad   = math.rad((i - 1) * SEG_ANGLE)
-
-    -- ── GEOMÉTRIE : Une slice 30° = 2 WedgeParts (15° chacun) en miroir
-    -- Size: X=épaisseur, Y=rayon, Z=largeur (rayon * tan(15°))
-    local WEDGE_Z = WHEEL_RADIUS * math.tan(math.rad(SEG_ANGLE / 2))
-    local wSize   = Vector3.new(SEG_T, WHEEL_RADIUS, WEDGE_Z)
-    local col     = RARITY_COLORS[segData.rarity]
-
-    local sliceCF = ORIGINAL_CFRAME * CFrame.Angles(midRad, 0, 0)
-
-    -- Moitié Droite (WedgePart)
-    local wRight          = Instance.new("WedgePart")
-    wRight.Name           = "SegRight" .. i
-    wRight.Size           = wSize
-    -- 90° corner de WedgePart est en bas/arrière. On la place au centre exact.
-    wRight.CFrame         = sliceCF * CFrame.new(0, WHEEL_RADIUS / 2, -wSize.Z / 2)
-    wRight.Color          = col
-    wRight.Material       = Enum.Material.Neon   -- Couleurs vives exigées
-    wRight.Anchored       = false; wRight.CanCollide = false; wRight.CastShadow = false
-    wRight.Parent         = wheelFolder
-    local swR = Instance.new("WeldConstraint"); swR.Part0 = pivot; swR.Part1 = wRight; swR.Parent = pivot
-
-    -- Moitié Gauche (WedgePart miroir : rotation 180° autour de Y local pour flipper Z)
-    local wLeft           = Instance.new("WedgePart")
-    wLeft.Name            = "SegLeft" .. i
-    wLeft.Size            = wSize
-    wLeft.CFrame          = sliceCF * CFrame.Angles(0, math.rad(180), 0) * CFrame.new(0, WHEEL_RADIUS / 2, -wSize.Z / 2)
-    wLeft.Color           = col
-    wLeft.Material        = Enum.Material.Neon
-    wLeft.Anchored        = false; wLeft.CanCollide = false; wLeft.CastShadow = false
-    wLeft.Parent          = wheelFolder
-    local swL = Instance.new("WeldConstraint"); swL.Part0 = pivot; swL.Part1 = wLeft; swL.Parent = pivot
-
-    -- ── SurfaceGui texte sur la face fontaine (NormalId.Right du Cylinder/Wedge) ────────────
-    -- On crée une Part Bloc invisible très fine à l'avant pour porter le UI (sinon le Wedge casse le SurfaceGui)
-    local uiPart          = Instance.new("Part")
-    uiPart.Name           = "UiPart" .. i
-    uiPart.Size           = Vector3.new(0.05, WHEEL_RADIUS, 2 * WEDGE_Z)
-    uiPart.CFrame         = sliceCF * CFrame.new(SEG_T / 2 + 0.02, WHEEL_RADIUS / 2, 0)
-    uiPart.Transparency   = 1
-    uiPart.Anchored       = false; uiPart.CanCollide = false; uiPart.CastShadow = false
-    uiPart.Parent         = wheelFolder
-    local swUI = Instance.new("WeldConstraint"); swUI.Part0 = pivot; swUI.Part1 = uiPart; swUI.Parent = pivot
-
-    local sg            = Instance.new("SurfaceGui")
-    sg.Name             = "SegGui" .. i
-    sg.Face             = Enum.NormalId.Right
-    sg.CanvasSize       = Vector2.new(256, 512)
-    sg.SizingMode       = Enum.SurfaceGuiSizingMode.FixedSize
-    sg.AlwaysOnTop      = false
-    sg.ZOffset          = 0.1
-    sg.Parent           = uiPart
-
-    -- ── Séparateur néon blanc (bord de segment) ────────────────────────────
-    local sepRad = math.rad((i - 1) * SEG_ANGLE - SEG_ANGLE / 2)
-    local sepCF  = ORIGINAL_CFRAME
-        * CFrame.Angles(sepRad, 0, 0)
-        * CFrame.new(0, SEG_L / 2, 0)
-
-    local sep           = Instance.new("Part")
-    sep.Name            = "Sep" .. i
-    sep.Size            = Vector3.new(SEG_T + 0.05, SEG_L + 0.05, 0.1)
-    sep.CFrame          = sepCF
-    sep.Color           = Color3.fromRGB(255, 255, 255)
-    sep.Material        = Enum.Material.Neon
-    sep.Anchored        = false
-    sep.CanCollide      = false
-    sep.CastShadow      = false
-    sep.Parent          = wheelFolder
-
-    local ssw = Instance.new("WeldConstraint")
-    ssw.Part0 = pivot; ssw.Part1 = sep; ssw.Parent = pivot
-
-    -- ── SurfaceGui texte sur la face fontaine (NormalId.Right) ────────────
-    local sg            = Instance.new("SurfaceGui")
-    sg.Name             = "SegGui" .. i
-    sg.Face             = Enum.NormalId.Right
-    sg.CanvasSize       = Vector2.new(256, 512)
-    sg.SizingMode       = Enum.SurfaceGuiSizingMode.FixedSize
-    sg.AlwaysOnTop      = false
-    sg.ZOffset          = 0.05
-    sg.Parent           = segPart
-
-    local lbl                   = Instance.new("TextLabel")
-    lbl.Size                    = UDim2.new(1, -6, 0.55, 0)
-    lbl.Position                = UDim2.new(0, 3, 0.05, 0)
-    lbl.BackgroundTransparency  = 1
-    lbl.Text                    = string.upper(segData.item.name)
-    lbl.TextColor3              = Color3.new(1, 1, 1)
-    lbl.Font                    = Enum.Font.LuckiestGuy
-    lbl.TextScaled              = true
-    lbl.TextStrokeTransparency  = 0
-    lbl.TextStrokeColor3        = Color3.new(0, 0, 0)
-    lbl.ZIndex                  = 2
-    lbl.Parent                  = sg
-
-    if segData.rarity == "LEGENDARY" then
-        local star                  = Instance.new("TextLabel")
-        star.Size                   = UDim2.new(1, 0, 0.22, 0)
-        star.Position               = UDim2.new(0, 0, 0.63, 0)
-        star.BackgroundTransparency = 1
-        star.Text                   = "★ ★ ★"
-        star.TextColor3             = Color3.fromRGB(255, 240, 60)
-        star.Font                   = Enum.Font.GothamBlack
-        star.TextScaled             = true
-        star.ZIndex                 = 2
-        star.Parent                 = sg
-    end
-end
-
--- ── Hub central (Part cylindrique soudée au Pivot) ────────────────────────────
-local hubPart           = Instance.new("Part")
-hubPart.Name            = "HubCenter"
-hubPart.Shape           = Enum.PartType.Cylinder
-hubPart.Size            = Vector3.new(SEG_T + 0.1, 3.6, 3.6)
-hubPart.CFrame          = ORIGINAL_CFRAME
-hubPart.Color           = Color3.fromRGB(180, 180, 180)
-hubPart.Material        = Enum.Material.SmoothPlastic
-hubPart.Reflectance     = 0.25
-hubPart.Anchored        = false
-hubPart.CanCollide      = false
-hubPart.CastShadow      = false
-hubPart.Parent          = wheelFolder
-
-local hw = Instance.new("WeldConstraint")
-hw.Part0 = pivot; hw.Part1 = hubPart; hw.Parent = pivot
-
-local hubGui            = Instance.new("SurfaceGui")
-hubGui.Face             = Enum.NormalId.Right
-hubGui.CanvasSize       = Vector2.new(200, 200)
-hubGui.SizingMode       = Enum.SurfaceGuiSizingMode.FixedSize
-hubGui.AlwaysOnTop      = false
-hubGui.ZOffset          = 0.1
-hubGui.Parent           = hubPart
-
-local hubLbl                    = Instance.new("TextLabel")
-hubLbl.Size                     = UDim2.new(1, 0, 1, 0)
-hubLbl.BackgroundTransparency   = 1
-hubLbl.Text                     = "SPIN\n" .. SPIN_COST .. "G"
-hubLbl.TextColor3               = Color3.fromRGB(255, 230, 0)
-hubLbl.Font                     = Enum.Font.GothamBlack
-hubLbl.TextScaled               = true
-hubLbl.TextStrokeTransparency   = 0
-hubLbl.TextStrokeColor3         = Color3.new(0, 0, 0)
-hubLbl.ZIndex                   = 2
-hubLbl.Parent                   = hubGui
-
-
--- ══════════════════════════════════════════════════════════════════════════════
--- BILLES : VAGUE DE COULEURS
--- ══════════════════════════════════════════════════════════════════════════════
-local beadSpinning = false
-task.spawn(function()
-    local NP = #BEAD_PALETTE
-    while true do
-        task.wait(0.07)
-        local spd   = beadSpinning and 6 or 2
-        local phase = (tick() * spd) % NP
-        for bi, bead in ipairs(neonBeads) do
-            bead.Color = BEAD_PALETTE[math.floor((phase + bi * (NP / N_BEADS)) % NP) + 1]
-        end
-    end
-end)
+local tickSound = Instance.new("Sound")
+tickSound.SoundId = "rbxassetid://6026984224"
+tickSound.Volume = 0.5
+tickSound.Parent = machineBase
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- LOGIQUE
@@ -520,26 +258,6 @@ local function getCoins(player: Player): number
     local coins = ls and ls:FindFirstChild("Brainrot Coins")
     return coins and coins.Value or 0
 end
-
--- ── Helpers : tick sonore & vibration pointeur ────────────────────────────────
-local lastSegTick = -1
-
-local function applyAngle(angle: number)
-    pivot.CFrame = getPivotCF(angle)
-    local seg = math.floor((angle % 360) / SEG_ANGLE) % N_SEGMENTS
-    if seg ~= lastSegTick then
-        lastSegTick = seg
-        tickSound:Play()
-    end
-end
-
-local function resetPointer()
-    pointer.CFrame = CFrame.new(PTR_X, POINTER_CY, WHEEL_CENTER.Z)
-                   * CFrame.Angles(0, 0, math.rad(180))
-    pShaft.CFrame  = CFrame.new(PTR_X, POINTER_CY + 1.6, WHEEL_CENTER.Z)
-end
-
--- ── L'animation 3D a été retirée : le client s'occupe de l'UI 2D ───────────────
 
 -- ── Gestion du clic (sur le Dôme doré) ────────────────────────────────────────
 clickDetector.MouseClick:Connect(function(player: Player)
@@ -582,21 +300,44 @@ clickDetector.MouseClick:Connect(function(player: Player)
     print(string.format("[WheelSystem] %s → %s '%s' | seg%d",
         player.Name, winRarity, winItem.name, winSegIdx))
 
-    SpinResult:FireClient(player, {
-        success    = true,
-        segments   = SEGMENTS,
-        winSegment = winSegIdx,
-        memeName   = winItem.name,
-        memeRarity = winRarity,
-        imageId    = winItem.imageId,
-        duration   = SPIN_DURATION,
-        rotations  = FULL_ROTATIONS
-    })
-
-    -- Déverrouillage après l'animation 2D
-    task.delay(SPIN_DURATION + 1, function()
-        wheelLocked = false
+    local angleVal = Instance.new("NumberValue")
+    angleVal.Value = 30
+    local conn = RunService.Heartbeat:Connect(function()
+        updateLever(angleVal.Value)
     end)
+
+    -- Tween du levier vers le bas (ex: -50 degrés)
+    local tweenDown = TweenService:Create(angleVal, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = -50 })
+    local tweenUp   = TweenService:Create(angleVal, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Value = 30 })
+
+    tweenDown.Completed:Connect(function()
+        tickSound:Play()
+        tweenUp:Play()
+
+        -- Envoi du résultat pour déclencher la machine à sous UI pendant que le levier remonte
+        SpinResult:FireClient(player, {
+            success    = true,
+            segments   = SEGMENTS,
+            winSegment = winSegIdx,
+            memeName   = winItem.name,
+            memeRarity = winRarity,
+            imageId    = winItem.imageId,
+            duration   = SPIN_DURATION,
+            rotations  = FULL_ROTATIONS
+        })
+    end)
+
+    tweenUp.Completed:Connect(function()
+        conn:Disconnect()
+        angleVal:Destroy()
+        
+        -- Déverrouillage après la durée de la spin 2D
+        task.delay(SPIN_DURATION - 0.7, function()
+            wheelLocked = false
+        end)
+    end)
+
+    tweenDown:Play()
 end)
 
 print(string.format(
