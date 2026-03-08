@@ -184,12 +184,13 @@ wheelDisk.Name      = "WheelDisk"
 wheelDisk.Shape     = Enum.PartType.Cylinder
 wheelDisk.Size      = Vector3.new(0.82, WHEEL_RADIUS * 2, WHEEL_RADIUS * 2)
 wheelDisk.CFrame    = ORIGINAL_CFRAME
-wheelDisk.Anchored  = false  -- NON ancré ✓ (suit le Pivot via WeldConstraint)
-wheelDisk.CanCollide  = false
-wheelDisk.CastShadow  = false
-wheelDisk.Material    = Enum.Material.SmoothPlastic
-wheelDisk.Color       = Color3.fromRGB(18, 18, 24)
-wheelDisk.Parent      = wheelFolder
+wheelDisk.Anchored     = false  -- NON ancré ✓ (suit le Pivot via WeldConstraint)
+wheelDisk.CanCollide   = false
+wheelDisk.CastShadow   = false
+wheelDisk.Material     = Enum.Material.SmoothPlastic
+wheelDisk.Color        = Color3.fromRGB(18, 18, 24)
+wheelDisk.Transparency = 1      -- invisible : les segments physiques couvrent tout
+wheelDisk.Parent       = wheelFolder
 
 local diskWeld      = Instance.new("WeldConstraint")
 diskWeld.Part0      = pivot      -- base = Pivot (ancré)
@@ -329,114 +330,132 @@ fanfareSound.SoundId    = "rbxassetid://3205426741"
 fanfareSound.Volume     = 1.0;  fanfareSound.RollOffMaxDistance = 60; fanfareSound.Parent = soundPart
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- SURFACE GUI — disque casino, secteurs colorés plein + texte
--- Face = NormalId.Right → face plate du cylindre orientée vers la fontaine ✓
--- Pas de fond noir massif : secteurs couvrent tout, texte LuckiestGuy lisible
+-- DISQUE PHYSIQUE : 12 Parts radiales colorées + séparateurs néon + hub central
+-- Chaque Part est soudée au Pivot → tourne avec lui automatiquement.
+-- Pas de SurfaceGui global (= carré noir visible) : chaque segment a le sien.
 -- ══════════════════════════════════════════════════════════════════════════════
-local surfGui           = Instance.new("SurfaceGui")
-surfGui.Name            = "WheelGui"
-surfGui.Face            = Enum.NormalId.Right
-surfGui.CanvasSize      = Vector2.new(512, 512)
-surfGui.SizingMode      = Enum.SurfaceGuiSizingMode.FixedSize
-surfGui.AlwaysOnTop     = false
-surfGui.ZOffset         = 0.5
-surfGui.Parent          = wheelDisk
-
-local C   = 256   -- centre du canvas (512×512)
--- Fond sombre minimal (coins hors du cercle clippé par le cylindre)
-local bgFull            = Instance.new("Frame")
-bgFull.Size             = UDim2.new(1, 0, 1, 0)
-bgFull.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
-bgFull.BorderSizePixel  = 0; bgFull.ZIndex = 1; bgFull.Parent = surfGui
-
--- ── 12 Secteurs pleins + texte centré sur chaque secteur ─────────────────────
--- SH = hauteur du rectangle (du centre jusqu'au bord, quasi plein rayon)
--- SW = largeur à l'extrémité (= 2 * SH * tan(15°) pour remplir 30° exactement)
-local SH = 250
-local SW = math.ceil(2 * SH * math.tan(math.rad(15)))   -- ≈ 134 px
+local SEG_T = 0.95                                                    -- épaisseur axiale
+local SEG_L = WHEEL_RADIUS                                            -- longueur radiale
+local SEG_W = 2 * WHEEL_RADIUS * math.sin(math.rad(SEG_ANGLE / 2))   -- largeur chord ≈ 5.18
 
 for i = 1, N_SEGMENTS do
-    local seg      = SEGMENTS[i]
-    local midAngle = (i - 1) * SEG_ANGLE
+    local segData  = SEGMENTS[i]
+    local midRad   = math.rad((i - 1) * SEG_ANGLE)
 
-    -- Secteur coloré
-    local sec             = Instance.new("Frame")
-    sec.Size              = UDim2.new(0, SW, 0, SH)
-    sec.AnchorPoint       = Vector2.new(0.5, 1)
-    sec.Position          = UDim2.new(0, C, 0, C)
-    sec.BackgroundColor3  = RARITY_COLORS[seg.rarity]
-    sec.BorderSizePixel   = 0
-    sec.Rotation          = midAngle
-    sec.ZIndex            = 2
-    sec.ClipsDescendants  = false
-    sec.Parent            = surfGui
+    -- CFrame : rotation autour de l'axe X du disque, puis offset radial de L/2
+    local segCF = ORIGINAL_CFRAME
+        * CFrame.Angles(midRad, 0, 0)
+        * CFrame.new(0, SEG_L / 2, 0)
 
-    -- Nom du mème (affiché au milieu du secteur)
-    local lbl                     = Instance.new("TextLabel")
-    lbl.Size                      = UDim2.new(1, -4, 0, 38)
-    lbl.AnchorPoint               = Vector2.new(0.5, 0.5)
-    lbl.Position                  = UDim2.new(0.5, 0, 0.38, 0)  -- ~38% depuis centre
-    lbl.BackgroundTransparency    = 1
-    lbl.Text                      = seg.item.name
-    lbl.TextColor3                = Color3.new(1, 1, 1)
-    lbl.Font                      = Enum.Font.LuckiestGuy
-    lbl.TextScaled                = true
-    lbl.TextStrokeTransparency    = 0
-    lbl.TextStrokeColor3          = Color3.new(0, 0, 0)
-    lbl.ZIndex                    = 3
-    lbl.Parent                    = sec
+    local segPart           = Instance.new("Part")
+    segPart.Name            = "Segment" .. i
+    segPart.Size            = Vector3.new(SEG_T, SEG_L, SEG_W)
+    segPart.CFrame          = segCF
+    segPart.Color           = RARITY_COLORS[segData.rarity]
+    segPart.Material        = Enum.Material.SmoothPlastic
+    segPart.Reflectance     = segData.rarity == "LEGENDARY" and 0.35 or 0
+    segPart.Anchored        = false
+    segPart.CanCollide      = false
+    segPart.CastShadow      = false
+    segPart.Parent          = wheelFolder
 
-    -- Étoile dorée pour LEGENDARY
-    if seg.rarity == "LEGENDARY" then
-        local star                = Instance.new("TextLabel")
-        star.Size                 = UDim2.new(1, 0, 0, 22)
-        star.AnchorPoint          = Vector2.new(0.5, 0.5)
-        star.Position             = UDim2.new(0.5, 0, 0.68, 0)
+    local sw = Instance.new("WeldConstraint")
+    sw.Part0 = pivot; sw.Part1 = segPart; sw.Parent = pivot
+
+    -- ── Séparateur néon blanc (bord de segment) ────────────────────────────
+    local sepRad = math.rad((i - 1) * SEG_ANGLE - SEG_ANGLE / 2)
+    local sepCF  = ORIGINAL_CFRAME
+        * CFrame.Angles(sepRad, 0, 0)
+        * CFrame.new(0, SEG_L / 2, 0)
+
+    local sep           = Instance.new("Part")
+    sep.Name            = "Sep" .. i
+    sep.Size            = Vector3.new(SEG_T + 0.05, SEG_L + 0.05, 0.1)
+    sep.CFrame          = sepCF
+    sep.Color           = Color3.fromRGB(255, 255, 255)
+    sep.Material        = Enum.Material.Neon
+    sep.Anchored        = false
+    sep.CanCollide      = false
+    sep.CastShadow      = false
+    sep.Parent          = wheelFolder
+
+    local ssw = Instance.new("WeldConstraint")
+    ssw.Part0 = pivot; ssw.Part1 = sep; ssw.Parent = pivot
+
+    -- ── SurfaceGui texte sur la face fontaine (NormalId.Right) ────────────
+    local sg            = Instance.new("SurfaceGui")
+    sg.Name             = "SegGui" .. i
+    sg.Face             = Enum.NormalId.Right
+    sg.CanvasSize       = Vector2.new(256, 512)
+    sg.SizingMode       = Enum.SurfaceGuiSizingMode.FixedSize
+    sg.AlwaysOnTop      = false
+    sg.ZOffset          = 0.05
+    sg.Parent           = segPart
+
+    local lbl                   = Instance.new("TextLabel")
+    lbl.Size                    = UDim2.new(1, -6, 0.55, 0)
+    lbl.Position                = UDim2.new(0, 3, 0.05, 0)
+    lbl.BackgroundTransparency  = 1
+    lbl.Text                    = string.upper(segData.item.name)
+    lbl.TextColor3              = Color3.new(1, 1, 1)
+    lbl.Font                    = Enum.Font.LuckiestGuy
+    lbl.TextScaled              = true
+    lbl.TextStrokeTransparency  = 0
+    lbl.TextStrokeColor3        = Color3.new(0, 0, 0)
+    lbl.ZIndex                  = 2
+    lbl.Parent                  = sg
+
+    if segData.rarity == "LEGENDARY" then
+        local star                  = Instance.new("TextLabel")
+        star.Size                   = UDim2.new(1, 0, 0.22, 0)
+        star.Position               = UDim2.new(0, 0, 0.63, 0)
         star.BackgroundTransparency = 1
-        star.Text                 = "★"
-        star.TextColor3           = Color3.fromRGB(255, 240, 60)
-        star.Font                 = Enum.Font.GothamBlack
-        star.TextScaled           = true
-        star.ZIndex               = 3
-        star.Parent               = sec
+        star.Text                   = "★ ★ ★"
+        star.TextColor3             = Color3.fromRGB(255, 240, 60)
+        star.Font                   = Enum.Font.GothamBlack
+        star.TextScaled             = true
+        star.ZIndex                 = 2
+        star.Parent                 = sg
     end
 end
 
--- ── Lignes séparatrices blanches ─────────────────────────────────────────────
-for i = 1, N_SEGMENTS do
-    local lineAngle = (i - 1) * SEG_ANGLE - SEG_ANGLE / 2
-    local line            = Instance.new("Frame")
-    line.Size             = UDim2.new(0, 4, 0, SH + 10)
-    line.AnchorPoint      = Vector2.new(0.5, 1)
-    line.Position         = UDim2.new(0, C, 0, C)
-    line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    line.BorderSizePixel  = 0
-    line.Rotation         = lineAngle
-    line.ZIndex           = 4
-    line.Parent           = surfGui
-end
+-- ── Hub central (Part cylindrique soudée au Pivot) ────────────────────────────
+local hubPart           = Instance.new("Part")
+hubPart.Name            = "HubCenter"
+hubPart.Shape           = Enum.PartType.Cylinder
+hubPart.Size            = Vector3.new(SEG_T + 0.1, 3.6, 3.6)
+hubPart.CFrame          = ORIGINAL_CFRAME
+hubPart.Color           = Color3.fromRGB(16, 16, 24)
+hubPart.Material        = Enum.Material.SmoothPlastic
+hubPart.Reflectance     = 0.25
+hubPart.Anchored        = false
+hubPart.CanCollide      = false
+hubPart.CastShadow      = false
+hubPart.Parent          = wheelFolder
 
--- ── Hub central (bouton SPIN) ─────────────────────────────────────────────────
-local hub             = Instance.new("Frame")
-hub.Size              = UDim2.new(0, 108, 0, 108)
-hub.AnchorPoint       = Vector2.new(0.5, 0.5)
-hub.Position          = UDim2.new(0.5, 0, 0.5, 0)
-hub.BackgroundColor3  = Color3.fromRGB(12, 12, 20)
-hub.BorderSizePixel   = 0; hub.ZIndex = 5; hub.Parent = surfGui
-Instance.new("UICorner", hub).CornerRadius = UDim.new(0.5, 0)
+local hw = Instance.new("WeldConstraint")
+hw.Part0 = pivot; hw.Part1 = hubPart; hw.Parent = pivot
 
-local hs = Instance.new("UIStroke")
-hs.Color = Color3.fromRGB(255, 215, 0); hs.Thickness = 5; hs.Parent = hub
+local hubGui            = Instance.new("SurfaceGui")
+hubGui.Face             = Enum.NormalId.Right
+hubGui.CanvasSize       = Vector2.new(200, 200)
+hubGui.SizingMode       = Enum.SurfaceGuiSizingMode.FixedSize
+hubGui.AlwaysOnTop      = false
+hubGui.ZOffset          = 0.1
+hubGui.Parent           = hubPart
 
-local centerLbl           = Instance.new("TextLabel")
-centerLbl.Size            = UDim2.new(1, 0, 1, 0)
-centerLbl.BackgroundTransparency = 1
-centerLbl.Text            = "SPIN\n" .. SPIN_COST .. "G"
-centerLbl.TextColor3      = Color3.fromRGB(255, 230, 0)
-centerLbl.Font            = Enum.Font.GothamBlack
-centerLbl.TextScaled      = true
-centerLbl.ZIndex          = 6
-centerLbl.Parent          = hub
+local hubLbl                    = Instance.new("TextLabel")
+hubLbl.Size                     = UDim2.new(1, 0, 1, 0)
+hubLbl.BackgroundTransparency   = 1
+hubLbl.Text                     = "SPIN\n" .. SPIN_COST .. "G"
+hubLbl.TextColor3               = Color3.fromRGB(255, 230, 0)
+hubLbl.Font                     = Enum.Font.GothamBlack
+hubLbl.TextScaled               = true
+hubLbl.TextStrokeTransparency   = 0
+hubLbl.TextStrokeColor3         = Color3.new(0, 0, 0)
+hubLbl.ZIndex                   = 2
+hubLbl.Parent                   = hubGui
+
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- BILLES : VAGUE DE COULEURS
