@@ -44,7 +44,7 @@ local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
 -- Galeries nord : joueurs à Z>142 regardent vers -Z (sud) → voient la fontaine (Z=0)
 --   → roue à Z=-20 (20 studs derrière la fontaine, au sud) ✓
 -- Face du disque vers +Z (NORD) = face aux joueurs dans leurs galeries et sur l'avenue.
-local WHEEL_CENTER     = Vector3.new(0, 18, -20)
+local WHEEL_CENTER     = Vector3.new(0, 18, -25)
 local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 
 local RARITY_COLORS = {
@@ -131,7 +131,7 @@ end
 -- CFrame.Angles(0, +90°, 0) → local +X pointe vers world +Z (nord, vers joueurs) ✓
 -- Spin = CFrame.Angles(deg, 0, 0) → rotation autour de local X = axe du disque ✓
 -- ══════════════════════════════════════════════════════════════════════════════
-local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(90), 0)
+local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(-90), 0)
 
 -- Retourne le CFrame du Pivot pour un angle de spin donné (en degrés, cumulatif).
 -- Toutes les rotations TweenService sont relatives à ORIGINAL_CFRAME.
