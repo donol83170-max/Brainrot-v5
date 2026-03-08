@@ -19,14 +19,13 @@ local RARITY_COLORS = {
 }
 
 local spinGui
-local overlay
-local wheelCanvas
+local wheelContainer
 local ptr
 
 local SPIN_COOLDOWN = 6
 local lastSpinTime = 0
 
-local function createGeometryUI(segments)
+local function createUI(segments)
     if spinGui then spinGui:Destroy() end
 
     -- 1. LE CONTENEUR PRINCIPAL
@@ -37,7 +36,7 @@ local function createGeometryUI(segments)
     spinGui.Enabled = false
     spinGui.Parent = PlayerGui
 
-    overlay = Instance.new("Frame")
+    local overlay = Instance.new("Frame")
     overlay.Name = "Overlay"
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.BackgroundColor3 = Color3.new(0, 0, 0)
@@ -47,104 +46,68 @@ local function createGeometryUI(segments)
 
     local WH_SIZE = 500
 
-    -- Bordure dorée (5 pixels d'épaisseur)
-    local wheelBorder = Instance.new("Frame")
-    wheelBorder.Name = "WheelBorder"
-    wheelBorder.Size = UDim2.new(0, WH_SIZE + 10, 0, WH_SIZE + 10)
-    wheelBorder.Position = UDim2.new(0.5, 0, 0.5, 0)
-    wheelBorder.AnchorPoint = Vector2.new(0.5, 0.5)
-    wheelBorder.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-    Instance.new("UICorner", wheelBorder).CornerRadius = UDim.new(1, 0)
-    wheelBorder.Parent = overlay
+    -- WheelContainer : Moule à pizza rigoureusement rond
+    wheelContainer = Instance.new("Frame")
+    wheelContainer.Name = "WheelContainer"
+    wheelContainer.Size = UDim2.new(0, WH_SIZE, 0, WH_SIZE)
+    wheelContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+    wheelContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    wheelContainer.BackgroundColor3 = Color3.fromRGB(180, 180, 180) -- Gris clair neutre
+    wheelContainer.ClipsDescendants = true
+    wheelContainer.ZIndex = 2
+    Instance.new("UICorner", wheelContainer).CornerRadius = UDim.new(1, 0)
+    wheelContainer.Parent = overlay
 
-    -- Disque gris clair neutre (CanvasGroup pour clip la rondeur)
-    wheelCanvas = Instance.new("CanvasGroup")
-    wheelCanvas.Name = "WheelCanvas"
-    wheelCanvas.Size = UDim2.new(0, WH_SIZE, 0, WH_SIZE)
-    wheelCanvas.Position = UDim2.new(0.5, 0, 0.5, 0)
-    wheelCanvas.AnchorPoint = Vector2.new(0.5, 0.5)
-    wheelCanvas.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
-    wheelCanvas.ZIndex = 2
-    Instance.new("UICorner", wheelCanvas).CornerRadius = UDim.new(1, 0)
-    wheelCanvas.Parent = overlay
+    -- Bordure : UIStroke doré épais pour fermer la pizza
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 215, 0)
+    stroke.Thickness = 5
+    stroke.Parent = wheelContainer
 
-    -- 2. LA GÉOMÉTRIE DES SEGMENTS ("Pizza" sans superposition)
+    -- 2. LA GÉOMÉTRIE DES SEGMENTS ("Pizza") avec ImageLabel triangle blanc
     local nSeg = #segments
-    local angleDeg = 360 / nSeg -- 30 degrés obligatoirement (12 segments)
+    local radius = WH_SIZE / 2
+    local arcWidth = 2 * radius * math.tan(math.rad(180 / nSeg)) + 4 -- Marge de 4px pour assurer une jointure sans fil noir
 
     for i = 1, nSeg do
         local segData = segments[i]
         local rCol = RARITY_COLORS[segData.rarity] or Color3.fromRGB(180, 180, 180)
         
-        -- Conteneur du segment pivotant au centre
-        local segContainer = Instance.new("Frame")
-        segContainer.Name = "Segment_" .. i
-        segContainer.Size = UDim2.new(1, 0, 1, 0)
-        segContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
-        segContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-        segContainer.Rotation = (i - 1) * angleDeg
-        segContainer.BackgroundTransparency = 1
-        segContainer.ZIndex = 3
-        segContainer.Parent = wheelCanvas
-
-        -- Masque du quadrant supérieur droit (0 à 90 degrés)
-        local mask = Instance.new("Frame")
-        mask.Name = "Mask"
-        mask.Size = UDim2.new(0.5, 0, 0.5, 0)
-        mask.Position = UDim2.new(0.5, 0, 0, 0)  -- Part du haut-milieu
-        mask.AnchorPoint = Vector2.new(0, 0)
-        mask.ClipsDescendants = true
-        mask.BackgroundTransparency = 1
-        mask.Parent = segContainer
-
-        -- Rectangle coloré pivoté de (30 - 90 = -60 degrés) dans le masque (délimite les 30°)
-        local fill = Instance.new("Frame")
-        fill.Name = "Fill"
-        fill.Size = UDim2.new(2, 0, 2, 0)
-        fill.Position = UDim2.new(0, 0, 1, 0)    -- Son centre est le coin bas-gauche du masque (le centre du cercle)
-        fill.AnchorPoint = Vector2.new(0.5, 0.5)
-        fill.Rotation = angleDeg - 90            -- Crée la ligne de coupe parfaite à 30°
-        fill.BackgroundColor3 = rCol
-        fill.BorderSizePixel = 0
-        fill.Parent = mask
-
-        -- 4. ÉLÉMENTS DE CONFINEMENT : Séparateur blanc (ligne pure)
-        local separator = Instance.new("Frame")
-        separator.Name = "Line"
-        separator.Size = UDim2.new(0, 2, 0.5, 0) -- Fine ligne sur le rayon
-        separator.Position = UDim2.new(0.5, 0, 0, 0)
-        separator.AnchorPoint = Vector2.new(0.5, 0)
-        separator.Rotation = (i - 1) * angleDeg
-        separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        separator.BorderSizePixel = 0
-        separator.ZIndex = 4
-        separator.Parent = wheelCanvas
+        -- Le triangle parfait
+        local img = Instance.new("ImageLabel")
+        img.Name = "Segment_" .. i
+        img.Size = UDim2.new(0, arcWidth, 0, radius)
+        img.Position = UDim2.new(0.5, 0, 0.5, 0)
+        img.AnchorPoint = Vector2.new(0.5, 1) -- Sommet du triangle au centre exact
+        img.BackgroundTransparency = 1
+        img.Image = "rbxassetid://12543133373"
+        img.ImageColor3 = rCol
+        img.Rotation = i * 30 -- Fais pivoter chaque triangle de 30°
+        img.ZIndex = 3
+        img.Parent = wheelContainer
     end
 
-    -- 4. Hub Central (Masque de jointure)
+    -- Le Masque : Petit cercle doré au centre pour cacher les pointes
     local hubCenter = Instance.new("Frame")
     hubCenter.Name = "HubMask"
     hubCenter.Size = UDim2.new(0, 40, 0, 40)
     hubCenter.Position = UDim2.new(0.5, 0, 0.5, 0)
     hubCenter.AnchorPoint = Vector2.new(0.5, 0.5)
-    hubCenter.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Sphère dorée polie
+    hubCenter.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Doré
     hubCenter.ZIndex = 5
     Instance.new("UICorner", hubCenter).CornerRadius = UDim.new(1, 0)
-    hubCenter.Parent = wheelCanvas
+    hubCenter.Parent = wheelContainer
 
-    -- 3. ÉLÉMENTS CENTRAUX ET POINTEUR (En dehors du Canvas, au-dessus de tout)
+    -- Pointeur Rouge Fixe
     ptr = Instance.new("Frame")
     ptr.Name = "Pointer"
     ptr.Size = UDim2.new(0, 30, 0, 40)
     ptr.Position = UDim2.new(0.5, 0, 0.5, -WH_SIZE/2 - 20)
     ptr.AnchorPoint = Vector2.new(0.5, 0.5)
-    ptr.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Pointeur rouge fixe strict
+    ptr.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     ptr.ZIndex = 15
     ptr.Parent = overlay
-    -- Forme de flèche grossière avec UICorner pour illustrer en pure Frame
-    local ptrCorner1 = Instance.new("UICorner", ptr)
-    ptrCorner1.CornerRadius = UDim.new(0.3, 0)
-    -- Une pointe plus basse (pour faire flèche)
+    Instance.new("UICorner", ptr).CornerRadius = UDim.new(0.3, 0)
     local arrowPoint = Instance.new("Frame")
     arrowPoint.Size = UDim2.new(0, 16, 0, 16)
     arrowPoint.Position = UDim2.new(0.5, 0, 1, -8)
@@ -161,7 +124,7 @@ SpinResult.OnClientEvent:Connect(function(res)
     if not res.success then return end
 
     if res.segments then
-        createGeometryUI(res.segments)
+        createUI(res.segments)
     end
     if not spinGui then return end
 
@@ -169,15 +132,15 @@ SpinResult.OnClientEvent:Connect(function(res)
     if now - lastSpinTime < SPIN_COOLDOWN then return end
     lastSpinTime = now
 
-    wheelCanvas.Rotation = 0
+    wheelContainer.Rotation = 0
     spinGui.Enabled = true
 
-    -- Calcul strict pour QuartOut
     local nSeg = #res.segments
     local segAngle = 360 / nSeg
-    -- Pointeur est à 12h (0°).
-    -- Pour amener le segment I sous le pointeur, on tourne de: 360 - (I - 1) * 30
-    local winAngle = (360 - ((res.winSegment - 1) * segAngle)) % 360
+    -- Segment I a sa "pointe" pivotée de I * 30. Son milieu est à (I * 30) - 15°.
+    -- Le pointeur est à 0° (en haut).
+    -- Pour amener le segment au centre (0°), la roue doit tourner de 360 - (I*30 - 15).
+    local winAngle = (360 - ((res.winSegment * 30) - 15)) % 360
     
     local totalRots = res.rotations or 5
     local finalAngle = (360 * totalRots) + winAngle
@@ -192,15 +155,14 @@ SpinResult.OnClientEvent:Connect(function(res)
     )
 
     local conn = RunService.RenderStepped:Connect(function()
-        wheelCanvas.Rotation = numVal.Value
+        wheelContainer.Rotation = numVal.Value
     end)
 
     tween.Completed:Connect(function()
         conn:Disconnect()
         numVal:Destroy()
-        wheelCanvas.Rotation = finalAngle % 360
+        wheelContainer.Rotation = finalAngle % 360
         
-        -- Flash/CloseBtn (Désactivés pour focus géométrie pure, on ferme après 3s)
         task.delay(3, function()
             spinGui.Enabled = false
         end)
