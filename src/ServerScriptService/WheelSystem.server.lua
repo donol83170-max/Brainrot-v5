@@ -12,7 +12,7 @@
 --   Résultat : départ rapide → ralentissement réaliste → arrêt précis sur le segment.
 --
 -- AXEL DU CYLINDRE ROBLOX = X  (Size.X = épaisseur du disque)
---   BASE_CF = CFrame.Angles(0, -90°, 0)  → local +X pointe vers world -Z (joueur) ✓
+--   ORIGINAL_CFRAME = CFrame.Angles(0, -90°, 0)  → local +X pointe vers world -Z (joueur) ✓
 --   Spin    = CFrame.Angles(deg, 0, 0)   → rotation autour de local X = axe du disque ✓
 --   SurfaceGui Face = NormalId.Right → face plate circulaire visible par le joueur ✓
 
@@ -40,11 +40,12 @@ local PHASE1_DURATION  = 3.5   -- secondes — spin rapide constant
 local PHASE2_DURATION  = 2.0   -- secondes — TweenService QuartOut (décélération)
 local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
 -- ── Position & taille ────────────────────────────────────────────────────────
--- Centre de l'avenue (Z=110), Y=18 pour dépasser la fontaine.
--- Face du disque vers -Z (sud) = face aux joueurs arrivant des bases sud.
--- Pour bases nord : même axe (la jante néon est visible des deux côtés).
-local WHEEL_CENTER     = Vector3.new(0, 18, 110)
-local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les bases
+-- Fontaine centrale à X=0, Z=0 (WorldAssets). Spawn à Z=110 regardant Z=142 (nord).
+-- Galeries nord : joueurs à Z>142 regardent vers -Z (sud) → voient la fontaine (Z=0)
+--   → roue à Z=-20 (20 studs derrière la fontaine, au sud) ✓
+-- Face du disque vers +Z (NORD) = face aux joueurs dans leurs galeries et sur l'avenue.
+local WHEEL_CENTER     = Vector3.new(0, 18, -20)
+local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 
 local RARITY_COLORS = {
     COMMON    = Color3.fromRGB(160, 162, 168),
@@ -126,14 +127,16 @@ end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CFRAME HELPERS
+-- ORIGINAL_CFRAME = point d'ancrage fixe de toutes les rotations.
+-- CFrame.Angles(0, +90°, 0) → local +X pointe vers world +Z (nord, vers joueurs) ✓
+-- Spin = CFrame.Angles(deg, 0, 0) → rotation autour de local X = axe du disque ✓
 -- ══════════════════════════════════════════════════════════════════════════════
-local BASE_CF = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(-90), 0)
+local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(90), 0)
 
--- Retourne le CFrame du Pivot pour un angle de spin donné (en degrés, cumulatif)
+-- Retourne le CFrame du Pivot pour un angle de spin donné (en degrés, cumulatif).
+-- Toutes les rotations TweenService sont relatives à ORIGINAL_CFRAME.
 local function getPivotCF(deg: number): CFrame
-    return CFrame.new(WHEEL_CENTER)
-        * CFrame.Angles(0, math.rad(-90), 0)      -- face vers le joueur
-        * CFrame.Angles(math.rad(deg), 0, 0)      -- spin autour de l'axe du disque
+    return ORIGINAL_CFRAME * CFrame.Angles(math.rad(deg), 0, 0)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -158,7 +161,7 @@ local pivot         = Instance.new("Part")
 pivot.Name          = "Pivot"
 pivot.Shape         = Enum.PartType.Cylinder
 pivot.Size          = Vector3.new(0.3, WHEEL_RADIUS * 2, WHEEL_RADIUS * 2)
-pivot.CFrame        = BASE_CF
+pivot.CFrame        = ORIGINAL_CFRAME
 pivot.Anchored      = true   -- SEUL ANCRÉ ✓
 pivot.Transparency  = 1
 pivot.CanCollide    = false
@@ -171,7 +174,7 @@ local wheelDisk     = Instance.new("Part")
 wheelDisk.Name      = "WheelDisk"
 wheelDisk.Shape     = Enum.PartType.Cylinder
 wheelDisk.Size      = Vector3.new(0.82, WHEEL_RADIUS * 2, WHEEL_RADIUS * 2)
-wheelDisk.CFrame    = BASE_CF
+wheelDisk.CFrame    = ORIGINAL_CFRAME
 wheelDisk.Anchored  = false  -- NON ancré ✓ (suit le Pivot via WeldConstraint)
 wheelDisk.CanCollide  = false
 wheelDisk.CastShadow  = false
@@ -188,7 +191,7 @@ diskWeld.Parent     = pivot
 local chromeRim     = Instance.new("Part")
 chromeRim.Shape     = Enum.PartType.Cylinder
 chromeRim.Size      = Vector3.new(0.7, WHEEL_RADIUS * 2 + 2.2, WHEEL_RADIUS * 2 + 2.2)
-chromeRim.CFrame    = BASE_CF
+chromeRim.CFrame    = ORIGINAL_CFRAME
 chromeRim.Anchored  = true   -- STATIQUE ✓
 chromeRim.Material  = Enum.Material.Metal
 chromeRim.Color     = Color3.fromRGB(210, 215, 222); chromeRim.Reflectance = 0.45
@@ -199,7 +202,7 @@ chromeRim.Parent    = wheelFolder
 local neonRing      = Instance.new("Part")
 neonRing.Shape      = Enum.PartType.Cylinder
 neonRing.Size       = Vector3.new(0.22, WHEEL_RADIUS * 2 + 3.2, WHEEL_RADIUS * 2 + 3.2)
-neonRing.CFrame     = BASE_CF
+neonRing.CFrame     = ORIGINAL_CFRAME
 neonRing.Anchored   = true   -- STATIQUE ✓
 neonRing.Material   = Enum.Material.Neon
 neonRing.Color      = Color3.fromRGB(255, 215, 0)
@@ -215,7 +218,7 @@ local BEAD_PALETTE = {
 }
 local N_BEADS  = 16
 local BEAD_R   = WHEEL_RADIUS + 2.1
-local BEAD_Z   = WHEEL_CENTER.Z - 0.5
+local BEAD_Z   = WHEEL_CENTER.Z + 0.5   -- côté joueur = +Z (nord)
 local neonBeads = {}
 
 for i = 1, N_BEADS do
@@ -238,7 +241,7 @@ end
 local dome          = Instance.new("Part")
 dome.Name           = "Dome"
 dome.Shape          = Enum.PartType.Ball; dome.Size = Vector3.new(2.6, 2.6, 2.6)
-dome.Position       = WHEEL_CENTER + Vector3.new(0, 0, -0.7)
+dome.Position       = WHEEL_CENTER + Vector3.new(0, 0, 0.7)   -- côté joueur = +Z
 dome.Anchored       = true   -- STATIQUE ✓
 dome.Material       = Enum.Material.SmoothPlastic
 dome.Color          = Color3.fromRGB(255, 220, 50); dome.Reflectance = 0.6
@@ -250,23 +253,24 @@ local domeLight         = Instance.new("PointLight")
 domeLight.Color         = Color3.fromRGB(255, 215, 0)
 domeLight.Brightness    = 5; domeLight.Range = 30; domeLight.Parent = dome
 
--- SpotLight vers le sud (-Z) : éclaire l'approche des joueurs venant des bases sud
-local spotSouth         = Instance.new("SpotLight")
-spotSouth.Color         = Color3.fromRGB(255, 240, 200)
-spotSouth.Brightness    = 6; spotSouth.Range = 70; spotSouth.Angle = 55
-spotSouth.Face          = Enum.NormalId.Front   -- NormalId.Front = -Z (sud) pour part sans rotation ✓
-spotSouth.Parent        = dome
+-- SpotLight principal vers le NORD (+Z) : éclaire les joueurs dans les galeries (Z>0)
+-- Dome sans rotation → NormalId.Back = local +Z = world +Z (nord, vers joueurs) ✓
+local spotMain          = Instance.new("SpotLight")
+spotMain.Color          = Color3.fromRGB(255, 240, 200)
+spotMain.Brightness     = 7; spotMain.Range = 80; spotMain.Angle = 60
+spotMain.Face           = Enum.NormalId.Back
+spotMain.Parent         = dome
 
--- SpotLight vers le nord (+Z) : éclaire les joueurs venant du côté galerie nord
-local spotNorth         = Instance.new("SpotLight")
-spotNorth.Color         = Color3.fromRGB(255, 240, 200)
-spotNorth.Brightness    = 4; spotNorth.Range = 60; spotNorth.Angle = 50
-spotNorth.Face          = Enum.NormalId.Back    -- NormalId.Back = +Z (nord) ✓
-spotNorth.Parent        = dome
+-- SpotLight secondaire vers le SUD (-Z) : contre-éclairage depuis l'arrière
+local spotBack          = Instance.new("SpotLight")
+spotBack.Color          = Color3.fromRGB(200, 220, 255)
+spotBack.Brightness     = 3; spotBack.Range = 40; spotBack.Angle = 45
+spotBack.Face           = Enum.NormalId.Front   -- -Z (sud, arrière de la roue)
+spotBack.Parent         = dome
 
 -- ── Pointeur (STATIQUE) ────────────────────────────────────────────────────────
 local POINTER_CY = WHEEL_CENTER.Y + WHEEL_RADIUS + 2.2
-local PTR_Z      = WHEEL_CENTER.Z - 0.5
+local PTR_Z      = WHEEL_CENTER.Z + 0.5   -- côté joueur = +Z (nord)
 
 local pShaft        = Instance.new("Part")
 pShaft.Size         = Vector3.new(0.35, 2.2, 0.45)
@@ -605,7 +609,7 @@ clickDetector.MouseClick:Connect(function(player: Player)
 end)
 
 print(string.format(
-    "[WheelSystem] v4 PIVOT pret (phase1=%.1fs const + phase2=%.1fs QuartOut) | COMMON %d%% RARE %d%% EPIC %d%% LEG %d%%",
+    "[WheelSystem] v5 PIVOT pret | pos (0,18,-20) derriere fontaine | face +Z nord | phase1=%.1fs + phase2=%.1fs QuartOut | COMMON %d%% RARE %d%% EPIC %d%% LEG %d%%",
     PHASE1_DURATION, PHASE2_DURATION,
     RARITY_WEIGHTS[1].weight, RARITY_WEIGHTS[2].weight,
     RARITY_WEIGHTS[3].weight, RARITY_WEIGHTS[4].weight))
