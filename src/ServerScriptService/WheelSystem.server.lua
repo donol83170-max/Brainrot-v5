@@ -12,9 +12,9 @@
 --   Résultat : départ rapide → ralentissement réaliste → arrêt précis sur le segment.
 --
 -- AXEL DU CYLINDRE ROBLOX = X  (Size.X = épaisseur du disque)
---   ORIGINAL_CFRAME = CFrame.Angles(0, -90°, 0)  → local +X pointe vers world -Z (joueur) ✓
+--   ORIGINAL_CFRAME = CFrame.Angles(0, 180°, 0)  → local +X pointe vers world -X (fontaine) ✓
 --   Spin    = CFrame.Angles(deg, 0, 0)   → rotation autour de local X = axe du disque ✓
---   SurfaceGui Face = NormalId.Right → face plate circulaire visible par le joueur ✓
+--   SurfaceGui Face = NormalId.Right → face plate circulaire visible depuis la fontaine ✓
 
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
@@ -40,11 +40,10 @@ local PHASE1_DURATION  = 3.5   -- secondes — spin rapide constant
 local PHASE2_DURATION  = 2.0   -- secondes — TweenService QuartOut (décélération)
 local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
 -- ── Position & taille ────────────────────────────────────────────────────────
--- Fontaine centrale à X=0, Z=0 (WorldAssets). Spawn à Z=110 regardant Z=142 (nord).
--- Galeries nord : joueurs à Z>142 regardent vers -Z (sud) → voient la fontaine (Z=0)
---   → roue à Z=-20 (20 studs derrière la fontaine, au sud) ✓
--- Face du disque vers +Z (NORD) = face aux joueurs dans leurs galeries et sur l'avenue.
-local WHEEL_CENTER     = Vector3.new(0, 18, -38)
+-- Fontaine centrale à X=0, Z=0 (WorldAssets). Roue à droite de la fontaine.
+-- WHEEL_CENTER.X = +20 (20 studs à droite de la fontaine).
+-- Face du disque vers -X (OUEST) = face à la fontaine ✓
+local WHEEL_CENTER     = Vector3.new(20, 18, 0)
 local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 
 local RARITY_COLORS = {
@@ -128,10 +127,10 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CFRAME HELPERS
 -- ORIGINAL_CFRAME = point d'ancrage fixe de toutes les rotations.
--- CFrame.Angles(0, +90°, 0) → local +X pointe vers world +Z (nord, vers joueurs) ✓
+-- CFrame.Angles(0, 180°, 0) → local +X pointe vers world -X (vers fontaine) ✓
 -- Spin = CFrame.Angles(deg, 0, 0) → rotation autour de local X = axe du disque ✓
 -- ══════════════════════════════════════════════════════════════════════════════
-local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(90), 0)
+local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(180), 0)
 
 -- Retourne le CFrame du Pivot pour un angle de spin donné (en degrés, cumulatif).
 -- Toutes les rotations TweenService sont relatives à ORIGINAL_CFRAME.
@@ -161,7 +160,7 @@ local ARM_H         = WHEEL_CENTER.Y - 2
 local arm           = Instance.new("Part")
 arm.Name            = "WheelArm"
 arm.Size            = Vector3.new(1.4, ARM_H, 1.4)
-arm.Position        = Vector3.new(WHEEL_CENTER.X, 2 + ARM_H / 2, WHEEL_CENTER.Z + 1.2)
+arm.Position        = Vector3.new(WHEEL_CENTER.X + 1.2, 2 + ARM_H / 2, WHEEL_CENTER.Z)
 arm.Anchored        = true; arm.Material = Enum.Material.Metal
 arm.Color           = Color3.fromRGB(38, 38, 44); arm.CastShadow = false
 arm.Parent          = wheelFolder
@@ -228,7 +227,7 @@ local BEAD_PALETTE = {
 }
 local N_BEADS  = 16
 local BEAD_R   = WHEEL_RADIUS + 2.1
-local BEAD_Z   = WHEEL_CENTER.Z + 0.5   -- côté joueur = +Z (nord)
+local BEAD_X   = WHEEL_CENTER.X - 0.5   -- côté fontaine = -X
 local neonBeads = {}
 
 for i = 1, N_BEADS do
@@ -236,9 +235,9 @@ for i = 1, N_BEADS do
     local bead = Instance.new("Part")
     bead.Shape      = Enum.PartType.Ball; bead.Size = Vector3.new(0.55, 0.55, 0.55)
     bead.Position   = Vector3.new(
-        WHEEL_CENTER.X + math.cos(a) * BEAD_R,
+        BEAD_X,
         WHEEL_CENTER.Y + math.sin(a) * BEAD_R,
-        BEAD_Z)
+        WHEEL_CENTER.Z + math.cos(a) * BEAD_R)
     bead.Anchored   = true   -- STATIQUE ✓
     bead.Material   = Enum.Material.Neon
     bead.Color      = BEAD_PALETTE[((i - 1) % #BEAD_PALETTE) + 1]
@@ -251,7 +250,7 @@ end
 local dome          = Instance.new("Part")
 dome.Name           = "Dome"
 dome.Shape          = Enum.PartType.Ball; dome.Size = Vector3.new(2.6, 2.6, 2.6)
-dome.Position       = WHEEL_CENTER + Vector3.new(0, 0, 0.7)   -- côté joueur = +Z
+dome.Position       = WHEEL_CENTER + Vector3.new(-0.7, 0, 0)   -- côté fontaine = -X
 dome.Anchored       = true   -- STATIQUE ✓
 dome.Material       = Enum.Material.SmoothPlastic
 dome.Color          = Color3.fromRGB(255, 220, 50); dome.Reflectance = 0.6
@@ -263,36 +262,36 @@ local domeLight         = Instance.new("PointLight")
 domeLight.Color         = Color3.fromRGB(255, 215, 0)
 domeLight.Brightness    = 5; domeLight.Range = 30; domeLight.Parent = dome
 
--- SpotLight principal vers le NORD (+Z) : éclaire les joueurs dans les galeries (Z>0)
--- Dome sans rotation → NormalId.Back = local +Z = world +Z (nord, vers joueurs) ✓
+-- SpotLight principal vers la FONTAINE (-X) : éclaire la roue depuis la fontaine ✓
+-- Dome sans rotation → NormalId.Left = local -X = world -X (vers fontaine) ✓
 local spotMain          = Instance.new("SpotLight")
 spotMain.Color          = Color3.fromRGB(255, 240, 200)
 spotMain.Brightness     = 7; spotMain.Range = 80; spotMain.Angle = 60
-spotMain.Face           = Enum.NormalId.Back
+spotMain.Face           = Enum.NormalId.Left
 spotMain.Parent         = dome
 
--- SpotLight secondaire vers le SUD (-Z) : contre-éclairage depuis l'arrière
+-- SpotLight secondaire opposé (+X) : contre-éclairage depuis l'arrière
 local spotBack          = Instance.new("SpotLight")
 spotBack.Color          = Color3.fromRGB(200, 220, 255)
 spotBack.Brightness     = 3; spotBack.Range = 40; spotBack.Angle = 45
-spotBack.Face           = Enum.NormalId.Front   -- -Z (sud, arrière de la roue)
+spotBack.Face           = Enum.NormalId.Right   -- +X (arrière de la roue)
 spotBack.Parent         = dome
 
 -- ── Pointeur (STATIQUE) ────────────────────────────────────────────────────────
 local POINTER_CY = WHEEL_CENTER.Y + WHEEL_RADIUS + 2.2
-local PTR_Z      = WHEEL_CENTER.Z + 0.5   -- côté joueur = +Z (nord)
+local PTR_X      = WHEEL_CENTER.X - 0.5   -- côté fontaine = -X
 
 local pShaft        = Instance.new("Part")
-pShaft.Size         = Vector3.new(0.35, 2.2, 0.45)
-pShaft.CFrame       = CFrame.new(WHEEL_CENTER.X, POINTER_CY + 1.6, PTR_Z)
+pShaft.Size         = Vector3.new(0.45, 2.2, 0.35)
+pShaft.CFrame       = CFrame.new(PTR_X, POINTER_CY + 1.6, WHEEL_CENTER.Z)
 pShaft.Anchored     = true   -- STATIQUE ✓
 pShaft.Material     = Enum.Material.Neon
 pShaft.Color        = Color3.fromRGB(255, 90, 0)
 pShaft.CanCollide   = false; pShaft.CastShadow = false; pShaft.Parent = wheelFolder
 
 local pointer       = Instance.new("WedgePart")
-pointer.Size        = Vector3.new(0.65, 1.8, 1.3)
-pointer.CFrame      = CFrame.new(WHEEL_CENTER.X, POINTER_CY, PTR_Z)
+pointer.Size        = Vector3.new(1.3, 1.8, 0.65)
+pointer.CFrame      = CFrame.new(PTR_X, POINTER_CY, WHEEL_CENTER.Z)
                    * CFrame.Angles(0, 0, math.rad(180))
 pointer.Anchored    = true   -- STATIQUE ✓
 pointer.Material    = Enum.Material.Neon
@@ -481,9 +480,9 @@ local function applyAngle(angle: number)
 end
 
 local function resetPointer()
-    pointer.CFrame = CFrame.new(WHEEL_CENTER.X, POINTER_CY, PTR_Z)
+    pointer.CFrame = CFrame.new(PTR_X, POINTER_CY, WHEEL_CENTER.Z)
                    * CFrame.Angles(0, 0, math.rad(180))
-    pShaft.CFrame  = CFrame.new(WHEEL_CENTER.X, POINTER_CY + 1.6, PTR_Z)
+    pShaft.CFrame  = CFrame.new(PTR_X, POINTER_CY + 1.6, WHEEL_CENTER.Z)
 end
 
 -- ── ANIMATION (deux phases) ───────────────────────────────────────────────────
@@ -526,9 +525,9 @@ local function animateWheel(fromDeg: number, finalDeg: number, winRarity: string
             local elapsed  = tick() - phase2Start
             local progress = math.min(elapsed / PHASE2_DURATION, 1)
             local bobY     = math.sin(elapsed * 20) * (1 - progress) * 0.24
-            pointer.CFrame = CFrame.new(WHEEL_CENTER.X, POINTER_CY + bobY, PTR_Z)
+            pointer.CFrame = CFrame.new(PTR_X, POINTER_CY + bobY, WHEEL_CENTER.Z)
                            * CFrame.Angles(0, 0, math.rad(180))
-            pShaft.CFrame  = CFrame.new(WHEEL_CENTER.X, POINTER_CY + bobY + 1.6, PTR_Z)
+            pShaft.CFrame  = CFrame.new(PTR_X, POINTER_CY + bobY + 1.6, WHEEL_CENTER.Z)
         end)
 
         tween.Completed:Connect(function()
