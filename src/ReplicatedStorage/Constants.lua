@@ -4,13 +4,13 @@
 local Constants = {}
 
 Constants.RARITIES = {
-    NORMAL    = { Name = "NORMAL",    Weight = 60, Color = Color3.fromRGB(163, 162, 165) },
+    NORMAL    = { Name = "NORMAL",    Weight =  0, Color = Color3.fromRGB(163, 162, 165) },
     COMMON    = { Name = "COMMON",    Weight = 60, Color = Color3.fromRGB(  0, 255,   0) },  -- VERT
     RARE      = { Name = "RARE",      Weight = 25, Color = Color3.fromRGB(  0, 130, 255) },  -- BLEU
-    EPIC      = { Name = "EPIC",      Weight = 12, Color = Color3.fromRGB(255,   0, 255) },  -- VIOLET
-    MYTHIC    = { Name = "MYTHIC",    Weight = 10, Color = Color3.fromRGB(170,   0, 255) },
-    LEGENDARY = { Name = "LEGENDARY", Weight =  8, Color = Color3.fromRGB(255, 215,   0) },  -- DORÉ
-    ULTRA     = { Name = "ULTRA",     Weight =  2, Color = Color3.fromRGB(255,   0, 127) },
+    EPIC      = { Name = "EPIC",      Weight = 14, Color = Color3.fromRGB(255,   0, 255) },  -- VIOLET
+    MYTHIC    = { Name = "MYTHIC",    Weight =  0, Color = Color3.fromRGB(170,   0, 255) },
+    LEGENDARY = { Name = "LEGENDARY", Weight =  1, Color = Color3.fromRGB(255, 215,   0) },  -- DORÉ
+    ULTRA     = { Name = "ULTRA",     Weight =  0, Color = Color3.fromRGB(255,   0, 127) },
 }
 
 Constants.COOLDOWNS = {
@@ -24,13 +24,13 @@ Constants.STARTING_STATS = {
 }
 
 Constants.SELL_VALUES = {
-    NORMAL    = 10,
-    COMMON    = 15,
-    RARE      = 50,
-    EPIC      = 200,
-    MYTHIC    = 150,
-    LEGENDARY = 500,
-    ULTRA     = 2000,
+    NORMAL    = 5,
+    COMMON    = 5,
+    RARE      = 15,
+    EPIC      = 50,
+    MYTHIC    = 50,
+    LEGENDARY = 200,
+    ULTRA     = 200,
 }
 
 return Constants

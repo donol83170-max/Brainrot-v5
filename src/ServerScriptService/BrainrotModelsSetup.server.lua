@@ -23,17 +23,25 @@ end
 -- TABLE OFFICIELLE — Nom affiché (= clé de lookup) + couleur rareté (placeholder)
 local ITEMS = {
     -- ── COMMUN (vert) ──────────────────────────────────────────────────────────
-    { name = "Skibidi Toilet",      color = Color3.fromRGB(  0, 200,  60) },
-    { name = "Bombardini Gusini",   color = Color3.fromRGB(  0, 200,  60) },
-    { name = "Lirilì Larilà",       color = Color3.fromRGB(  0, 200,  60) },
-    { name = "Noobini Pizzanini",   color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Skibidi Toilet",                color = Color3.fromRGB(  0, 200,  60) },
+    { name = "La Vacca Saturno Saturnita",    color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Ballerina Cappuccina",          color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Noobini Pizzanini",             color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Nuclearo Dinossauro",           color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Lirilì Larilà",                 color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Bombombini Gusini",             color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Cappuccino Assassino",          color = Color3.fromRGB(  0, 200,  60) },
     -- ── RARE (bleu) ────────────────────────────────────────────────────────────
-    { name = "Tralalero Tralala",   color = Color3.fromRGB(  0, 130, 255) },
-    { name = "Doge",                color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Tralalero Tralala",             color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Trippi Troppi",                 color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Bombardiro Crocodilo",          color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Los Ta ta Tasitos dicen Sahur", color = Color3.fromRGB(  0, 130, 255) },
     -- ── ÉPIQUE (violet) ────────────────────────────────────────────────────────
-    { name = "Br Br Patapim",       color = Color3.fromRGB(255,   0, 255) },
+    { name = "Br Br Patapim",                 color = Color3.fromRGB(255,   0, 255) },
+    { name = "Tung Tung Tung Sahur",          color = Color3.fromRGB(255,   0, 255) },
     -- ── LÉGENDAIRE (doré) ──────────────────────────────────────────────────────
-    { name = "Strawberry Elephant", color = Color3.fromRGB(255, 215,   0) },
+    { name = "Strawberry Elephant",           color = Color3.fromRGB(255, 215,   0) },
+    { name = "Dragon Cannelloni",             color = Color3.fromRGB(255, 215,   0) },
 }
 
 local created = 0

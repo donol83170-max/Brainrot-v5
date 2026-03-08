@@ -38,8 +38,8 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONFIG
 -- ══════════════════════════════════════════════════════════════════════════════
-local N_SEGMENTS       = 12
-local SEG_ANGLE        = 360 / N_SEGMENTS   -- 30° par segment
+local N_SEGMENTS       = 16
+local SEG_ANGLE        = 360 / N_SEGMENTS   -- 22.5° par segment
 local SPIN_COST        = 20
 local FULL_ROTATIONS   = 5     -- tours complets en phase 1
 local PHASE1_DURATION  = 3.5   -- secondes — spin rapide constant
@@ -64,46 +64,61 @@ local RARITY_COLORS = {
 -- ══════════════════════════════════════════════════════════════════════════════
 local POOL = {
     COMMON = {
-        { itemId = "SkibidiHead",     imageId = 15263881432, name = "Skibidi Toilet"       },
-        { itemId = "NoobiniPizza",    imageId = 0,           name = "Noobini Pizzanini"    },
-        { itemId = "PipiCorni",       imageId = 0,           name = "Lirilì Larilà"           },
-        { itemId = "MaxwellCat",      imageId = 12501659970, name = "Bombardini Gusini"          },
+        { itemId = "SkibidiHead",     imageId = 15263881432, name = "Skibidi Toilet"                   },
+        { itemId = "LVaccaSaturno",   imageId = 0,           name = "La Vacca Saturno Saturnita"       },
+        { itemId = "BallerinaCapp",   imageId = 0,           name = "Ballerina Cappuccina"             },
+        { itemId = "NoobiniPizza",    imageId = 0,           name = "Noobini Pizzanini"                },
+        { itemId = "NuclearoDino",    imageId = 0,           name = "Nuclearo Dinossauro"              },
+        { itemId = "LirilaLarila",    imageId = 0,           name = "Lirilì Larilà"                    },
+        { itemId = "BombombiniGus",   imageId = 0,           name = "Bombombini Gusini"                },
+        { itemId = "CappuccinoAss",   imageId = 0,           name = "Cappuccino Assassino"             },
     },
     RARE = {
-        { itemId = "Tralalero",       imageId = 0,           name = "Tralalero Tralala"    },
-        { itemId = "DogeMeme",        imageId = 0,           name = "Doge"                 },
+        { itemId = "Tralalero",       imageId = 0,           name = "Tralalero Tralala"                },
+        { itemId = "TrippiTroppi",    imageId = 0,           name = "Trippi Troppi"                    },
+        { itemId = "BombardiroCroc",  imageId = 0,           name = "Bombardiro Crocodilo"             },
+        { itemId = "LosTaTasitos",    imageId = 0,           name = "Los Ta ta Tasitos dicen Sahur"    },
     },
     EPIC = {
-        { itemId = "BrBrPatapim",     imageId = 0,           name = "Br Br Patapim"        },
+        { itemId = "BrBrPatapim",     imageId = 0,           name = "Br Br Patapim"                    },
+        { itemId = "TungTungSahur",   imageId = 0,           name = "Tung Tung Tung Sahur"             },
     },
     LEGENDARY = {
-        { itemId = "StrawberryEleph", imageId = 0,           name = "Strawberry Elephant"  },
+        { itemId = "StrawberryEleph", imageId = 0,           name = "Strawberry Elephant"              },
+        { itemId = "DragonCannell",   imageId = 0,           name = "Dragon Cannelloni"                },
     },
 }
 
 local RARITY_WEIGHTS = {
     { rarity = "COMMON",    weight = 60 },
     { rarity = "RARE",      weight = 25 },
-    { rarity = "EPIC",      weight = 12 },
-    { rarity = "LEGENDARY", weight = 3  },
+    { rarity = "EPIC",      weight = 14 },
+    { rarity = "LEGENDARY", weight = 1  },
 }
 
+-- 16 segments — tous les items représentés visuellement
+-- COMMON×8, RARE×4, EPIC×2, LEGENDARY×2
 local SEGMENTS = {
-    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1
-    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  2
-    { rarity = "RARE",      item = POOL.RARE[1]      },  --  3
-    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  4
-    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  5
-    { rarity = "LEGENDARY", item = POOL.LEGENDARY[1] },  --  6
-    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  7
-    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8
-    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  9
-    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10
-    { rarity = "COMMON",    item = POOL.COMMON[3]    },  -- 11
-    { rarity = "RARE",      item = POOL.RARE[1]      },  -- 12
+    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1 Skibidi Toilet
+    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  2 La Vacca Saturno Saturnita
+    { rarity = "RARE",      item = POOL.RARE[1]      },  --  3 Tralalero Tralala
+    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  4 Ballerina Cappuccina
+    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  5 Noobini Pizzanini
+    { rarity = "LEGENDARY", item = POOL.LEGENDARY[1] },  --  6 Strawberry Elephant
+    { rarity = "COMMON",    item = POOL.COMMON[5]    },  --  7 Nuclearo Dinossauro
+    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8 Trippi Troppi
+    { rarity = "COMMON",    item = POOL.COMMON[6]    },  --  9 Lirilì Larilà
+    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10 Br Br Patapim
+    { rarity = "COMMON",    item = POOL.COMMON[7]    },  -- 11 Bombombini Gusini
+    { rarity = "RARE",      item = POOL.RARE[3]      },  -- 12 Bombardiro Crocodilo
+    { rarity = "COMMON",    item = POOL.COMMON[8]    },  -- 13 Cappuccino Assassino
+    { rarity = "EPIC",      item = POOL.EPIC[2]      },  -- 14 Tung Tung Tung Sahur
+    { rarity = "LEGENDARY", item = POOL.LEGENDARY[2] },  -- 15 Dragon Cannelloni
+    { rarity = "RARE",      item = POOL.RARE[4]      },  -- 16 Los Ta ta Tasitos dicen Sahur
 }
 
 local SEGS_BY_RARITY: {[string]: {number}} = { COMMON={}, RARE={}, EPIC={}, LEGENDARY={} }
+assert(#SEGMENTS == N_SEGMENTS, "SEGMENTS count mismatch")
 for idx, seg in ipairs(SEGMENTS) do
     table.insert(SEGS_BY_RARITY[seg.rarity], idx)
 end

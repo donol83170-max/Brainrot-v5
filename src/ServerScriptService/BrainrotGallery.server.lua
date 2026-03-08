@@ -57,17 +57,23 @@ local COL_PLAQUE     = Color3.fromRGB( 20,  20,  25)
 
 local PEDESTAL_BASE_SHADES: {Color3} = {
     Color3.fromRGB(232, 232, 232),
-    Color3.fromRGB(215, 215, 215),
-    Color3.fromRGB(198, 198, 198),
-    Color3.fromRGB(181, 181, 181),
-    Color3.fromRGB(164, 164, 164),
+    Color3.fromRGB(220, 220, 220),
+    Color3.fromRGB(208, 208, 208),
+    Color3.fromRGB(196, 196, 196),
+    Color3.fromRGB(184, 184, 184),
+    Color3.fromRGB(172, 172, 172),
+    Color3.fromRGB(160, 160, 160),
+    Color3.fromRGB(148, 148, 148),
 }
 local PEDESTAL_TOP_SHADES: {Color3} = {
     Color3.fromRGB(248, 248, 248),
-    Color3.fromRGB(231, 231, 231),
-    Color3.fromRGB(214, 214, 214),
-    Color3.fromRGB(197, 197, 197),
-    Color3.fromRGB(180, 180, 180),
+    Color3.fromRGB(236, 236, 236),
+    Color3.fromRGB(224, 224, 224),
+    Color3.fromRGB(212, 212, 212),
+    Color3.fromRGB(200, 200, 200),
+    Color3.fromRGB(188, 188, 188),
+    Color3.fromRGB(176, 176, 176),
+    Color3.fromRGB(164, 164, 164),
 }
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA=5, LEGENDARY=4, MYTHIC=3, RARE=2, NORMAL=1}
@@ -100,14 +106,14 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DIMENSIONS DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
-local NUM_SIDES   = 5          -- Socles de chaque côté
+local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
 local PLACE_GAP   = 16         -- Espacement Z entre les socles
 local SIDE_DIST   = 16         -- Distance X du centre au socle
 local CORRIDOR_W  = 44         -- Largeur du couloir (X)
 local WALL_H      = 20         -- Hauteur des murs
 local WALL_T      = 2          -- Épaisseur des murs
 local FLOOR_Y     = 1          -- Y du sol
-local GALLERY_LEN = (NUM_SIDES + 1) * PLACE_GAP  -- 96 studs
+local GALLERY_LEN = (NUM_SIDES + 1) * PLACE_GAP  -- 144 studs
 
 -- ── Entrées des deux rangées de galeries ──────────────────────────────────────
 -- L'avenue est entre START_Z_SOUTH (bord sud) et START_Z (bord nord).
@@ -117,8 +123,10 @@ local START_Z_SOUTH =  78   -- Entrée côté SUD  — Z = 110 - 32
 -- Avenue = 64 studs de large (était 80), centre à Z = 110
 
 local SLOT_NAMES: {string} = {
-    [1]="??? Slot 1",[2]="??? Slot 2",[3]="??? Slot 3",[4]="??? Slot 4",[5]="??? Slot 5",
-    [6]="??? Slot 6",[7]="??? Slot 7",[8]="??? Slot 8",[9]="??? Slot 9",[10]="??? Slot 10",
+    [1]="??? Slot 1",[2]="??? Slot 2",[3]="??? Slot 3",[4]="??? Slot 4",
+    [5]="??? Slot 5",[6]="??? Slot 6",[7]="??? Slot 7",[8]="??? Slot 8",
+    [9]="??? Slot 9",[10]="??? Slot 10",[11]="??? Slot 11",[12]="??? Slot 12",
+    [13]="??? Slot 13",[14]="??? Slot 14",[15]="??? Slot 15",[16]="??? Slot 16",
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
