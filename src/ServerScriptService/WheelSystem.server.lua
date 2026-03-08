@@ -28,6 +28,12 @@ local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
 local Events           = ReplicatedStorage:WaitForChild("Events")
 local SpinResult       = Events:WaitForChild("SpinResult")
 local UpdateClientData = Events:WaitForChild("UpdateClientData")
+local RequestSpin      = Events:FindFirstChild("RequestSpin")
+if not RequestSpin then
+    RequestSpin = Instance.new("RemoteEvent")
+    RequestSpin.Name = "RequestSpin"
+    RequestSpin.Parent = Events
+end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONFIG
@@ -49,7 +55,7 @@ local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 local RARITY_COLORS = {
     COMMON    = Color3.fromRGB(160, 162, 168),
     RARE      = Color3.fromRGB(  0, 130, 255),
-    EPIC      = Color3.fromRGB(155,   0, 255),
+    EPIC      = Color3.fromRGB(255,   0, 255),
     LEGENDARY = Color3.fromRGB(255, 190,   0),
 }
 
@@ -154,12 +160,13 @@ wheelFolder.Parent      = Workspace
 -- ── Borne de Casino (Slot Machine) ────────────────────────────────────────────────
 local MACHINE_X = WHEEL_CENTER.X
 local MACHINE_Z = WHEEL_CENTER.Z
+local SCALE = 1.05 -- Agrandissement de 5%
 
 -- Socle rectangulaire principal (Métal Gris -> Peinture Rouge)
 local machineBase       = Instance.new("Part")
 machineBase.Name        = "MachineBase"
-machineBase.Size        = Vector3.new(6, 12, 8) 
-machineBase.Position    = Vector3.new(MACHINE_X, 6, MACHINE_Z)
+machineBase.Size        = Vector3.new(6 * SCALE, 12 * SCALE, 8 * SCALE) 
+machineBase.Position    = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z)
 machineBase.Anchored    = true
 machineBase.Material    = Enum.Material.SmoothPlastic
 machineBase.Color       = Color3.fromRGB(200, 0, 0)
@@ -196,23 +203,23 @@ applyGradientToFace(machineBase, Enum.NormalId.Back)   -- Côté
 -- Lumières Néon sur les bords (Or brillant fixe)
 local neonLeft = Instance.new("Part")
 neonLeft.Name = "NeonLeft"
-neonLeft.Size = Vector3.new(6.1, 12.2, 0.4)
-neonLeft.Position = Vector3.new(MACHINE_X, 6, MACHINE_Z - 3.8)
+neonLeft.Size = Vector3.new(6.1 * SCALE, 12.2 * SCALE, 0.4 * SCALE)
+neonLeft.Position = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z - 3.8 * SCALE)
 neonLeft.Anchored = true; neonLeft.Material = Enum.Material.Neon
 neonLeft.Color = Color3.fromRGB(255, 215, 0); neonLeft.Parent = wheelFolder
 
 local neonRight = Instance.new("Part")
 neonRight.Name = "NeonRight"
-neonRight.Size = Vector3.new(6.1, 12.2, 0.4)
-neonRight.Position = Vector3.new(MACHINE_X, 6, MACHINE_Z + 3.8)
+neonRight.Size = Vector3.new(6.1 * SCALE, 12.2 * SCALE, 0.4 * SCALE)
+neonRight.Position = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z + 3.8 * SCALE)
 neonRight.Anchored = true; neonRight.Material = Enum.Material.Neon
 neonRight.Color = Color3.fromRGB(255, 215, 0); neonRight.Parent = wheelFolder
 
 -- Cadre doré de l'écran
 local screenBorder = Instance.new("Part")
 screenBorder.Name = "ScreenBorder"
-screenBorder.Size = Vector3.new(0.6, 6.4, 7.4)
-screenBorder.CFrame = CFrame.new(MACHINE_X - 3.05, 9, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
+screenBorder.Size = Vector3.new(0.6 * SCALE, 6.4 * SCALE, 7.4 * SCALE)
+screenBorder.CFrame = CFrame.new(MACHINE_X - 3.05 * SCALE, 9 * SCALE, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
 screenBorder.Anchored = true
 screenBorder.Material = Enum.Material.Metal
 screenBorder.Color = Color3.fromRGB(255, 215, 0)
@@ -221,8 +228,8 @@ screenBorder.Parent = wheelFolder
 -- Écran incliné noir
 local screenPart        = Instance.new("Part")
 screenPart.Name         = "ScreenPart"
-screenPart.Size         = Vector3.new(0.65, 6, 7)
-screenPart.CFrame       = CFrame.new(MACHINE_X - 3.1, 9, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
+screenPart.Size         = Vector3.new(0.65 * SCALE, 6 * SCALE, 7 * SCALE)
+screenPart.CFrame       = CFrame.new(MACHINE_X - 3.1 * SCALE, 9 * SCALE, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
 screenPart.Anchored     = true
 screenPart.Material     = Enum.Material.SmoothPlastic
 screenPart.Color        = Color3.fromRGB(15, 15, 15)
@@ -231,7 +238,7 @@ screenPart.Parent       = wheelFolder
 -- SurfaceGui sur l'écran (Face = Left)
 local screenGui         = Instance.new("SurfaceGui")
 screenGui.Face          = Enum.NormalId.Left
-screenGui.CanvasSize    = Vector2.new(800, 600)
+screenGui.CanvasSize    = Vector2.new(800 * SCALE, 600 * SCALE)
 screenGui.Parent        = screenPart
 
 local titleText = Instance.new("TextLabel")
@@ -246,15 +253,13 @@ titleText.TextStrokeColor3 = Color3.new(0, 0, 0)
 titleText.Parent = screenGui
 
 -- Levier doré sur la face avant (-X), en bas à droite (+Z du point de vue face avant)
--- CFrame.Angles(0, math.rad(-90), 0) fait pointer -Z (Front de Part) vers -X monde. L'axe Y monte.
--- CFrame.Angles(math.rad(30), 0, 0) incline l'axe Y de 30° vers le monde -X (avant).
-local leverBaseCF = CFrame.new(MACHINE_X - 3.2, 5.5, MACHINE_Z + 2.5) 
+local leverBaseCF = CFrame.new(MACHINE_X - 3.2 * SCALE, 5.5 * SCALE, MACHINE_Z + 2.5 * SCALE) 
                   * CFrame.Angles(0, math.rad(-90), 0) 
                   * CFrame.Angles(math.rad(30), 0, 0)
 
 local leverArm        = Instance.new("Part")
 leverArm.Shape        = Enum.PartType.Cylinder
-leverArm.Size         = Vector3.new(0.4, 3, 0.4)
+leverArm.Size         = Vector3.new(0.4 * SCALE, 3 * SCALE, 0.4 * SCALE)
 leverArm.Anchored     = true
 leverArm.Material     = Enum.Material.Metal
 leverArm.Color        = Color3.fromRGB(255, 215, 0)
@@ -262,7 +267,7 @@ leverArm.Parent       = wheelFolder
 
 local leverBall       = Instance.new("Part")
 leverBall.Shape       = Enum.PartType.Ball
-leverBall.Size        = Vector3.new(1.2, 1.2, 1.2)
+leverBall.Size        = Vector3.new(1.2 * SCALE, 1.2 * SCALE, 1.2 * SCALE)
 leverBall.Anchored    = true
 leverBall.Material    = Enum.Material.SmoothPlastic
 leverBall.Color       = Color3.fromRGB(255, 40, 40)
@@ -272,8 +277,8 @@ leverBall.Parent      = wheelFolder
 local function updateLever(angleDeg)
     -- Levier pivote via l'axe X local. Une augmentation de angleDeg bascule le levier vers le bas.
     local pivotCF = leverBaseCF * CFrame.Angles(math.rad(angleDeg), 0, 0)
-    leverArm.CFrame = pivotCF * CFrame.new(0, 1.5, 0) 
-    leverBall.CFrame = pivotCF * CFrame.new(0, 3, 0)
+    leverArm.CFrame = pivotCF * CFrame.new(0, 1.5 * SCALE, 0) 
+    leverBall.CFrame = pivotCF * CFrame.new(0, 3 * SCALE, 0)
 end
 updateLever(0) -- Position repos (déjà incliné de 30° par leverBaseCF)
 
@@ -299,8 +304,8 @@ local function getCoins(player: Player): number
     return coins and coins.Value or 0
 end
 
--- ── Gestion du clic (sur le Dôme doré) ────────────────────────────────────────
-clickDetector.MouseClick:Connect(function(player: Player)
+-- ── Fonction commune de tirage ──────────────────────────────────────────────
+local function ActionSpin(player: Player)
     if wheelLocked then return end
 
     local now = tick()
@@ -378,7 +383,11 @@ clickDetector.MouseClick:Connect(function(player: Player)
     end)
 
     tweenDown:Play()
-end)
+end
+
+-- Connexions
+clickDetector.MouseClick:Connect(ActionSpin)
+RequestSpin.OnServerEvent:Connect(ActionSpin)
 
 print(string.format(
     "[WheelSystem] v5 PIVOT pret | pos (0,18,-20) derriere fontaine | face +Z nord | phase1=%.1fs + phase2=%.1fs QuartOut | COMMON %d%% RARE %d%% EPIC %d%% LEG %d%%",

@@ -13,7 +13,7 @@ local SpinResult = Events:WaitForChild("SpinResult")
 local RARITY_COLORS = {
     COMMON    = Color3.fromRGB(160, 162, 168),
     RARE      = Color3.fromRGB(  0, 130, 255),
-    EPIC      = Color3.fromRGB(155,   0, 255),
+    EPIC      = Color3.fromRGB(255,   0, 255),
     LEGENDARY = Color3.fromRGB(255, 190,   0),
 }
 
@@ -40,6 +40,7 @@ local mainFrame
 local scrollList
 local winLabel
 local closeBtn
+local reSpinBtn
 local flashFrame
 
 local SPIN_COOLDOWN = 6
@@ -244,7 +245,7 @@ local function createSlotUI(segments)
     closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, 240, 0, 60)
     closeBtn.AnchorPoint = Vector2.new(0.5, 1)
-    closeBtn.Position = UDim2.new(0.5, 0, 0.9, 0) -- En bas
+    closeBtn.Position = UDim2.new(0.5, -130, 0.9, 0) -- Décalé à gauche
     closeBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
     closeBtn.Text = "FERMER"
     closeBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -257,8 +258,32 @@ local function createSlotUI(segments)
     local closeStroke = Instance.new("UIStroke")
     closeStroke.Color = Color3.new(0, 0, 0); closeStroke.Thickness = 2; closeStroke.Parent = closeBtn
 
+    reSpinBtn = Instance.new("TextButton")
+    reSpinBtn.Size = UDim2.new(0, 240, 0, 60)
+    reSpinBtn.AnchorPoint = Vector2.new(0.5, 1)
+    reSpinBtn.Position = UDim2.new(0.5, 130, 0.9, 0) -- Décalé à droite
+    reSpinBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
+    reSpinBtn.Text = "RE-SPIN"
+    reSpinBtn.TextColor3 = Color3.new(1, 1, 1)
+    reSpinBtn.Font = Enum.Font.LuckiestGuy
+    reSpinBtn.TextSize = 28
+    reSpinBtn.Visible = false
+    reSpinBtn.ZIndex = 20
+    reSpinBtn.Parent = overlay
+    Instance.new("UICorner", reSpinBtn).CornerRadius = UDim.new(0.2, 0)
+    local reSpinStroke = Instance.new("UIStroke")
+    reSpinStroke.Color = Color3.new(0, 0, 0); reSpinStroke.Thickness = 2; reSpinStroke.Parent = reSpinBtn
+
     closeBtn.MouseButton1Click:Connect(function()
         spinGui.Enabled = false
+    end)
+
+    reSpinBtn.MouseButton1Click:Connect(function()
+        local RequestSpin = Events:FindFirstChild("RequestSpin")
+        if RequestSpin then
+            spinGui.Enabled = false
+            RequestSpin:FireServer()
+        end
     end)
 end
 
@@ -277,6 +302,7 @@ SpinResult.OnClientEvent:Connect(function(res)
 
     winLabel.Visible = false
     closeBtn.Visible = false
+    if reSpinBtn then reSpinBtn.Visible = false end
     flashFrame.BackgroundTransparency = 1
     spinGui.Enabled = true
 
@@ -342,6 +368,7 @@ SpinResult.OnClientEvent:Connect(function(res)
         end
 
         closeBtn.Visible = true
+        if reSpinBtn then reSpinBtn.Visible = true end
     end)
 
     tween:Play()
