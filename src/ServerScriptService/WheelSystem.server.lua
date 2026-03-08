@@ -329,8 +329,9 @@ fanfareSound.SoundId    = "rbxassetid://3205426741"
 fanfareSound.Volume     = 1.0;  fanfareSound.RollOffMaxDistance = 60; fanfareSound.Parent = soundPart
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- SURFACE GUI (sur WheelDisk — tourne avec le Pivot)
--- Face = NormalId.Right → face plate du cylindre orientée vers le joueur ✓
+-- SURFACE GUI — disque casino, secteurs colorés plein + texte
+-- Face = NormalId.Right → face plate du cylindre orientée vers la fontaine ✓
+-- Pas de fond noir massif : secteurs couvrent tout, texte LuckiestGuy lisible
 -- ══════════════════════════════════════════════════════════════════════════════
 local surfGui           = Instance.new("SurfaceGui")
 surfGui.Name            = "WheelGui"
@@ -341,103 +342,101 @@ surfGui.AlwaysOnTop     = false
 surfGui.ZOffset         = 0.5
 surfGui.Parent          = wheelDisk
 
-local C  = 256   -- centre du canvas (512×512)
-
--- Fond
+local C   = 256   -- centre du canvas (512×512)
+-- Fond sombre minimal (coins hors du cercle clippé par le cylindre)
 local bgFull            = Instance.new("Frame")
 bgFull.Size             = UDim2.new(1, 0, 1, 0)
-bgFull.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
+bgFull.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 bgFull.BorderSizePixel  = 0; bgFull.ZIndex = 1; bgFull.Parent = surfGui
 
--- 12 Secteurs colorés (rectangle ancré au centre, rotation par angle de segment)
-local SH = 244
-local SW = math.ceil(2 * SH * math.tan(math.rad(15)))  -- ≈ 131 px
+-- ── 12 Secteurs pleins + texte centré sur chaque secteur ─────────────────────
+-- SH = hauteur du rectangle (du centre jusqu'au bord, quasi plein rayon)
+-- SW = largeur à l'extrémité (= 2 * SH * tan(15°) pour remplir 30° exactement)
+local SH = 250
+local SW = math.ceil(2 * SH * math.tan(math.rad(15)))   -- ≈ 134 px
 
 for i = 1, N_SEGMENTS do
-    local seg             = SEGMENTS[i]
-    local midAngle        = (i - 1) * SEG_ANGLE
+    local seg      = SEGMENTS[i]
+    local midAngle = (i - 1) * SEG_ANGLE
+
+    -- Secteur coloré
     local sec             = Instance.new("Frame")
     sec.Size              = UDim2.new(0, SW, 0, SH)
     sec.AnchorPoint       = Vector2.new(0.5, 1)
     sec.Position          = UDim2.new(0, C, 0, C)
     sec.BackgroundColor3  = RARITY_COLORS[seg.rarity]
-    sec.BorderSizePixel   = 0; sec.Rotation = midAngle; sec.ZIndex = 2
+    sec.BorderSizePixel   = 0
+    sec.Rotation          = midAngle
+    sec.ZIndex            = 2
+    sec.ClipsDescendants  = false
     sec.Parent            = surfGui
+
+    -- Nom du mème (affiché au milieu du secteur)
+    local lbl                     = Instance.new("TextLabel")
+    lbl.Size                      = UDim2.new(1, -4, 0, 38)
+    lbl.AnchorPoint               = Vector2.new(0.5, 0.5)
+    lbl.Position                  = UDim2.new(0.5, 0, 0.38, 0)  -- ~38% depuis centre
+    lbl.BackgroundTransparency    = 1
+    lbl.Text                      = seg.item.name
+    lbl.TextColor3                = Color3.new(1, 1, 1)
+    lbl.Font                      = Enum.Font.LuckiestGuy
+    lbl.TextScaled                = true
+    lbl.TextStrokeTransparency    = 0
+    lbl.TextStrokeColor3          = Color3.new(0, 0, 0)
+    lbl.ZIndex                    = 3
+    lbl.Parent                    = sec
+
+    -- Étoile dorée pour LEGENDARY
+    if seg.rarity == "LEGENDARY" then
+        local star                = Instance.new("TextLabel")
+        star.Size                 = UDim2.new(1, 0, 0, 22)
+        star.AnchorPoint          = Vector2.new(0.5, 0.5)
+        star.Position             = UDim2.new(0.5, 0, 0.68, 0)
+        star.BackgroundTransparency = 1
+        star.Text                 = "★"
+        star.TextColor3           = Color3.fromRGB(255, 240, 60)
+        star.Font                 = Enum.Font.GothamBlack
+        star.TextScaled           = true
+        star.ZIndex               = 3
+        star.Parent               = sec
+    end
 end
 
--- Lignes séparatrices blanches
+-- ── Lignes séparatrices blanches ─────────────────────────────────────────────
 for i = 1, N_SEGMENTS do
-    local lineAngle       = (i - 1) * SEG_ANGLE - SEG_ANGLE / 2
+    local lineAngle = (i - 1) * SEG_ANGLE - SEG_ANGLE / 2
     local line            = Instance.new("Frame")
-    line.Size             = UDim2.new(0, 3, 0, SH + 10)
+    line.Size             = UDim2.new(0, 4, 0, SH + 10)
     line.AnchorPoint      = Vector2.new(0.5, 1)
     line.Position         = UDim2.new(0, C, 0, C)
     line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    line.BorderSizePixel  = 0; line.Rotation = lineAngle; line.ZIndex = 3
+    line.BorderSizePixel  = 0
+    line.Rotation         = lineAngle
+    line.ZIndex           = 4
     line.Parent           = surfGui
 end
 
--- Icônes mèmes
-local IR = 158; local IS = 70
+-- ── Hub central (bouton SPIN) ─────────────────────────────────────────────────
+local hub             = Instance.new("Frame")
+hub.Size              = UDim2.new(0, 108, 0, 108)
+hub.AnchorPoint       = Vector2.new(0.5, 0.5)
+hub.Position          = UDim2.new(0.5, 0, 0.5, 0)
+hub.BackgroundColor3  = Color3.fromRGB(12, 12, 20)
+hub.BorderSizePixel   = 0; hub.ZIndex = 5; hub.Parent = surfGui
+Instance.new("UICorner", hub).CornerRadius = UDim.new(0.5, 0)
 
-for i = 1, N_SEGMENTS do
-    local seg    = SEGMENTS[i]
-    local aRad   = math.rad((i - 1) * SEG_ANGLE)
-    local cx     = C + IR * math.sin(aRad)
-    local cy     = C - IR * math.cos(aRad)
-    local isLeg  = seg.rarity == "LEGENDARY"
-    local isEpic = seg.rarity == "EPIC"
+local hs = Instance.new("UIStroke")
+hs.Color = Color3.fromRGB(255, 215, 0); hs.Thickness = 5; hs.Parent = hub
 
-    local badge             = Instance.new("Frame")
-    badge.Size              = UDim2.new(0, IS + 14, 0, IS + 14)
-    badge.AnchorPoint       = Vector2.new(0.5, 0.5)
-    badge.Position          = UDim2.new(0, cx, 0, cy)
-    badge.BackgroundColor3  = Color3.fromRGB(10, 10, 16)
-    badge.BorderSizePixel   = 0; badge.ZIndex = 4; badge.Parent = surfGui
-    Instance.new("UICorner", badge).CornerRadius = UDim.new(0.5, 0)
-
-    local stroke            = Instance.new("UIStroke")
-    stroke.Color            = isLeg  and Color3.fromRGB(255, 215,   0) or
-                              isEpic and Color3.fromRGB(200, 100, 255) or
-                                         Color3.fromRGB(220, 220, 220)
-    stroke.Thickness        = isLeg and 4 or 2; stroke.Parent = badge
-
-    local img               = Instance.new("ImageLabel")
-    img.Size                = UDim2.new(0, IS, 0, IS)
-    img.AnchorPoint         = Vector2.new(0.5, 0.5)
-    img.Position            = UDim2.new(0.5, 0, 0.44, 0)
-    img.BackgroundColor3    = Color3.fromRGB(12, 12, 16)
-    img.Image               = seg.item.imageId ~= 0 and ("rbxassetid://" .. seg.item.imageId) or ""
-    img.ScaleType           = Enum.ScaleType.Fit; img.ZIndex = 5; img.Parent = badge
-    Instance.new("UICorner", img).CornerRadius = UDim.new(0.5, 0)
-
-    local lbl               = Instance.new("TextLabel")
-    lbl.Size                = UDim2.new(0, IS + 14, 0, 15)
-    lbl.AnchorPoint         = Vector2.new(0.5, 0)
-    lbl.Position            = UDim2.new(0.5, 0, 1, 2)
-    lbl.BackgroundTransparency = 1
-    lbl.Text                = seg.item.name
-    lbl.TextColor3          = Color3.new(1, 1, 1); lbl.Font = Enum.Font.GothamBold
-    lbl.TextScaled          = true; lbl.TextStrokeTransparency = 0.4
-    lbl.ZIndex              = 5; lbl.Parent = badge
-end
-
--- Bouton SPIN central
-local centerBg              = Instance.new("Frame")
-centerBg.Size               = UDim2.new(0, 96, 0, 96)
-centerBg.AnchorPoint        = Vector2.new(0.5, 0.5)
-centerBg.Position           = UDim2.new(0.5, 0, 0.5, 0)
-centerBg.BackgroundColor3   = Color3.fromRGB(14, 14, 20)
-centerBg.BorderSizePixel    = 0; centerBg.ZIndex = 6; centerBg.Parent = surfGui
-Instance.new("UICorner", centerBg).CornerRadius = UDim.new(0.5, 0)
-local cs = Instance.new("UIStroke")
-cs.Color = Color3.fromRGB(255, 215, 0); cs.Thickness = 4; cs.Parent = centerBg
-local centerLbl             = Instance.new("TextLabel")
-centerLbl.Size              = UDim2.new(1, 0, 1, 0)
+local centerLbl           = Instance.new("TextLabel")
+centerLbl.Size            = UDim2.new(1, 0, 1, 0)
 centerLbl.BackgroundTransparency = 1
-centerLbl.Text              = "SPIN\n" .. SPIN_COST .. " G"
-centerLbl.TextColor3        = Color3.fromRGB(255, 230, 0); centerLbl.Font = Enum.Font.GothamBlack
-centerLbl.TextScaled        = true; centerLbl.ZIndex = 7; centerLbl.Parent = centerBg
+centerLbl.Text            = "SPIN\n" .. SPIN_COST .. "G"
+centerLbl.TextColor3      = Color3.fromRGB(255, 230, 0)
+centerLbl.Font            = Enum.Font.GothamBlack
+centerLbl.TextScaled      = true
+centerLbl.ZIndex          = 6
+centerLbl.Parent          = hub
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- BILLES : VAGUE DE COULEURS
@@ -538,6 +537,19 @@ local function animateWheel(fromDeg: number, finalDeg: number, winRarity: string
             pivot.CFrame = getPivotCF(finalDeg)
             pivot:SetAttribute("SpinAngle", finalDeg)
             resetPointer()
+
+            -- Flash néon doré → couleur de rareté → retour or
+            local rarityCol = RARITY_COLORS[winRarity] or Color3.fromRGB(255, 215, 0)
+            neonRing.Color  = rarityCol
+            domeLight.Color = rarityCol
+            task.delay(3.5, function()
+                TweenService:Create(neonRing,
+                    TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    { Color = Color3.fromRGB(255, 215, 0) }):Play()
+                TweenService:Create(domeLight,
+                    TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    { Color = Color3.fromRGB(255, 215, 0) }):Play()
+            end)
 
             if winRarity == "LEGENDARY" or winRarity == "EPIC" then
                 fanfareSound:Play()
