@@ -44,7 +44,7 @@ local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
 -- Galeries nord : joueurs à Z>142 regardent vers -Z (sud) → voient la fontaine (Z=0)
 --   → roue à Z=-20 (20 studs derrière la fontaine, au sud) ✓
 -- Face du disque vers +Z (NORD) = face aux joueurs dans leurs galeries et sur l'avenue.
-local WHEEL_CENTER     = Vector3.new(0, 18, -25)
+local WHEEL_CENTER     = Vector3.new(0, 18, -38)
 local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
 
 local RARITY_COLORS = {
@@ -146,15 +146,25 @@ local wheelFolder       = Instance.new("Folder")
 wheelFolder.Name        = "BrainrotWheel"
 wheelFolder.Parent      = Workspace
 
--- ── Poteau (hauteur dynamique selon WHEEL_CENTER.Y) ──────────────────────────
-local POST_H        = WHEEL_CENTER.Y + 2   -- dépasse légèrement le centre du disque
-local post          = Instance.new("Part")
-post.Name           = "WheelPost"; post.Size = Vector3.new(1.8, POST_H, 1.8)
-post.Position       = Vector3.new(WHEEL_CENTER.X, POST_H / 2, WHEEL_CENTER.Z + 1.1)
-post.Anchored       = true   -- STATIQUE ✓
-post.Material       = Enum.Material.Metal
-post.Color          = Color3.fromRGB(45, 45, 50)
-post.Parent         = wheelFolder
+-- ── Socle bas (face avant 100% dégagée — pas de poteau devant le disque) ──────
+-- Un socle plat au sol + un bras arrière caché derrière le disque.
+local pedestal      = Instance.new("Part")
+pedestal.Name       = "WheelBase"
+pedestal.Size       = Vector3.new(7, 2, 7)
+pedestal.Position   = Vector3.new(WHEEL_CENTER.X, 1, WHEEL_CENTER.Z)
+pedestal.Anchored   = true; pedestal.Material = Enum.Material.Metal
+pedestal.Color      = Color3.fromRGB(38, 38, 44); pedestal.CastShadow = false
+pedestal.Parent     = wheelFolder
+
+-- Bras de liaison vertical (côté dos = +Z local = derrière le disque, invisible de face)
+local ARM_H         = WHEEL_CENTER.Y - 2
+local arm           = Instance.new("Part")
+arm.Name            = "WheelArm"
+arm.Size            = Vector3.new(1.4, ARM_H, 1.4)
+arm.Position        = Vector3.new(WHEEL_CENTER.X, 2 + ARM_H / 2, WHEEL_CENTER.Z + 1.2)
+arm.Anchored        = true; arm.Material = Enum.Material.Metal
+arm.Color           = Color3.fromRGB(38, 38, 44); arm.CastShadow = false
+arm.Parent          = wheelFolder
 
 -- ── PIVOT (invisible, seul à être ancré, reçoit toutes les rotations) ─────────
 local pivot         = Instance.new("Part")
