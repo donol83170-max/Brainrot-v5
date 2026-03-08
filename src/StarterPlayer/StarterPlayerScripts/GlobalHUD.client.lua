@@ -82,28 +82,40 @@ ticketPill.Parent = currencyContainer
 
 -- == 2. BOUTON INVENTAIRE (BAS CENTRE) ==
 local invButton = Instance.new("TextButton")
-invButton.Name = "InventoryButton"
-invButton.Size = UDim2.new(0, 250, 0, 60)
-invButton.Position = UDim2.new(0.5, -125, 1, -80)
-invButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-invButton.Text = "🎒 INVENTAIRE"
-invButton.TextColor3 = Color3.new(1, 1, 1)
-invButton.Font = Enum.Font.GothamBlack
-invButton.TextSize = 24
-invButton.Parent = hudScreen
+invButton.Name             = "InventoryButton"
+invButton.Size             = UDim2.new(0, 250, 0, 60)
+invButton.Position         = UDim2.new(0.5, -125, 1, -80)
+invButton.BackgroundColor3 = Color3.fromRGB(0, 120, 220)
+invButton.Text             = "🎒  Inventaire  [E]"
+invButton.TextColor3       = Color3.new(1, 1, 1)
+invButton.Font             = Enum.Font.GothamBlack
+invButton.TextSize         = 22
+invButton.BorderSizePixel  = 0
+invButton.Parent           = hudScreen
+Instance.new("UICorner", invButton).CornerRadius = UDim.new(0.2, 0)
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0.2, 0)
-btnCorner.Parent = invButton
-
--- Effet de Hover sur le bouton
+-- Hover
 invButton.MouseEnter:Connect(function()
-    TweenService:Create(invButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 180, 255), Size = UDim2.new(0, 260, 0, 65), Position = UDim2.new(0.5, -130, 1, -82)}):Play()
+    TweenService:Create(invButton, TweenInfo.new(0.15), {
+        BackgroundColor3 = Color3.fromRGB(0, 160, 255),
+        Size             = UDim2.new(0, 262, 0, 64),
+        Position         = UDim2.new(0.5, -131, 1, -82),
+    }):Play()
+end)
+invButton.MouseLeave:Connect(function()
+    TweenService:Create(invButton, TweenInfo.new(0.15), {
+        BackgroundColor3 = Color3.fromRGB(0, 120, 220),
+        Size             = UDim2.new(0, 250, 0, 60),
+        Position         = UDim2.new(0.5, -125, 1, -80),
+    }):Play()
 end)
 
-invButton.MouseLeave:Connect(function()
-    TweenService:Create(invButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 150, 255), Size = UDim2.new(0, 250, 0, 60), Position = UDim2.new(0.5, -125, 1, -80)}):Play()
-end)
+-- Click → déclenche le toggle dans InventoryController via BindableEvent
+local function fireToggle()
+    local evt = playerGui:FindFirstChild("ToggleInventory")
+    if evt then evt:Fire() end
+end
+invButton.MouseButton1Click:Connect(fireToggle)
 
 local function refreshHUD(data)
     if not data or not data.Stats then return end

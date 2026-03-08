@@ -17,7 +17,8 @@ local SellResult       = Events:WaitForChild("SellResult")
 local SellAllRequest   = Events:WaitForChild("SellAllRequest")
 local SellAllResult    = Events:WaitForChild("SellAllResult")
 
-local inventory = {} -- cache local des items
+local inventory    = {} -- cache local des items
+local inSellZone   = false -- true quand le joueur est sur la dalle de vente
 
 -- ========== CONSTRUCTION UI ==========
 
@@ -150,23 +151,36 @@ local function buildItemRow(itemId, item)
 	countLabel.Text = "x" .. tostring(item.Count)
 	countLabel.Parent = row
 
-	-- Bouton vendre
+	-- Bouton vendre (actif seulement dans la Zone de Vente)
 	local sellBtn = Instance.new("TextButton")
-	sellBtn.Size = UDim2.new(0, 130, 0, 36)
-	sellBtn.Position = UDim2.new(1, -145, 0.5, -18)
-	sellBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-	sellBtn.TextColor3 = Color3.new(1, 1, 1)
-	sellBtn.Font = Enum.Font.GothamBold
-	sellBtn.TextSize = 15
-	sellBtn.Text = "Vendre  💰 " .. tostring(sellValue)
+	sellBtn.Size            = UDim2.new(0, 130, 0, 36)
+	sellBtn.Position        = UDim2.new(1, -145, 0.5, -18)
 	sellBtn.BorderSizePixel = 0
-	sellBtn.Parent = row
+	sellBtn.Font            = Enum.Font.GothamBold
+	sellBtn.TextSize        = 15
+	sellBtn.Parent          = row
 	Instance.new("UICorner", sellBtn).CornerRadius = UDim.new(0, 8)
 
+	-- Apparence selon la zone
+	if inSellZone then
+		sellBtn.Active          = true
+		sellBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
+		sellBtn.TextColor3      = Color3.new(1, 1, 1)
+		sellBtn.TextTransparency = 0
+		sellBtn.Text            = "Vendre 💰" .. tostring(sellValue)
+	else
+		sellBtn.Active          = false
+		sellBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+		sellBtn.TextColor3      = Color3.fromRGB(140, 140, 150)
+		sellBtn.TextTransparency = 0
+		sellBtn.Text            = "💰 " .. tostring(sellValue)
+	end
+
 	sellBtn.MouseButton1Click:Connect(function()
-		sellBtn.Active = false
+		if not inSellZone then return end
+		sellBtn.Active          = false
 		sellBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-		sellBtn.Text = "..."
+		sellBtn.Text            = "..."
 		SellRequest:FireServer(itemId)
 	end)
 
@@ -216,44 +230,28 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.E then toggleInventory() end
 end)
 
--- ── Bouton HUD (bas-gauche, toujours visible) ─────────────────────────────────
-local hudGui = Instance.new("ScreenGui")
-hudGui.Name         = "InventoryHUD"
-hudGui.ResetOnSpawn = false
-hudGui.Parent       = playerGui
+-- ── BindableEvent exposé pour que GlobalHUD puisse déclencher le toggle ────────
+local toggleEvent      = Instance.new("BindableEvent")
+toggleEvent.Name       = "ToggleInventory"
+toggleEvent.Parent     = playerGui
+toggleEvent.Event:Connect(toggleInventory)
 
-local invBtn = Instance.new("TextButton")
-invBtn.Size             = UDim2.new(0, 170, 0, 50)
-invBtn.Position         = UDim2.new(0, 12, 1, -66)
-invBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
-invBtn.TextColor3       = Color3.new(1, 1, 1)
-invBtn.Font             = Enum.Font.GothamBold
-invBtn.Text             = "🎒  Inventaire  [E]"
-invBtn.TextScaled       = true
-invBtn.BorderSizePixel  = 0
-invBtn.ZIndex           = 5
-invBtn.Parent           = hudGui
-Instance.new("UICorner", invBtn).CornerRadius = UDim.new(0, 10)
-local invBtnStroke = Instance.new("UIStroke", invBtn)
-invBtnStroke.Color     = Color3.fromRGB(80, 80, 130)
-invBtnStroke.Thickness = 2
-invBtn.MouseButton1Click:Connect(toggleInventory)
+-- ========== ZONE DE VENTE ==========
+-- Entrer dans la zone → inventaire s'ouvre + boutons Vendre activés
+-- Sortir de la zone  → inventaire se ferme + boutons Vendre grisés
 
--- ========== ZONE DE VENTE (touche V) ==========
+local SELL_ZONE_RANGE = 8  -- studs
 
-local SELL_ZONE_RANGE = 8  -- studs — distance de détection
-local nearSellZone    = false
-
--- Hint bas-centre (visible uniquement dans la zone)
+-- Hint bas-centre
 local hintGui = Instance.new("ScreenGui")
 hintGui.Name         = "SellHintGui"
 hintGui.ResetOnSpawn = false
 hintGui.Parent       = playerGui
 
 local hintFrame = Instance.new("Frame")
-hintFrame.Size             = UDim2.new(0, 320, 0, 54)
+hintFrame.Size             = UDim2.new(0, 350, 0, 50)
 hintFrame.AnchorPoint      = Vector2.new(0.5, 1)
-hintFrame.Position         = UDim2.new(0.5, 0, 1, -80)
+hintFrame.Position         = UDim2.new(0.5, 0, 1, -90)
 hintFrame.BackgroundColor3 = Color3.fromRGB(0, 140, 55)
 hintFrame.BorderSizePixel  = 0
 hintFrame.Visible          = false
@@ -265,7 +263,7 @@ local hintLbl = Instance.new("TextLabel")
 hintLbl.Size                   = UDim2.new(1, -12, 1, 0)
 hintLbl.Position               = UDim2.new(0, 6, 0, 0)
 hintLbl.BackgroundTransparency = 1
-hintLbl.Text                   = "[V] Vendre tous les items"
+hintLbl.Text                   = "💰 Zone de vente — cliquez sur Vendre"
 hintLbl.TextColor3             = Color3.new(1, 1, 1)
 hintLbl.Font                   = Enum.Font.GothamBold
 hintLbl.TextScaled             = true
@@ -273,10 +271,8 @@ hintLbl.TextStrokeTransparency = 0.4
 hintLbl.ZIndex                 = 11
 hintLbl.Parent                 = hintFrame
 
--- Trouver la zone de vente (créée par WorldAssets.server)
 local sellZonePart = Workspace:WaitForChild("SellZone", 15)
 
--- Boucle de proximité (check toutes les 0.4 s)
 if sellZonePart then
 	task.spawn(function()
 		while true do
@@ -286,39 +282,28 @@ if sellZonePart then
 				local hrp = char:FindFirstChild("HumanoidRootPart")
 				if hrp then
 					local dist   = (hrp.Position - sellZonePart.Position).Magnitude
-					local inZone = dist <= SELL_ZONE_RANGE
-					if inZone ~= nearSellZone then
-						nearSellZone      = inZone
-						hintFrame.Visible = inZone
-						-- Réinitialiser le texte quand on entre dans la zone
-						if inZone then hintLbl.Text = "[V] Vendre tous les items" end
+					local nowIn  = dist <= SELL_ZONE_RANGE
+					if nowIn ~= inSellZone then
+						inSellZone        = nowIn
+						hintFrame.Visible = nowIn
+						if nowIn then
+							-- Entrer : ouvrir inventaire + activer boutons
+							hintLbl.Text = "💰 Zone de vente — cliquez sur Vendre"
+							if not screenGui.Enabled then
+								screenGui.Enabled = true
+							end
+							refreshInventory()   -- rebuild avec boutons verts
+						else
+							-- Sortir : fermer inventaire + griser boutons
+							screenGui.Enabled = false
+							refreshInventory()   -- rebuild avec boutons gris (pour le prochain open)
+						end
 					end
 				end
 			end
 		end
 	end)
 end
-
--- Touche V : vendre tout si dans la zone
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.V and nearSellZone then
-		hintLbl.Text = "⏳ Vente en cours..."
-		SellAllRequest:FireServer()
-	end
-end)
-
--- Retour de vente groupée
-SellAllResult.OnClientEvent:Connect(function(itemsSold, totalGold)
-	if itemsSold == 0 then
-		hintLbl.Text = "Inventaire déjà vide !"
-	else
-		hintLbl.Text = string.format("💰 +%d Coins  (%d items !)", totalGold, itemsSold)
-	end
-	task.delay(2.5, function()
-		if nearSellZone then hintLbl.Text = "[V] Vendre tous les items" end
-	end)
-end)
 
 -- ========== SYNCHRONISATION DONNÉES ==========
 
