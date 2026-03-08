@@ -539,81 +539,7 @@ local function resetPointer()
     pShaft.CFrame  = CFrame.new(PTR_X, POINTER_CY + 1.6, WHEEL_CENTER.Z)
 end
 
--- ── ANIMATION (deux phases) ───────────────────────────────────────────────────
---
--- Phase 1 : Spin rapide constant (Heartbeat manuel, FULL_ROTATIONS tours)
--- Phase 2 : TweenService QuartOut sur NumberValue → décélération vers le segment
---
-local function animateWheel(fromDeg: number, finalDeg: number, winRarity: string)
-    beadSpinning = true
-    lastSegTick  = -1
-
-    -- ── Phase 1 : rotation constante ─────────────────────────────────────────
-    local phase1Start      = tick()
-    local phase1TotalDelta = FULL_ROTATIONS * 360  -- degrés parcourus en phase 1
-    local phase1EndDeg     = fromDeg + phase1TotalDelta
-
-    local conn1 = RunService.Heartbeat:Connect(function()
-        local t = math.min((tick() - phase1Start) / PHASE1_DURATION, 1)
-        applyAngle(fromDeg + t * phase1TotalDelta)
-    end)
-
-    -- ── Phase 2 : TweenService QuartOut ──────────────────────────────────────
-    task.delay(PHASE1_DURATION, function()
-        conn1:Disconnect()
-
-        local numVal    = Instance.new("NumberValue")
-        numVal.Value    = phase1EndDeg
-
-        local tween = TweenService:Create(
-            numVal,
-            TweenInfo.new(PHASE2_DURATION, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-            { Value = finalDeg }
-        )
-
-        local phase2Start = tick()
-        local conn2 = RunService.Heartbeat:Connect(function()
-            applyAngle(numVal.Value)
-
-            -- Vibration pointeur (s'atténue avec la décélération)
-            local elapsed  = tick() - phase2Start
-            local progress = math.min(elapsed / PHASE2_DURATION, 1)
-            local bobY     = math.sin(elapsed * 20) * (1 - progress) * 0.24
-            pointer.CFrame = CFrame.new(PTR_X, POINTER_CY + bobY, WHEEL_CENTER.Z)
-                           * CFrame.Angles(0, 0, math.rad(180))
-            pShaft.CFrame  = CFrame.new(PTR_X, POINTER_CY + bobY + 1.6, WHEEL_CENTER.Z)
-        end)
-
-        tween.Completed:Connect(function()
-            conn2:Disconnect()
-            numVal:Destroy()
-            beadSpinning = false
-
-            pivot.CFrame = getPivotCF(finalDeg)
-            pivot:SetAttribute("SpinAngle", finalDeg)
-            resetPointer()
-
-            -- L'anneau néon et le dôme restent fixés sur leur couleur or 
-            -- (plus de clignotement de la couleur du segment gagné)
-
-            if winRarity == "LEGENDARY" or winRarity == "EPIC" then
-                fanfareSound:Play()
-                if winRarity == "LEGENDARY" then
-                    local sp        = Instance.new("Sparkles")
-                    sp.SparkleColor = Color3.fromRGB(255, 215, 0)
-                    sp.Parent       = dome
-                    task.delay(5, function() if sp.Parent then sp:Destroy() end end)
-                end
-            else
-                winSound:Play()
-            end
-
-            wheelLocked = false
-        end)
-
-        tween:Play()
-    end)
-end
+-- ── L'animation 3D a été retirée : le client s'occupe de l'UI 2D ───────────────
 
 -- ── Gestion du clic (sur le Dôme doré) ────────────────────────────────────────
 clickDetector.MouseClick:Connect(function(player: Player)
@@ -642,16 +568,8 @@ clickDetector.MouseClick:Connect(function(player: Player)
     local segsOfRarity = SEGS_BY_RARITY[winRarity]
     local winSegIdx    = segsOfRarity[math.random(1, #segsOfRarity)]
 
-    -- Calcul de l'angle final corrigé (inversion pour le pointeur)
-    -- Le pointeur est fixe à 0°. Pour qu'un segment arrivé à l'indice N
-    -- se retrouve SOUS le pointeur, on cible (360 - N×30°) % 360.
-    local currentAngle = pivot:GetAttribute("SpinAngle") or 0
-    local phase1End    = currentAngle + FULL_ROTATIONS * 360
-    local winAngle     = (360 - ((winSegIdx - 1) * SEG_ANGLE)) % 360
-    local phase1Mod    = phase1End % 360
-    local needed       = (winAngle - phase1Mod + 360) % 360
-    if needed < 5 then needed = needed + 360 end
-    local finalDeg     = phase1End + needed
+    -- Calcul de l'angle pour la logique pure (non utilisé en 3D mais transmis au besoin)
+    local winAngle = (360 - ((winSegIdx - 1) * SEG_ANGLE)) % 360
 
     -- Inventaire + galerie
     DataManager.AddItem(player, { Id = winItem.itemId, Name = winItem.name, Rarity = winRarity })
@@ -661,19 +579,24 @@ clickDetector.MouseClick:Connect(function(player: Player)
     local updated = DataManager.GetData(player)
     if updated then UpdateClientData:FireClient(player, updated) end
 
-    print(string.format("[WheelSystem] %s → %s '%s' | seg%d | %.1f°→%.1f°",
-        player.Name, winRarity, winItem.name, winSegIdx, currentAngle, finalDeg))
+    print(string.format("[WheelSystem] %s → %s '%s' | seg%d",
+        player.Name, winRarity, winItem.name, winSegIdx))
 
     SpinResult:FireClient(player, {
         success    = true,
+        segments   = SEGMENTS,
         winSegment = winSegIdx,
         memeName   = winItem.name,
         memeRarity = winRarity,
         imageId    = winItem.imageId,
         duration   = SPIN_DURATION,
+        rotations  = FULL_ROTATIONS
     })
 
-    animateWheel(currentAngle, finalDeg, winRarity)
+    -- Déverrouillage après l'animation 2D
+    task.delay(SPIN_DURATION + 1, function()
+        wheelLocked = false
+    end)
 end)
 
 print(string.format(
