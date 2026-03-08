@@ -53,6 +53,7 @@ local function createUI(segments)
     wheelContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
     wheelContainer.AnchorPoint = Vector2.new(0.5, 0.5)
     wheelContainer.BackgroundColor3 = Color3.fromRGB(180, 180, 180) -- Gris clair neutre
+    wheelContainer.BackgroundTransparency = 1 -- Cacher le fond gris
     wheelContainer.ClipsDescendants = true
     wheelContainer.ZIndex = 2
     Instance.new("UICorner", wheelContainer).CornerRadius = UDim.new(1, 0)
@@ -76,14 +77,16 @@ local function createUI(segments)
         -- Le triangle parfait
         local img = Instance.new("ImageLabel")
         img.Name = "Segment_" .. i
-        img.Size = UDim2.new(0, arcWidth, 0, radius)
+        -- Taille suffisante pour le rayon (hauteur 50% du parent, largeur suffisante pour le secteur)
+        img.Size = UDim2.new(0.5, 0, 0.5, 0) 
         img.Position = UDim2.new(0.5, 0, 0.5, 0)
         img.AnchorPoint = Vector2.new(0.5, 1) -- Sommet du triangle au centre exact
         img.BackgroundTransparency = 1
-        img.Image = "rbxassetid://12543133373"
+        img.Image = "rbxassetid://7072740454"
         img.ImageColor3 = rCol
+        img.ImageTransparency = 0
         img.Rotation = i * 30 -- Fais pivoter chaque triangle de 30°
-        img.ZIndex = 3
+        img.ZIndex = 2
         img.Parent = wheelContainer
     end
 
@@ -94,7 +97,7 @@ local function createUI(segments)
     hubCenter.Position = UDim2.new(0.5, 0, 0.5, 0)
     hubCenter.AnchorPoint = Vector2.new(0.5, 0.5)
     hubCenter.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Doré
-    hubCenter.ZIndex = 5
+    hubCenter.ZIndex = 3
     Instance.new("UICorner", hubCenter).CornerRadius = UDim.new(1, 0)
     hubCenter.Parent = wheelContainer
 
