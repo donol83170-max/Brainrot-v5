@@ -158,7 +158,7 @@ pedestal.Name       = "WheelBase"
 pedestal.Size       = Vector3.new(7, 2, 7)
 pedestal.Position   = Vector3.new(WHEEL_CENTER.X, 1, WHEEL_CENTER.Z)
 pedestal.Anchored   = true; pedestal.Material = Enum.Material.Metal
-pedestal.Color      = Color3.fromRGB(38, 38, 44); pedestal.CastShadow = false
+pedestal.Color      = Color3.fromRGB(180, 180, 180); pedestal.CastShadow = false
 pedestal.Parent     = wheelFolder
 
 -- Bras de liaison vertical (côté dos = +Z local = derrière le disque, invisible de face)
@@ -168,9 +168,8 @@ arm.Name            = "WheelArm"
 arm.Size            = Vector3.new(1.4, ARM_H, 1.4)
 arm.Position        = Vector3.new(WHEEL_CENTER.X + 1.2, 2 + ARM_H / 2, WHEEL_CENTER.Z)
 arm.Anchored        = true; arm.Material = Enum.Material.Metal
-arm.Color           = Color3.fromRGB(38, 38, 44); arm.CastShadow = false
+arm.Color           = Color3.fromRGB(180, 180, 180); arm.CastShadow = false
 arm.Parent          = wheelFolder
-
 -- ── PIVOT (invisible, seul à être ancré, reçoit toutes les rotations) ─────────
 local pivot         = Instance.new("Part")
 pivot.Name          = "Pivot"
@@ -462,7 +461,7 @@ hubPart.Name            = "HubCenter"
 hubPart.Shape           = Enum.PartType.Cylinder
 hubPart.Size            = Vector3.new(SEG_T + 0.1, 3.6, 3.6)
 hubPart.CFrame          = ORIGINAL_CFRAME
-hubPart.Color           = Color3.fromRGB(16, 16, 24)
+hubPart.Color           = Color3.fromRGB(180, 180, 180)
 hubPart.Material        = Enum.Material.SmoothPlastic
 hubPart.Reflectance     = 0.25
 hubPart.Anchored        = false
@@ -594,18 +593,8 @@ local function animateWheel(fromDeg: number, finalDeg: number, winRarity: string
             pivot:SetAttribute("SpinAngle", finalDeg)
             resetPointer()
 
-            -- Flash néon doré → couleur de rareté → retour or
-            local rarityCol = RARITY_COLORS[winRarity] or Color3.fromRGB(255, 215, 0)
-            neonRing.Color  = rarityCol
-            domeLight.Color = rarityCol
-            task.delay(3.5, function()
-                TweenService:Create(neonRing,
-                    TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    { Color = Color3.fromRGB(255, 215, 0) }):Play()
-                TweenService:Create(domeLight,
-                    TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    { Color = Color3.fromRGB(255, 215, 0) }):Play()
-            end)
+            -- L'anneau néon et le dôme restent fixés sur leur couleur or 
+            -- (plus de clignotement de la couleur du segment gagné)
 
             if winRarity == "LEGENDARY" or winRarity == "EPIC" then
                 fanfareSound:Play()
