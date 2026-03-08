@@ -141,6 +141,12 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONSTRUCTION PHYSIQUE
 -- ══════════════════════════════════════════════════════════════════════════════
+-- Nettoyage Total (Destruction de l'ancienne roue pour forcer la v5 physique)
+local oldWheel = Workspace:FindFirstChild("BrainrotWheel")
+if oldWheel then
+    oldWheel:Destroy()
+end
+
 local wheelFolder       = Instance.new("Folder")
 wheelFolder.Name        = "BrainrotWheel"
 wheelFolder.Parent      = Workspace
@@ -182,14 +188,14 @@ pivot:SetAttribute("SpinAngle", 0)
 local wheelDisk     = Instance.new("Part")
 wheelDisk.Name      = "WheelDisk"
 wheelDisk.Shape     = Enum.PartType.Cylinder
-wheelDisk.Size      = Vector3.new(0.82, WHEEL_RADIUS * 2, WHEEL_RADIUS * 2)
+wheelDisk.Size      = Vector3.new(0.82, WHEEL_RADIUS * 2 + 0.2, WHEEL_RADIUS * 2 + 0.2) -- slightly larger
 wheelDisk.CFrame    = ORIGINAL_CFRAME
 wheelDisk.Anchored     = false  -- NON ancré ✓ (suit le Pivot via WeldConstraint)
 wheelDisk.CanCollide   = false
 wheelDisk.CastShadow   = false
 wheelDisk.Material     = Enum.Material.SmoothPlastic
-wheelDisk.Color        = Color3.fromRGB(18, 18, 24)
-wheelDisk.Transparency = 1      -- invisible : les segments physiques couvrent tout
+wheelDisk.Color        = Color3.fromRGB(12, 12, 18) -- Dark rim
+wheelDisk.Transparency = 0      -- visible : fond cylindrique parfait
 wheelDisk.Parent       = wheelFolder
 
 local diskWeld      = Instance.new("WeldConstraint")
@@ -342,25 +348,56 @@ for i = 1, N_SEGMENTS do
     local segData  = SEGMENTS[i]
     local midRad   = math.rad((i - 1) * SEG_ANGLE)
 
-    -- CFrame : rotation autour de l'axe X du disque, puis offset radial de L/2
-    local segCF = ORIGINAL_CFRAME
-        * CFrame.Angles(midRad, 0, 0)
-        * CFrame.new(0, SEG_L / 2, 0)
+    -- ── GEOMÉTRIE : Une slice 30° = 2 WedgeParts (15° chacun) en miroir
+    -- Size: X=épaisseur, Y=rayon, Z=largeur (rayon * tan(15°))
+    local WEDGE_Z = WHEEL_RADIUS * math.tan(math.rad(SEG_ANGLE / 2))
+    local wSize   = Vector3.new(SEG_T, WHEEL_RADIUS, WEDGE_Z)
+    local col     = RARITY_COLORS[segData.rarity]
 
-    local segPart           = Instance.new("Part")
-    segPart.Name            = "Segment" .. i
-    segPart.Size            = Vector3.new(SEG_T, SEG_L, SEG_W)
-    segPart.CFrame          = segCF
-    segPart.Color           = RARITY_COLORS[segData.rarity]
-    segPart.Material        = Enum.Material.SmoothPlastic
-    segPart.Reflectance     = segData.rarity == "LEGENDARY" and 0.35 or 0
-    segPart.Anchored        = false
-    segPart.CanCollide      = false
-    segPart.CastShadow      = false
-    segPart.Parent          = wheelFolder
+    local sliceCF = ORIGINAL_CFRAME * CFrame.Angles(midRad, 0, 0)
 
-    local sw = Instance.new("WeldConstraint")
-    sw.Part0 = pivot; sw.Part1 = segPart; sw.Parent = pivot
+    -- Moitié Droite (WedgePart)
+    local wRight          = Instance.new("WedgePart")
+    wRight.Name           = "SegRight" .. i
+    wRight.Size           = wSize
+    -- 90° corner de WedgePart est en bas/arrière. On la place au centre exact.
+    wRight.CFrame         = sliceCF * CFrame.new(0, WHEEL_RADIUS / 2, -wSize.Z / 2)
+    wRight.Color          = col
+    wRight.Material       = Enum.Material.Neon   -- Couleurs vives exigées
+    wRight.Anchored       = false; wRight.CanCollide = false; wRight.CastShadow = false
+    wRight.Parent         = wheelFolder
+    local swR = Instance.new("WeldConstraint"); swR.Part0 = pivot; swR.Part1 = wRight; swR.Parent = pivot
+
+    -- Moitié Gauche (WedgePart miroir : rotation 180° autour de Y local pour flipper Z)
+    local wLeft           = Instance.new("WedgePart")
+    wLeft.Name            = "SegLeft" .. i
+    wLeft.Size            = wSize
+    wLeft.CFrame          = sliceCF * CFrame.Angles(0, math.rad(180), 0) * CFrame.new(0, WHEEL_RADIUS / 2, -wSize.Z / 2)
+    wLeft.Color           = col
+    wLeft.Material        = Enum.Material.Neon
+    wLeft.Anchored        = false; wLeft.CanCollide = false; wLeft.CastShadow = false
+    wLeft.Parent          = wheelFolder
+    local swL = Instance.new("WeldConstraint"); swL.Part0 = pivot; swL.Part1 = wLeft; swL.Parent = pivot
+
+    -- ── SurfaceGui texte sur la face fontaine (NormalId.Right du Cylinder/Wedge) ────────────
+    -- On crée une Part Bloc invisible très fine à l'avant pour porter le UI (sinon le Wedge casse le SurfaceGui)
+    local uiPart          = Instance.new("Part")
+    uiPart.Name           = "UiPart" .. i
+    uiPart.Size           = Vector3.new(0.05, WHEEL_RADIUS, 2 * WEDGE_Z)
+    uiPart.CFrame         = sliceCF * CFrame.new(SEG_T / 2 + 0.02, WHEEL_RADIUS / 2, 0)
+    uiPart.Transparency   = 1
+    uiPart.Anchored       = false; uiPart.CanCollide = false; uiPart.CastShadow = false
+    uiPart.Parent         = wheelFolder
+    local swUI = Instance.new("WeldConstraint"); swUI.Part0 = pivot; swUI.Part1 = uiPart; swUI.Parent = pivot
+
+    local sg            = Instance.new("SurfaceGui")
+    sg.Name             = "SegGui" .. i
+    sg.Face             = Enum.NormalId.Right
+    sg.CanvasSize       = Vector2.new(256, 512)
+    sg.SizingMode       = Enum.SurfaceGuiSizingMode.FixedSize
+    sg.AlwaysOnTop      = false
+    sg.ZOffset          = 0.1
+    sg.Parent           = uiPart
 
     -- ── Séparateur néon blanc (bord de segment) ────────────────────────────
     local sepRad = math.rad((i - 1) * SEG_ANGLE - SEG_ANGLE / 2)
