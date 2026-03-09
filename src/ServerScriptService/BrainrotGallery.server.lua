@@ -802,22 +802,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         bl.Parent     = glassAmb
     end
 
-    -- ── BALISE DEBUG : colonne néon rouge au-dessus du toit ──────────────────
-    local ROOF_TOP    = FLOOR_Y + WALL_H + 0.5
-    local beaconCentZ = worldZ(START_Z + GALLERY_LEN / 2)
-    local beacon      = Instance.new("Part")
-    beacon.Name         = "DEBUG_Beacon_" .. plotIndex
-    beacon.Shape        = Enum.PartType.Cylinder
-    beacon.Size         = Vector3.new(1000, 2, 2)
-    beacon.CFrame       = CFrame.new(offsetX, ROOF_TOP + 500, beaconCentZ)
-                        * CFrame.Angles(0, 0, math.pi / 2)
-    beacon.Anchored     = true
-    beacon.CanCollide   = false
-    beacon.Material     = Enum.Material.Neon
-    beacon.Color        = Color3.fromRGB(255, 0, 0)
-    beacon.CastShadow   = false
-    beacon.Parent       = folder
-
     -- Force l'ancrage de toutes les BaseParts
     for _, v in pairs(folder:GetDescendants()) do
         if v:IsA("BasePart") then v.Anchored = true end
@@ -879,35 +863,47 @@ local function addFigurineBillboard(adornee: Instance, offsetY: number,
 end
 
 -- Recherche insensible à la casse dans BrainrotModels.
--- Si plusieurs enfants ont le même nom (ex. placeholder + vrai modèle),
--- préfère le plus complexe (le plus de descendants = vrai modèle Toolbox).
-local function findBrainrotModel(name: string): Model?
+-- Accepte TOUT type d'Instance (Model, MeshPart, Part, Folder, etc.)
+-- Si plusieurs enfants ont le même nom, préfère le plus riche en descendants.
+-- Retourne l'Instance trouvée, ou nil si vraiment absente.
+local function findBrainrotModel(name: string): Instance?
     if not brainrotModelsFolder then
         warn("[BrainrotGallery] findBrainrotModel: brainrotModelsFolder est nil — modèles pas encore chargés")
         return nil
     end
     local lowerName = string.lower(name)
-    local best: Model? = nil
+    local best: Instance? = nil
     local bestCount = -1
+    local foundButRejected = false
+
     for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
-        if child:IsA("Model") then
-            local childLower = string.lower(child.Name)
-            if childLower == lowerName then
-                local n = #child:GetDescendants()
-                if n > bestCount then
-                    bestCount = n
-                    best      = child :: Model
-                end
-            else
-                -- Avertir si nom similaire (aide à repérer les fautes de frappe)
-                if string.find(childLower, lowerName, 1, true) or string.find(lowerName, childLower, 1, true) then
-                    warn(string.format("[BrainrotGallery] Nom similaire trouvé : cherché='%s' / trouvé='%s' — faute de frappe ?", name, child.Name))
-                end
+        local childLower = string.lower(child.Name)
+        if childLower == lowerName then
+            -- Correspondance de nom — on accepte TOUS les types
+            local n = #child:GetDescendants()
+            print(string.format("[BrainrotGallery] Candidat pour '%s' : '%s' (%s, %d descendants)",
+                name, child.Name, child.ClassName, n))
+            if n > bestCount then
+                bestCount = n
+                best      = child
+            end
+        else
+            -- Avertir si nom similaire (aide à repérer les fautes de frappe)
+            if string.find(childLower, lowerName, 1, true) or string.find(lowerName, childLower, 1, true) then
+                warn(string.format("[BrainrotGallery] Nom similaire : cherché='%s' / trouvé='%s' (%s) — faute de frappe ?",
+                    name, child.Name, child.ClassName))
             end
         end
     end
+
     if best then
-        print(string.format("[BrainrotGallery] Modèle trouvé pour '%s' (%d descendants)", name, bestCount))
+        print(string.format("[BrainrotGallery] ✓ Sélectionné pour '%s' : '%s' (%s, %d descendants)",
+            name, (best :: Instance).Name, (best :: Instance).ClassName, bestCount))
+    else
+        warn(string.format("[BrainrotGallery] ✗ RAISON DU REJET : aucun enfant de BrainrotModels ne correspond au nom '%s' (insensible à la casse). Liste des enfants :", name))
+        for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
+            warn(string.format("   → '%s' (%s)", child.Name, child.ClassName))
+        end
     end
     return best
 end
@@ -929,74 +925,110 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
     -- CFrame du dessus du socle (surface sur laquelle le modèle est posé)
     local socleTopCF = topPart.CFrame * CFrame.new(0, topPart.Size.Y / 2, 0)
 
-    -- ── Cherche le vrai modèle (insensible à la casse) ───────────────────────
+    -- ── Cherche le vrai asset (insensible à la casse, tout type accepté) ───────
     local template = findBrainrotModel(itemData.Name)
 
     if template then
-        -- ── MODÈLE 3D TOOLBOX ────────────────────────────────────────────────
+        -- ── ASSET TOOLBOX (Model, MeshPart, Part, Folder…) ───────────────────
         local clone = template:Clone()
-        clone.Name  = "Figurine_" .. slotIndex
+        clone.Name   = "Figurine_" .. slotIndex
 
-        -- Auto-scaling : contenir dans MAX_FIGURINE_DIM studs
-        local ok, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
-        if ok and rawBB then
-            local maxDim = math.max((rawBB :: Vector3).X, (rawBB :: Vector3).Y, (rawBB :: Vector3).Z)
-            if maxDim > 0.01 and maxDim > MAX_FIGURINE_DIM then
-                pcall(function() clone:ScaleTo(MAX_FIGURINE_DIM / maxDim) end)
-            end
-        end
-
-        -- FIX 2 : garantir qu'un PrimaryPart existe avant PivotTo
-        if not clone.PrimaryPart then
-            local bp = clone:FindFirstChildWhichIsA("BasePart", true)
-            if bp then
-                clone.PrimaryPart = bp :: BasePart
-                warn(string.format("[BrainrotGallery] '%s' sans PrimaryPart — '%s' assigné automatiquement",
-                    itemData.Name, (bp :: BasePart).Name))
-            end
-        end
-
-        -- Pose : pivot du modèle à 2 studs au-dessus de la surface du socle
-        local targetCF = socleTopCF * CFrame.new(0, 2, 0)
-        if clone.PrimaryPart then
-            clone:PivotTo(targetCF)
-        else
-            -- Secours si le modèle n'a aucun BasePart (ne devrait pas arriver)
-            clone:MoveTo(targetCF.Position)
-            warn(string.format("[BrainrotGallery] '%s' sans aucun BasePart — MoveTo de secours utilisé", itemData.Name))
-        end
+        -- ★ PARENT EN PREMIER — le clone doit être dans le Workspace AVANT
+        --   tout PivotTo / ScaleTo, sinon Roblox l'ignore (reste dans nil)
         clone.Parent = state.folder
 
-        -- Effets sur le PrimaryPart (ou premier BasePart trouvé)
-        local pp: BasePart? = clone.PrimaryPart
-                           or clone:FindFirstChildOfClass("BasePart") :: BasePart?
+        -- FIX Gravité : ancrer TOUS les BasePart (clone lui-même s'il en est un)
+        if clone:IsA("BasePart") then
+            (clone :: BasePart).Anchored   = true
+            (clone :: BasePart).CanCollide = false
+        end
+        for _, part in pairs(clone:GetDescendants()) do
+            if part:IsA("BasePart") then
+                (part :: BasePart).Anchored   = true
+                (part :: BasePart).CanCollide = false
+            end
+        end
+
+        -- FIX Transparence : remettre à 0 les parts totalement invisibles
+        if clone:IsA("BasePart") and (clone :: BasePart).Transparency >= 1 then
+            (clone :: BasePart).Transparency = 0
+        end
+        for _, part in pairs(clone:GetDescendants()) do
+            if part:IsA("BasePart") and (part :: BasePart).Transparency >= 1 then
+                (part :: BasePart).Transparency = 0
+                warn(string.format("[BrainrotGallery] Part '%s' dans '%s' était Transparency=1 — corrigé",
+                    part.Name, itemData.Name))
+            end
+        end
+
+        -- Auto-scaling : contenir dans MAX_FIGURINE_DIM studs, puis boost ×1.5
+        if clone:IsA("Model") then
+            local ok, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
+            if ok and rawBB then
+                local maxDim = math.max((rawBB :: Vector3).X, (rawBB :: Vector3).Y, (rawBB :: Vector3).Z)
+                if maxDim > 0.01 and maxDim > MAX_FIGURINE_DIM then
+                    pcall(function() (clone :: Model):ScaleTo(MAX_FIGURINE_DIM / maxDim) end)
+                end
+            end
+            -- Boost visuel ×2.25 (taille finale sur le socle)
+            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * 2.25) end)
+        end
+
+        -- ── Orientation : debout (axe Z) + face vers le couloir (axe Y) ──────
+        -- Étape 1 — Redressement : rotation +90° sur Z = modèle debout
+        --           (utilise Z et non X pour éviter de coucher sur le côté)
+        -- Étape 2 — Face au couloir : rotation Y selon le côté du socle
+        --   Slots impairs = côté gauche (X<0) → yRot = +90° (face vers +X = centre)
+        --   Slots pairs   = côté droit  (X>0) → yRot = -90° (face vers -X = centre)
+        local yRot  = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
+        local standCF = CFrame.Angles(0, 0, math.rad(-90)) * CFrame.Angles(0, yRot, 0)
+
+        -- Position cible : 2 studs au-dessus du dessus du socle
+        local targetPos = (socleTopCF * CFrame.new(0, 2, 0)).Position
+        local targetCF  = CFrame.new(targetPos) * standCF
+
+        if clone:IsA("Model") then
+            local mdl = clone :: Model
+            -- FIX PrimaryPart : garantir qu'un PrimaryPart existe avant PivotTo
+            if not mdl.PrimaryPart then
+                local bp = mdl:FindFirstChildWhichIsA("BasePart", true)
+                if bp then
+                    mdl.PrimaryPart = bp :: BasePart
+                    warn(string.format("[BrainrotGallery] '%s' sans PrimaryPart — '%s' assigné automatiquement",
+                        itemData.Name, (bp :: BasePart).Name))
+                end
+            end
+            if mdl.PrimaryPart then
+                mdl:PivotTo(targetCF)
+            else
+                mdl:MoveTo(targetPos)
+                warn(string.format("[BrainrotGallery] '%s' sans aucun BasePart — MoveTo de secours", itemData.Name))
+            end
+        elseif clone:IsA("BasePart") then
+            (clone :: BasePart).CFrame = targetCF
+        else
+            local bp = clone:FindFirstChildWhichIsA("BasePart", true)
+            if bp then (bp :: BasePart).CFrame = targetCF end
+        end
+
+        -- Effets visuels sur le BasePart le plus pertinent
+        local pp: BasePart? = if clone:IsA("BasePart") then clone :: BasePart
+                              elseif clone:IsA("Model")  then (clone :: Model).PrimaryPart
+                                                                or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
+                              else clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
         if pp then
             addFigurineEffects(pp :: BasePart, rarityColor, itemData.Rarity)
             addFigurineBillboard(pp :: BasePart, 2.5, itemData.Name, rarityColor)
         end
 
         state.displayParts[slotIndex] = clone
-        print(string.format("[BrainrotGallery] Modèle 3D '%s' posé sur slot %d", itemData.Name, slotIndex))
+        print(string.format("[BrainrotGallery] ✓ Asset '%s' (%s) posé sur slot %d",
+            itemData.Name, clone.ClassName, slotIndex))
 
     else
-        -- ── FALLBACK : cube coloré si modèle introuvable ─────────────────────
-        warn(string.format("[BrainrotGallery] '%s' introuvable dans BrainrotModels — cube placeholder", itemData.Name))
-
-        local cube = Instance.new("Part")
-        cube.Name        = "Figurine_" .. slotIndex
-        cube.Size        = Vector3.new(3, 4, 3)
-        cube.CFrame      = socleTopCF * CFrame.new(0, 2, 0)
-        cube.Anchored    = true
-        cube.CanCollide  = false
-        cube.Color       = rarityColor
-        cube.Material    = Enum.Material.SmoothPlastic
-        cube.Reflectance = (itemData.Rarity == "LEGENDARY" or itemData.Rarity == "ULTRA") and 0.1 or 0
-        cube.Parent      = state.folder
-
-        addFigurineEffects(cube, rarityColor, itemData.Rarity)
-        addFigurineBillboard(cube, 3.2, itemData.Name, rarityColor)
-
-        state.displayParts[slotIndex] = cube
+        -- Modèle absent de BrainrotModels → socle laissé vide, rien généré.
+        warn(string.format("[BrainrotGallery] Modèle manquant pour : '%s' (slot %d) — socle vide.",
+            itemData.Name, slotIndex))
     end
 end
 
@@ -1192,7 +1224,7 @@ local function teleportToPlot(character: Model, plotIndex: number)
 end
 
 -- Mettre à true pour forcer un cube de test sur le slot 1 (indépendant de l'inventaire)
-local DIAGNOSTIC_FORCE_SLOT1 = true
+local DIAGNOSTIC_FORCE_SLOT1 = false  -- DÉSACTIVÉ : plus de cube magenta de test
 
 local function onPlayerAdded(player: Player)
     if plotAssignments[player.UserId] then return end

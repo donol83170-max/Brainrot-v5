@@ -63,29 +63,33 @@ local RARITY_COLORS = {
 -- POOLS DE RARETÉ
 -- ══════════════════════════════════════════════════════════════════════════════
 local POOL = {
+    -- ── COMMON (60%) — 8 items ────────────────────────────────────────────────
     COMMON = {
-        { itemId = "SkibidiHead",     imageId = 15263881432, name = "Skibidi Toilet"                   },
-        { itemId = "LVaccaSaturno",   imageId = 0,           name = "La Vacca Saturno Saturnita"       },
-        { itemId = "BallerinaCapp",   imageId = 0,           name = "Ballerina Cappuccina"             },
-        { itemId = "NoobiniPizza",    imageId = 0,           name = "Noobini Pizzanini"                },
-        { itemId = "NuclearoDino",    imageId = 0,           name = "Nuclearo Dinossauro"              },
-        { itemId = "LirilaLarila",    imageId = 0,           name = "Lirilì Larilà"                    },
-        { itemId = "BombombiniGus",   imageId = 0,           name = "Bombombini Gusini"                },
-        { itemId = "CappuccinoAss",   imageId = 0,           name = "Cappuccino Assassino"             },
+        { itemId = "BallerinaCapp",    imageId = 0, name = "Ballerina Cappuccina"      },
+        { itemId = "BombardiroCroc",   imageId = 0, name = "Bombardiro Crocodilo"      },
+        { itemId = "BombombiniGus",    imageId = 0, name = "Bombombini Gusini"         },
+        { itemId = "CappuccinoAss",    imageId = 0, name = "Cappuccino Assassino"      },
+        { itemId = "LirilaLarila",     imageId = 0, name = "Lirili Larila"             },
+        { itemId = "SixSeven",         imageId = 0, name = "Six Seven"                 },
+        { itemId = "Tralalero",        imageId = 0, name = "Tralalero Tralala"         },
+        { itemId = "TrippiTroppi",     imageId = 0, name = "Trippi Troppi"             },
     },
+    -- ── RARE (25%) — 4 items ─────────────────────────────────────────────────
     RARE = {
-        { itemId = "Tralalero",       imageId = 0,           name = "Tralalero Tralala"                },
-        { itemId = "TrippiTroppi",    imageId = 0,           name = "Trippi Troppi"                    },
-        { itemId = "BombardiroCroc",  imageId = 0,           name = "Bombardiro Crocodilo"             },
-        { itemId = "LosTaTasitos",    imageId = 0,           name = "Los Ta ta Tasitos dicen Sahur"    },
+        { itemId = "BrBrPatapim",      imageId = 0, name = "Brr Brr Patapim"          },
+        { itemId = "GalaxyWOrL",       imageId = 0, name = "Galaxy W Or L"            },
+        { itemId = "GoldChimpanzini",  imageId = 0, name = "Gold Chimpanzini Bananini" },
+        { itemId = "GoldLosTral",      imageId = 0, name = "Gold Los Tralaleritos"    },
     },
+    -- ── EPIC (14%) — 2 items ─────────────────────────────────────────────────
     EPIC = {
-        { itemId = "BrBrPatapim",     imageId = 0,           name = "Br Br Patapim"                    },
-        { itemId = "TungTungSahur",   imageId = 0,           name = "Tung Tung Tung Sahur"             },
+        { itemId = "DiamondSixSeven",  imageId = 0, name = "Diamond Six Seven"        },
+        { itemId = "DiamondTungSahur", imageId = 0, name = "Diamond Tung Sahur"       },
     },
+    -- ── LEGENDARY (1%) — 2 items ─────────────────────────────────────────────
     LEGENDARY = {
-        { itemId = "StrawberryEleph", imageId = 0,           name = "Strawberry Elephant"              },
-        { itemId = "DragonCannell",   imageId = 0,           name = "Dragon Cannelloni"                },
+        { itemId = "DragonCannell",    imageId = 0, name = "Dragon Cannelloni"        },
+        { itemId = "StrawberryEleph",  imageId = 0, name = "Strawberry Elephant"      },
     },
 }
 
@@ -96,25 +100,25 @@ local RARITY_WEIGHTS = {
     { rarity = "LEGENDARY", weight = 1  },
 }
 
--- 16 segments — tous les items représentés visuellement
+-- 16 segments — distribution visuelle équilibrée sur la roue
 -- COMMON×8, RARE×4, EPIC×2, LEGENDARY×2
 local SEGMENTS = {
-    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1 Skibidi Toilet
-    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  2 La Vacca Saturno Saturnita
-    { rarity = "RARE",      item = POOL.RARE[1]      },  --  3 Tralalero Tralala
-    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  4 Ballerina Cappuccina
-    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  5 Noobini Pizzanini
-    { rarity = "LEGENDARY", item = POOL.LEGENDARY[1] },  --  6 Strawberry Elephant
-    { rarity = "COMMON",    item = POOL.COMMON[5]    },  --  7 Nuclearo Dinossauro
-    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8 Trippi Troppi
-    { rarity = "COMMON",    item = POOL.COMMON[6]    },  --  9 Lirilì Larilà
-    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10 Br Br Patapim
-    { rarity = "COMMON",    item = POOL.COMMON[7]    },  -- 11 Bombombini Gusini
-    { rarity = "RARE",      item = POOL.RARE[3]      },  -- 12 Bombardiro Crocodilo
-    { rarity = "COMMON",    item = POOL.COMMON[8]    },  -- 13 Cappuccino Assassino
-    { rarity = "EPIC",      item = POOL.EPIC[2]      },  -- 14 Tung Tung Tung Sahur
-    { rarity = "LEGENDARY", item = POOL.LEGENDARY[2] },  -- 15 Dragon Cannelloni
-    { rarity = "RARE",      item = POOL.RARE[4]      },  -- 16 Los Ta ta Tasitos dicen Sahur
+    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1 Ballerina Cappuccina
+    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  2 Bombardiro Crocodilo
+    { rarity = "RARE",      item = POOL.RARE[1]      },  --  3 Brr Brr Patapim
+    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  4 Bombombini Gusini
+    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  5 Cappuccino Assassino
+    { rarity = "LEGENDARY", item = POOL.LEGENDARY[1] },  --  6 Dragon Cannelloni
+    { rarity = "COMMON",    item = POOL.COMMON[5]    },  --  7 Lirili Larila
+    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8 Galaxy W Or L
+    { rarity = "COMMON",    item = POOL.COMMON[6]    },  --  9 Six Seven
+    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10 Diamond Six Seven
+    { rarity = "COMMON",    item = POOL.COMMON[7]    },  -- 11 Tralalero Tralala
+    { rarity = "RARE",      item = POOL.RARE[3]      },  -- 12 Gold Chimpanzini Bananini
+    { rarity = "COMMON",    item = POOL.COMMON[8]    },  -- 13 Trippi Troppi
+    { rarity = "EPIC",      item = POOL.EPIC[2]      },  -- 14 Diamond Tung Sahur
+    { rarity = "LEGENDARY", item = POOL.LEGENDARY[2] },  -- 15 Strawberry Elephant
+    { rarity = "RARE",      item = POOL.RARE[4]      },  -- 16 Gold Los Tralaleritos
 }
 
 local SEGS_BY_RARITY: {[string]: {number}} = { COMMON={}, RARE={}, EPIC={}, LEGENDARY={} }

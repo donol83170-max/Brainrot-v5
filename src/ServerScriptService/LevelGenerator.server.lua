@@ -8,9 +8,13 @@ local Workspace = game:GetService("Workspace")
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DOSSIERS
 -- ══════════════════════════════════════════════════════════════════════════════
-local mapFolder = Instance.new("Folder")
-mapFolder.Name = "Map"
-mapFolder.Parent = Workspace
+-- Réutilise le dossier Map existant (créé par BrainrotGallery) ou le crée
+local mapFolder = Workspace:FindFirstChild("Map")
+if not mapFolder then
+    mapFolder = Instance.new("Folder")
+    mapFolder.Name   = "Map"
+    mapFolder.Parent = Workspace
+end
 
 local envFolder = Instance.new("Folder")
 envFolder.Name = "Environment"
