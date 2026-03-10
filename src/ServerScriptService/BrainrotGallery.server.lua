@@ -110,6 +110,42 @@ end
 -- Images gérées dans ReplicatedStorage/BrainrotData.lua (plus de table locale)
 
 -- ══════════════════════════════════════════════════════════════════════════════
+-- CORRECTIONS D'ORIENTATION PAR MODÈLE
+-- ══════════════════════════════════════════════════════════════════════════════
+-- Ajoute ici les modèles qui ne sont pas droits sur leur socle.
+-- La clé est le Name exact du brainrot (tel que dans LootTables).
+-- Les angles sont en DEGRÉS et s'appliquent APRÈS l'orientation de base.
+--   x = inclinaison avant/arrière
+--   y = rotation sur soi-même (gauche/droite)
+--   z = inclinaison côté (roulis)
+--
+-- Exemple :
+--   ["Ballerina Cappuccina"] = { x = 0, y = 180, z = 0 },  -- retourner face à l'autre sens
+--   ["Bombardiro Crocodilo"] = { x = 90, y = 0,   z = 0 },  -- couché → debout
+--
+local MODEL_ORIENTATION_CORRECTIONS: {[string]: {x: number, y: number, z: number}} = {
+    -- z = 90 annule le -90° de base (modèles Toolbox déjà debouts en Roblox Y-up)
+    -- Ajuste y si le modèle est dos au couloir (essaie 180)
+    -- Ajuste x si le modèle est couché vers l'avant/arrière (essaie 90 ou -90)
+    ["Ballerina Cappuccina"]      = { x = 0, y = 0, z = 90 },
+    ["Bombardiro Crocodilo"]      = { x = 0, y = 0, z = 90 },
+    ["Bombombini Gusini"]         = { x = 0, y = 0, z = 90 },
+    ["Cappuccino Assassino"]      = { x = 0, y = 0, z = 90 },
+    ["Lirili Larila"]             = { x = 0, y = 0, z = 90 },
+    ["Six Seven"]                 = { x = 0, y = 0, z = 90 },
+    ["Tralalero Tralala"]         = { x = 0, y = 0, z = 90 },
+    ["Trippi Troppi"]             = { x = 0, y = 0, z = 90 },
+    ["Brr Brr Patapim"]           = { x = 0, y = 0, z = 90 },
+    ["Galaxy W Or L"]             = { x = 0, y = 0, z = 90 },
+    ["Gold Chimpanzini Bananini"] = { x = 0, y = 0, z = 90 },
+    ["Gold Los Tralaleritos"]     = { x = 0, y = 0, z = 90 },
+    ["Diamond Six Seven"]         = { x = 0, y = 0, z = 90 },
+    ["Diamond Tung Sahur"]        = { x = 0, y = 0, z = 90 },
+    ["Dragon Cannelloni"]         = { x = 0, y = 0, z = 90 },
+    ["Strawberry Elephant"]       = { x = 0, y = 0, z = 90 },
+}
+
+-- ══════════════════════════════════════════════════════════════════════════════
 -- DIMENSIONS DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
 local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
@@ -980,8 +1016,13 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         -- Étape 2 — Face au couloir : rotation Y selon le côté du socle
         --   Slots impairs = côté gauche (X<0) → yRot = +90° (face vers +X = centre)
         --   Slots pairs   = côté droit  (X>0) → yRot = -90° (face vers -X = centre)
+        -- Étape 3 — Correction individuelle (MODEL_ORIENTATION_CORRECTIONS)
         local yRot  = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
-        local standCF = CFrame.Angles(0, 0, math.rad(-90)) * CFrame.Angles(0, yRot, 0)
+        local correction = MODEL_ORIENTATION_CORRECTIONS[itemData.Name]
+        local correctionCF = correction
+            and CFrame.Angles(math.rad(correction.x), math.rad(correction.y), math.rad(correction.z))
+            or CFrame.identity
+        local standCF = CFrame.Angles(0, 0, math.rad(-90)) * CFrame.Angles(0, yRot, 0) * correctionCF
 
         -- Position cible : 2 studs au-dessus du dessus du socle
         local targetPos = (socleTopCF * CFrame.new(0, 2, 0)).Position
