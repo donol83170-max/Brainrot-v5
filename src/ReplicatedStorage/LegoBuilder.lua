@@ -32,6 +32,9 @@ LegoBuilder.BASE_H   = 1.2
 -- Taille d'une dalle de sol (baseplate tile) en studs
 LegoBuilder.TILE_SZ  = 32
 
+-- Nombre de briques créées avant un task.wait() dans les boucles de génération
+local YIELD_EVERY = 500
+
 -- Couleur du sol classique (Munsell / LEGO Bright Green)
 LegoBuilder.BASE_COLOR = Color3.fromRGB(75, 151, 74)
 
@@ -228,12 +231,14 @@ function LegoBuilder.convertPartToBricks(
     local hide    = if opt.hideSource == nil then true else opt.hideSource
     local dest    = opt.parent    or part.Parent
 
-    -- Bounding box alignée sur les axes (AABB), en supposant la Part peu pivotée
+    -- Bounding box alignée sur les axes (AABB)
+    -- On utilise la CFrame pour transformer le coin local en world space,
+    -- ce qui gère correctement les Parts pivotées.
     local cf   = part.CFrame
     local size = part.Size
 
-    -- Coin bas-gauche-avant du AABB (world space)
-    local originW = cf.Position - Vector3.new(size.X / 2, size.Y / 2, size.Z / 2)
+    -- Coin bas-gauche-avant du AABB (world space, via CFrame locale)
+    local originW = (cf * CFrame.new(-size.X / 2, -size.Y / 2, -size.Z / 2)).Position
 
     -- Snappe l'origine sur la grille de briques
     local gox = snap(originW.X, bW)
@@ -260,6 +265,7 @@ function LegoBuilder.convertPartToBricks(
     end
 
     -- Génération couche par couche (Y = bas vers haut)
+    local brickCount = 0
     for iy = 0, nY - 1 do
         -- Couleur par rangée horizontale complète
         local layerColor: Color3? = if mode == "row" then pickColor(palette, iy + 1) else nil
@@ -276,10 +282,14 @@ function LegoBuilder.convertPartToBricks(
                 )
                 local color = uniformColor or layerColor or colColor or pickColor(palette)
                 LegoBuilder.createBrick(brickPos, bW, bL, bH, color, folder)
+
+                -- Yield toutes les YIELD_EVERY briques (robuste quel que soit le volume)
+                brickCount += 1
+                if brickCount % YIELD_EVERY == 0 then
+                    task.wait()
+                end
             end
         end
-
-        task.wait()     -- yield par couche Y → évite timeout moteur sur gros volumes
     end
 
     return folder
