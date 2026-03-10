@@ -65,26 +65,26 @@ local RARITY_COLORS = {
 local POOL = {
     -- ── COMMON (60%) — 8 items ────────────────────────────────────────────────
     COMMON = {
+        { itemId = "Item67",           imageId = 0, name = "67"                       },
         { itemId = "BallerinaCapp",    imageId = 0, name = "Ballerina Cappuccina"      },
         { itemId = "BombardiroCroc",   imageId = 0, name = "Bombardiro Crocodilo"      },
         { itemId = "BombombiniGus",    imageId = 0, name = "Bombombini Gusini"         },
         { itemId = "CappuccinoAss",    imageId = 0, name = "Cappuccino Assassino"      },
-        { itemId = "LirilaLarila",     imageId = 0, name = "Lirili Larila"             },
-        { itemId = "SixSeven",         imageId = 0, name = "Six Seven"                 },
+        { itemId = "LirilaLarila",     imageId = 0, name = "Lirilì Larilà"             },
         { itemId = "Tralalero",        imageId = 0, name = "Tralalero Tralala"         },
         { itemId = "TrippiTroppi",     imageId = 0, name = "Trippi Troppi"             },
     },
     -- ── RARE (25%) — 4 items ─────────────────────────────────────────────────
     RARE = {
         { itemId = "BrBrPatapim",      imageId = 0, name = "Brr Brr Patapim"          },
-        { itemId = "GalaxyWOrL",       imageId = 0, name = "Galaxy W Or L"            },
-        { itemId = "GoldChimpanzini",  imageId = 0, name = "Gold Chimpanzini Bananini" },
-        { itemId = "GoldLosTral",      imageId = 0, name = "Gold Los Tralaleritos"    },
+        { itemId = "ChimpanziniBan",   imageId = 0, name = "Chimpanzini Bananini"      },
+        { itemId = "Los67",            imageId = 0, name = "Los 67"                   },
+        { itemId = "LosTralaleritos",  imageId = 0, name = "Los Tralaleritos"          },
     },
     -- ── EPIC (14%) — 2 items ─────────────────────────────────────────────────
     EPIC = {
-        { itemId = "DiamondSixSeven",  imageId = 0, name = "Diamond Six Seven"        },
-        { itemId = "DiamondTungSahur", imageId = 0, name = "Diamond Tung Sahur"       },
+        { itemId = "TungTungSahur",    imageId = 0, name = "Tung Tung Tung Sahur"     },
+        { itemId = "WOrL",             imageId = 0, name = "W or L"                   },
     },
     -- ── LEGENDARY (1%) — 2 items ─────────────────────────────────────────────
     LEGENDARY = {
@@ -103,22 +103,22 @@ local RARITY_WEIGHTS = {
 -- 16 segments — distribution visuelle équilibrée sur la roue
 -- COMMON×8, RARE×4, EPIC×2, LEGENDARY×2
 local SEGMENTS = {
-    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1 Ballerina Cappuccina
-    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  2 Bombardiro Crocodilo
+    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1 67
+    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  2 Ballerina Cappuccina
     { rarity = "RARE",      item = POOL.RARE[1]      },  --  3 Brr Brr Patapim
-    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  4 Bombombini Gusini
-    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  5 Cappuccino Assassino
+    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  4 Bombardiro Crocodilo
+    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  5 Bombombini Gusini
     { rarity = "LEGENDARY", item = POOL.LEGENDARY[1] },  --  6 Dragon Cannelloni
-    { rarity = "COMMON",    item = POOL.COMMON[5]    },  --  7 Lirili Larila
-    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8 Galaxy W Or L
-    { rarity = "COMMON",    item = POOL.COMMON[6]    },  --  9 Six Seven
-    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10 Diamond Six Seven
+    { rarity = "COMMON",    item = POOL.COMMON[5]    },  --  7 Cappuccino Assassino
+    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8 Chimpanzini Bananini
+    { rarity = "COMMON",    item = POOL.COMMON[6]    },  --  9 Lirilì Larilà
+    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10 Tung Tung Tung Sahur
     { rarity = "COMMON",    item = POOL.COMMON[7]    },  -- 11 Tralalero Tralala
-    { rarity = "RARE",      item = POOL.RARE[3]      },  -- 12 Gold Chimpanzini Bananini
+    { rarity = "RARE",      item = POOL.RARE[3]      },  -- 12 Los 67
     { rarity = "COMMON",    item = POOL.COMMON[8]    },  -- 13 Trippi Troppi
-    { rarity = "EPIC",      item = POOL.EPIC[2]      },  -- 14 Diamond Tung Sahur
+    { rarity = "EPIC",      item = POOL.EPIC[2]      },  -- 14 W or L
     { rarity = "LEGENDARY", item = POOL.LEGENDARY[2] },  -- 15 Strawberry Elephant
-    { rarity = "RARE",      item = POOL.RARE[4]      },  -- 16 Gold Los Tralaleritos
+    { rarity = "RARE",      item = POOL.RARE[4]      },  -- 16 Los Tralaleritos
 }
 
 local SEGS_BY_RARITY: {[string]: {number}} = { COMMON={}, RARE={}, EPIC={}, LEGENDARY={} }

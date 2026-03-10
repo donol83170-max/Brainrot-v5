@@ -139,24 +139,24 @@ LootTables.Wheels = {
         Currency = "Gold",
         Items = {
             -- COMMON (60%) — 8 items
-            { Id = "BallerinaCapp",    Name = "Ballerina Cappuccina",       Rarity = "COMMON",    SegmentId = 1  },
-            { Id = "BombardiroCroc",   Name = "Bombardiro Crocodilo",       Rarity = "COMMON",    SegmentId = 2  },
-            { Id = "BombombiniGus",    Name = "Bombombini Gusini",          Rarity = "COMMON",    SegmentId = 4  },
-            { Id = "CappuccinoAss",    Name = "Cappuccino Assassino",       Rarity = "COMMON",    SegmentId = 5  },
-            { Id = "LirilaLarila",     Name = "Lirili Larila",              Rarity = "COMMON",    SegmentId = 7  },
-            { Id = "SixSeven",         Name = "Six Seven",                  Rarity = "COMMON",    SegmentId = 9  },
-            { Id = "Tralalero",        Name = "Tralalero Tralala",          Rarity = "COMMON",    SegmentId = 11 },
-            { Id = "TrippiTroppi",     Name = "Trippi Troppi",              Rarity = "COMMON",    SegmentId = 13 },
+            { Id = "Item67",           Name = "67",                        Rarity = "COMMON",    SegmentId = 1  },
+            { Id = "BallerinaCapp",    Name = "Ballerina Cappuccina",      Rarity = "COMMON",    SegmentId = 2  },
+            { Id = "BombardiroCroc",   Name = "Bombardiro Crocodilo",      Rarity = "COMMON",    SegmentId = 4  },
+            { Id = "BombombiniGus",    Name = "Bombombini Gusini",         Rarity = "COMMON",    SegmentId = 5  },
+            { Id = "CappuccinoAss",    Name = "Cappuccino Assassino",      Rarity = "COMMON",    SegmentId = 7  },
+            { Id = "LirilaLarila",     Name = "Lirilì Larilà",             Rarity = "COMMON",    SegmentId = 9  },
+            { Id = "Tralalero",        Name = "Tralalero Tralala",         Rarity = "COMMON",    SegmentId = 11 },
+            { Id = "TrippiTroppi",     Name = "Trippi Troppi",             Rarity = "COMMON",    SegmentId = 13 },
 
             -- RARE (25%) — 4 items
-            { Id = "BrBrPatapim",      Name = "Brr Brr Patapim",           Rarity = "RARE",      SegmentId = 3  },
-            { Id = "GalaxyWOrL",       Name = "Galaxy W Or L",             Rarity = "RARE",      SegmentId = 8  },
-            { Id = "GoldChimpanzini",  Name = "Gold Chimpanzini Bananini", Rarity = "RARE",      SegmentId = 12 },
-            { Id = "GoldLosTral",      Name = "Gold Los Tralaleritos",     Rarity = "RARE",      SegmentId = 16 },
+            { Id = "BrBrPatapim",      Name = "Brr Brr Patapim",          Rarity = "RARE",      SegmentId = 3  },
+            { Id = "ChimpanziniBan",   Name = "Chimpanzini Bananini",      Rarity = "RARE",      SegmentId = 8  },
+            { Id = "Los67",            Name = "Los 67",                    Rarity = "RARE",      SegmentId = 12 },
+            { Id = "LosTralaleritos",  Name = "Los Tralaleritos",          Rarity = "RARE",      SegmentId = 16 },
 
             -- EPIC (14%) — 2 items
-            { Id = "DiamondSixSeven",  Name = "Diamond Six Seven",         Rarity = "EPIC",      SegmentId = 10 },
-            { Id = "DiamondTungSahur", Name = "Diamond Tung Sahur",        Rarity = "EPIC",      SegmentId = 14 },
+            { Id = "TungTungSahur",    Name = "Tung Tung Tung Sahur",      Rarity = "EPIC",      SegmentId = 10 },
+            { Id = "WOrL",             Name = "W or L",                    Rarity = "EPIC",      SegmentId = 14 },
 
             -- LEGENDARY (1%) — 2 items
             { Id = "DragonCannell",    Name = "Dragon Cannelloni",         Rarity = "LEGENDARY", SegmentId = 6  },

@@ -14,22 +14,22 @@ end
 -- TABLE OFFICIELLE — nom exact (= clé findBrainrotModel) + couleur rareté
 local ITEMS = {
     -- ── COMMON (vert) ──────────────────────────────────────────────────────
+    { name = "67",                         color = Color3.fromRGB(  0, 200,  60) },
     { name = "Ballerina Cappuccina",       color = Color3.fromRGB(  0, 200,  60) },
     { name = "Bombardiro Crocodilo",       color = Color3.fromRGB(  0, 200,  60) },
     { name = "Bombombini Gusini",          color = Color3.fromRGB(  0, 200,  60) },
     { name = "Cappuccino Assassino",       color = Color3.fromRGB(  0, 200,  60) },
-    { name = "Lirili Larila",              color = Color3.fromRGB(  0, 200,  60) },
-    { name = "Six Seven",                  color = Color3.fromRGB(  0, 200,  60) },
+    { name = "Lirilì Larilà",              color = Color3.fromRGB(  0, 200,  60) },
     { name = "Tralalero Tralala",          color = Color3.fromRGB(  0, 200,  60) },
     { name = "Trippi Troppi",              color = Color3.fromRGB(  0, 200,  60) },
     -- ── RARE (bleu) ────────────────────────────────────────────────────────
     { name = "Brr Brr Patapim",            color = Color3.fromRGB(  0, 130, 255) },
-    { name = "Galaxy W Or L",              color = Color3.fromRGB(  0, 130, 255) },
-    { name = "Gold Chimpanzini Bananini",  color = Color3.fromRGB(  0, 130, 255) },
-    { name = "Gold Los Tralaleritos",      color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Chimpanzini Bananini",       color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Los 67",                     color = Color3.fromRGB(  0, 130, 255) },
+    { name = "Los Tralaleritos",           color = Color3.fromRGB(  0, 130, 255) },
     -- ── EPIC (violet) ──────────────────────────────────────────────────────
-    { name = "Diamond Six Seven",          color = Color3.fromRGB(255,   0, 255) },
-    { name = "Diamond Tung Sahur",         color = Color3.fromRGB(255,   0, 255) },
+    { name = "Tung Tung Tung Sahur",       color = Color3.fromRGB(255,   0, 255) },
+    { name = "W or L",                     color = Color3.fromRGB(255,   0, 255) },
     -- ── LEGENDARY (doré) ───────────────────────────────────────────────────
     { name = "Dragon Cannelloni",          color = Color3.fromRGB(255, 215,   0) },
     { name = "Strawberry Elephant",        color = Color3.fromRGB(255, 215,   0) },
