@@ -71,6 +71,10 @@ for _, entry in ipairs(ITEMS) do
         lbl.TextStrokeTransparency   = 0
         lbl.Parent                   = sg
 
+        -- Marque ce modèle comme placeholder → BrainrotGallery l'ignorera
+        -- et laissera le socle vide jusqu'à ce qu'un vrai modèle soit ajouté
+        model:SetAttribute("IsPlaceholder", true)
+
         model.PrimaryPart = part
         model.Parent      = folder
         created          += 1

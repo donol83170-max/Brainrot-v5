@@ -909,6 +909,11 @@ local function findBrainrotModel(name: string): Instance?
     for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
         local childLower = string.lower(child.Name)
         if childLower == lowerName then
+            -- Ignorer les cubes placeholders générés par BrainrotModelsSetup
+            if child:GetAttribute("IsPlaceholder") then
+                warn(string.format("[BrainrotGallery] '%s' ignoré — c'est un placeholder, pas encore remplacé par un vrai modèle", child.Name))
+                continue
+            end
             -- Correspondance de nom — on accepte TOUS les types
             local n = #child:GetDescendants()
             print(string.format("[BrainrotGallery] Candidat pour '%s' : '%s' (%s, %d descendants)",
