@@ -566,7 +566,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             local plateX = side * (SIDE_DIST - 4)   -- 4 studs vers le centre
             local plate  = Instance.new("Part")
             plate.Name      = "CollectorPlate_" .. i .. sideLabel
-            plate.Size      = Vector3.new(8, 0.2, 8)
+            plate.Size      = Vector3.new(8.8, 0.2, 8.8)
             plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
             plate.Anchored  = true
             plate.CanCollide = false   -- trigger zone : Touched fire sans bloquer le passage

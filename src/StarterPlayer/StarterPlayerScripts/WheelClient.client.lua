@@ -252,7 +252,14 @@ local function showResult(data)
             (modelClone :: BasePart).CastShadow = false
         end
 
-        -- Centre et dimensions via bounding box
+        -- Étape 1 : placer le pivot à l'origine pour mesurer l'offset BB→pivot
+        if modelClone:IsA("Model") then
+            (modelClone :: Model):PivotTo(CFrame.new())
+        elseif modelClone:IsA("BasePart") then
+            (modelClone :: BasePart).CFrame = CFrame.new()
+        end
+
+        -- Étape 2 : bounding box (BB center = vrai centre visuel)
         local boundCF: CFrame, boundSize: Vector3
         if modelClone:IsA("Model") then
             boundCF, boundSize = (modelClone :: Model):GetBoundingBox()
@@ -264,30 +271,41 @@ local function showResult(data)
             boundCF  = bp and bp.CFrame  or CFrame.new()
             boundSize = bp and bp.Size   or Vector3.new(2, 2, 2)
         end
-        local center  = boundCF.Position
-        local maxDim  = math.max(boundSize.X, boundSize.Y, boundSize.Z)
+        -- bbCenter : décalage du centre visuel par rapport au pivot (pivot est à l'origine)
+        local bbCenter = boundCF.Position
+        local maxDim   = math.max(boundSize.X, boundSize.Y, boundSize.Z)
 
-        -- Caméra positionnée de face, légèrement au-dessus du centre
+        -- Étape 3 : centrer le BB à l'origine du viewport (0, 0, 0)
+        if modelClone:IsA("Model") then
+            (modelClone :: Model):PivotTo(CFrame.new(-bbCenter))
+        elseif modelClone:IsA("BasePart") then
+            (modelClone :: BasePart).CFrame = CFrame.new(-bbCenter)
+        end
+
+        -- Caméra pointée vers (0,0,0), légèrement surélevée
         local cam = Instance.new("Camera")
         local dist = maxDim * 2.5
         cam.FieldOfView = 40
         cam.CFrame      = CFrame.lookAt(
-            center + Vector3.new(0, boundSize.Y * 0.1, dist),
-            center
+            Vector3.new(0, boundSize.Y * 0.05, dist),
+            Vector3.new(0, 0, 0)
         )
-        cam.Parent            = vp
-        vp.CurrentCamera      = cam
+        cam.Parent       = vp
+        vp.CurrentCamera = cam
 
-        -- Rotation continue sur Y
+        -- Rotation continue sur Y autour de l'origine (= centre BB)
+        -- PivotTo( rot * CFrame.new(-bbCenter) ) :
+        --   • positionne le pivot à rot*(-bbCenter) → BB center reste à (0,0,0)
+        --   • applique la même rotation d'orientation au modèle
         local angle = 0
         rotConn = RunService.RenderStepped:Connect(function(dt: number)
             if not modelClone or not modelClone.Parent then return end
             angle += dt * 55  -- ~55°/s
-            local rotCF = CFrame.new(center) * CFrame.Angles(0, math.rad(angle), 0)
+            local rot = CFrame.Angles(0, math.rad(angle), 0)
             if modelClone:IsA("Model") then
-                (modelClone :: Model):PivotTo(rotCF)
+                (modelClone :: Model):PivotTo(rot * CFrame.new(-bbCenter))
             elseif modelClone:IsA("BasePart") then
-                (modelClone :: BasePart).CFrame = rotCF
+                (modelClone :: BasePart).CFrame = rot * CFrame.new(-bbCenter)
             end
         end)
     else
