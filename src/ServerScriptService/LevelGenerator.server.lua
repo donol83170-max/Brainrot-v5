@@ -325,8 +325,8 @@ local function createLamppost(pos: Vector3, index: number)
 	-- Lumière
 	local light = Instance.new("PointLight")
 	light.Color     = LAMP_COLOR
-	light.Brightness = 1.5
-	light.Range      = 40
+	light.Brightness = 0.75
+	light.Range      = 30
 	light.Shadows    = true
 	light.Parent     = bulb
 

@@ -72,6 +72,9 @@ local function onPlayerAdded(player: Player)
         if data then
             local cv = coinsValues[player.UserId]
             if cv then cv.Value = data.Stats.Gold end
+            -- Restaure la Puissance totale cumulée des sessions précédentes
+            local pv = powerValues[player.UserId]
+            if pv then pv.Value = data.Stats.PowerTotal or 0 end
             break
         end
         task.wait(0.5)

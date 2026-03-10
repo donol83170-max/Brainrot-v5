@@ -566,7 +566,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             local plateX = side * (SIDE_DIST - 4)   -- 4 studs vers le centre
             local plate  = Instance.new("Part")
             plate.Name      = "CollectorPlate_" .. i .. sideLabel
-            plate.Size      = Vector3.new(4, 0.2, 4)
+            plate.Size      = Vector3.new(8, 0.2, 8)
             plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
             plate.Anchored  = true
             plate.CanCollide = false   -- trigger zone : Touched fire sans bloquer le passage
@@ -657,6 +657,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 if pv then pv.Value = pv.Value + amount end
 
                 totalHarvested[pl.UserId] = (totalHarvested[pl.UserId] or 0) + amount
+                DataManager.AddPower(pl, amount)   -- Persiste dans le DataStore
                 HarvestResult:FireClient(pl, amount, totalHarvested[pl.UserId])
 
                 -- Texte flottant 3D au-dessus de la plaque
@@ -984,18 +985,6 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             end
         end
 
-        -- FIX Transparence : remettre à 0 les parts totalement invisibles
-        if clone:IsA("BasePart") and (clone :: BasePart).Transparency >= 1 then
-            (clone :: BasePart).Transparency = 0
-        end
-        for _, part in pairs(clone:GetDescendants()) do
-            if part:IsA("BasePart") and (part :: BasePart).Transparency >= 1 then
-                (part :: BasePart).Transparency = 0
-                warn(string.format("[BrainrotGallery] Part '%s' dans '%s' était Transparency=1 — corrigé",
-                    part.Name, itemData.Name))
-            end
-        end
-
         -- ── Config par modèle (BrainrotOffsets) ──────────────────────────────
         local cfg = BrainrotOffsets[itemData.Name]
 
@@ -1004,11 +993,19 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * cfg.scale) end)
         end
 
-        -- Position cible : 2 studs au-dessus du dessus du socle
-        local targetPos = (socleTopCF * CFrame.new(0, 2, 0)).Position
-        -- Offset individuel (rotation + décalage Y) appliqué après la position de base
-        local offsetCF  = (cfg and cfg.offset) or CFrame.identity
-        local targetCF  = CFrame.new(targetPos) * offsetCF
+        -- Surface exacte du haut du socle (Y monde)
+        local socleSurfY = socleTopCF.Position.Y
+
+        -- Pivot temporaire au niveau de la surface (sera corrigé après mesure)
+        local targetPos = Vector3.new(socleTopCF.Position.X, socleSurfY, socleTopCF.Position.Z)
+
+        -- Rangée gauche (X < 0) → regarde vers +X ; rangée droite → regarde vers -X
+        local yFacing = if topPart.Position.X < 0
+                           then CFrame.Angles(0, math.rad(-90), 0)
+                           else CFrame.Angles(0, math.rad(90),  0)
+
+        -- Offset individuel (rotation + décalage Y) appliqué en dernier (fine-tune)
+        local offsetCF = (cfg and cfg.offset) or CFrame.identity
 
         if clone:IsA("Model") then
             local mdl = clone :: Model
@@ -1022,26 +1019,60 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
                 end
             end
             if mdl.PrimaryPart then
-                mdl:PivotTo(targetCF)
+                -- 1. Placement temporaire pour mesurer la bounding box
+                local tempCF = CFrame.new(targetPos) * yFacing * offsetCF
+                mdl:PivotTo(tempCF)
+
+                -- 2. Calcul du bas du modèle via GetBoundingBox
+                local bbCF, bbSize = mdl:GetBoundingBox()
+                local bottomY      = bbCF.Position.Y - bbSize.Y / 2
+
+                -- 3. Correction Y : bas du modèle = surface du socle + 0.05 gap
+                local yCorrection  = socleSurfY - bottomY + 0.05
+                local finalPos     = targetPos + Vector3.new(0, yCorrection, 0)
+                mdl:PivotTo(CFrame.new(finalPos) * yFacing * offsetCF)
             else
                 mdl:MoveTo(targetPos)
                 warn(string.format("[BrainrotGallery] '%s' sans aucun BasePart — MoveTo de secours", itemData.Name))
             end
         elseif clone:IsA("BasePart") then
-            (clone :: BasePart).CFrame = targetCF
+            local bp = clone :: BasePart
+            local tempCF  = CFrame.new(targetPos) * yFacing * offsetCF
+            bp.CFrame     = tempCF
+            local bottomY = bp.Position.Y - bp.Size.Y / 2
+            local yCorr   = socleSurfY - bottomY + 0.05
+            bp.CFrame     = CFrame.new(targetPos + Vector3.new(0, yCorr, 0)) * yFacing * offsetCF
         else
             local bp = clone:FindFirstChildWhichIsA("BasePart", true)
-            if bp then (bp :: BasePart).CFrame = targetCF end
+            if bp then (bp :: BasePart).CFrame = CFrame.new(targetPos) * yFacing * offsetCF end
         end
 
-        -- Effets visuels sur le BasePart le plus pertinent
-        local pp: BasePart? = if clone:IsA("BasePart") then clone :: BasePart
-                              elseif clone:IsA("Model")  then (clone :: Model).PrimaryPart
-                                                                or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
-                              else clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
-        if pp then
-            addFigurineEffects(pp :: BasePart, rarityColor, itemData.Rarity)
-            addFigurineBillboard(pp :: BasePart, 2.5, itemData.Name, rarityColor)
+        -- ── Billboard PPS au-dessus du modèle ────────────────────────────────
+        local ppsValue   = POWER_PER_RARITY[itemData.Rarity] or 1
+        local ppsColor   = RARITY_COLOR[itemData.Rarity] or Color3.fromRGB(100, 220, 255)
+        local adornPart: BasePart? = if clone:IsA("BasePart") then clone :: BasePart
+                                     elseif clone:IsA("Model") then (clone :: Model).PrimaryPart
+                                                                     or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
+                                     else clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+        if adornPart then
+            local ppsBb = Instance.new("BillboardGui")
+            ppsBb.Adornee     = adornPart
+            ppsBb.Size        = UDim2.new(0, 110, 0, 28)
+            ppsBb.StudsOffset = Vector3.new(0, 4.5, 0)
+            ppsBb.AlwaysOnTop = false
+            ppsBb.MaxDistance = 40
+            ppsBb.Parent      = clone
+
+            local ppsLbl = Instance.new("TextLabel")
+            ppsLbl.Size                   = UDim2.new(1, 0, 1, 0)
+            ppsLbl.BackgroundTransparency = 1
+            ppsLbl.Text                   = ppsValue .. "/s"
+            ppsLbl.TextColor3             = Color3.new(1, 1, 1)
+            ppsLbl.Font                   = Enum.Font.GothamBold
+            ppsLbl.TextScaled             = true
+            ppsLbl.TextStrokeTransparency = 0
+            ppsLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+            ppsLbl.Parent                 = ppsBb
         end
 
         state.displayParts[slotIndex] = clone
@@ -1098,15 +1129,19 @@ local function refreshGallery(player: Player)
     end
     -- ── Fin diagnostic ───────────────────────────────────────────────────────
 
+    -- Ordre d'acquisition chronologique (stable — les socles ne bougent plus)
     local ownedItems: {{Name: string, Rarity: string, Priority: number, Id: string}} = {}
-    for itemId, invItem in pairs(data.Inventory) do
-        -- FIX 3 : utilise en priorité le nom stocké dans l'inventaire (DataStore),
-        -- qui correspond exactement à ce qui a été gagné via WheelSystem.
-        -- itemLookup ne sert qu'à la rareté si elle manque dans le stockage.
+    local seen: {[string]: boolean} = {}
+
+    local function tryAdd(itemId: string)
+        if seen[itemId] then return end
+        local invItem = data.Inventory[itemId]
+        if not invItem or (invItem.Count or 0) <= 0 then return end
         local info = itemLookup[itemId]
         local itemName   = (invItem.Name   and invItem.Name   ~= "") and invItem.Name   or (info and info.Name)
         local itemRarity = (invItem.Rarity and invItem.Rarity ~= "") and invItem.Rarity or (info and info.Rarity)
-        if itemName and itemRarity and (invItem.Count or 0) > 0 then
+        if itemName and itemRarity then
+            seen[itemId] = true
             table.insert(ownedItems, {
                 Id       = itemId,
                 Name     = itemName,
@@ -1116,10 +1151,14 @@ local function refreshGallery(player: Player)
         end
     end
 
-    table.sort(ownedItems, function(a, b)
-        if a.Priority ~= b.Priority then return a.Priority > b.Priority end
-        return a.Name < b.Name
-    end)
+    -- 1. Parcourir dans l'ordre d'acquisition enregistré
+    for _, itemId in ipairs(data.InventoryOrder or {}) do
+        tryAdd(itemId)
+    end
+    -- 2. Rattraper les items existants sans InventoryOrder (rétro-compat)
+    for itemId in pairs(data.Inventory) do
+        tryAdd(itemId)
+    end
 
     local lockedId   = BrainrotData.LockedImageId
     local fallbackId = BrainrotData.FallbackImageId
@@ -1296,6 +1335,17 @@ local function onPlayerAdded(player: Player)
     if player.Character then
         teleportToPlot(player.Character, plotIndex)
     end
+
+    -- Restaure la Puissance totale depuis le DataStore (persistance inter-sessions)
+    local savedPower = DataManager.GetPowerTotal(player)
+    totalHarvested[player.UserId] = savedPower
+
+    -- Sync le total sauvegardé vers le HarvestHUD client (amount=0 = pas de nouvelle récolte)
+    task.delay(4, function()
+        if player.Parent then
+            HarvestResult:FireClient(player, 0, totalHarvested[player.UserId] or 0)
+        end
+    end)
 
     -- FIX 1 : attendre que brainrotModelsFolder soit chargé avant le premier refresh
     task.spawn(function()

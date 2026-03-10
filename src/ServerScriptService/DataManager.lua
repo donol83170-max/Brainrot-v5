@@ -26,13 +26,15 @@ local playerCache = {}
 function DataManager.CreateDefaultData()
     return {
         Stats = {
-            Gold = Constants.STARTING_STATS.GOLD,
-            XP = Constants.STARTING_STATS.XP,
-            Level = 1,
-            Tickets = Constants.STARTING_STATS.TICKETS,
+            Gold       = Constants.STARTING_STATS.GOLD,
+            XP         = Constants.STARTING_STATS.XP,
+            Level      = 1,
+            Tickets    = Constants.STARTING_STATS.TICKETS,
+            PowerTotal = 0,   -- Puissance cumulée (persiste entre sessions)
         },
-        Inventory = {},
-        Collection = {}
+        Inventory      = {},
+        InventoryOrder = {},  -- Ordre d'acquisition (liste d'itemIds)
+        Collection     = {}
     }
 end
 
@@ -91,14 +93,19 @@ function DataManager.AddItem(player, item)
 	local data = playerCache[player.UserId]
 	if not data then return end
 
+	local isNew = not data.Inventory[item.Id]
+
 	-- On utilise l'ID de l'item comme clé
-	if not data.Inventory[item.Id] then
+	if isNew then
 		data.Inventory[item.Id] = {
 			Id = item.Id,
 			Name = item.Name,
 			Rarity = item.Rarity,
 			Count = 1
 		}
+		-- Enregistrer l'ordre d'acquisition pour un affichage stable des socles
+		if not data.InventoryOrder then data.InventoryOrder = {} end
+		table.insert(data.InventoryOrder, item.Id)
 	else
 		data.Inventory[item.Id].Count += 1
 	end
@@ -107,6 +114,20 @@ function DataManager.AddItem(player, item)
 	data.Collection[item.Id] = true
 
 	print("🎒 [Inventory] " .. player.Name .. " a reçu : " .. item.Name)
+end
+
+-- Ajouter à la Puissance totale (cumulée entre sessions)
+function DataManager.AddPower(player, amount)
+    local data = playerCache[player.UserId]
+    if not data then return end
+    if not data.Stats.PowerTotal then data.Stats.PowerTotal = 0 end
+    data.Stats.PowerTotal += amount
+end
+
+-- Lire la Puissance totale
+function DataManager.GetPowerTotal(player)
+    local data = playerCache[player.UserId]
+    return data and (data.Stats.PowerTotal or 0) or 0
 end
 
 -- Dépenser des tickets

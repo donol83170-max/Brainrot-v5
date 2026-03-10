@@ -374,9 +374,6 @@ local function ActionSpin(player: Player)
             task.spawn(_G.CheckLegendaryBadge, player, winItem.name)
         end
     end
-    local updated = DataManager.GetData(player)
-    if updated then UpdateClientData:FireClient(player, updated) end
-
     print(string.format("[WheelSystem] %s → %s '%s' | seg%d",
         player.Name, winRarity, winItem.name, winSegIdx))
 
@@ -405,6 +402,12 @@ local function ActionSpin(player: Player)
             duration   = SPIN_DURATION,
             rotations  = FULL_ROTATIONS
         })
+
+        -- Mise à jour inventaire client APRÈS la fin de l'animation (anti-spoiler)
+        task.delay(SPIN_DURATION + 1.5, function()
+            local updated = DataManager.GetData(player)
+            if updated then UpdateClientData:FireClient(player, updated) end
+        end)
     end)
 
     tweenUp.Completed:Connect(function()

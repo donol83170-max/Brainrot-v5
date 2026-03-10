@@ -17,10 +17,25 @@ local function onPlayerAdded(player)
     print("Welcome to Brainrot, " .. player.Name .. "!")
     DataManager.LoadData(player)
     
-    -- Augmente la vitesse (Vitesse de base = 16, x2 = 32)
+    -- Vitesse : spawn à 16, crescendo sur 3s jusqu'à +80% du défaut (28.8)
     player.CharacterAdded:Connect(function(character)
         local humanoid = character:WaitForChild("Humanoid") :: Humanoid
-        humanoid.WalkSpeed = 32
+        local START_SPEED  = 32
+        local TARGET_SPEED = 48
+        local DURATION     = 3      -- secondes
+        humanoid.WalkSpeed = START_SPEED
+        task.spawn(function()
+            local elapsed = 0
+            local STEP    = 0.05
+            while elapsed < DURATION do
+                task.wait(STEP)
+                elapsed += STEP
+                local t = math.min(elapsed / DURATION, 1)
+                if not humanoid or not humanoid.Parent then return end
+                humanoid.WalkSpeed = START_SPEED + (TARGET_SPEED - START_SPEED) * t
+            end
+            humanoid.WalkSpeed = TARGET_SPEED
+        end)
     end)
 end
 

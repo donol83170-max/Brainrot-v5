@@ -1,5 +1,5 @@
 -- HarvestHUD.client.lua
--- Affiche "PUISSANCE RÉCOLTÉE : X ⚡" en bas à gauche.
+-- Affiche "PUISSANCE :X ⚡" en bas à gauche.
 -- Se met à jour à chaque récolte sur une plaque jaune.
 
 local Players           = game:GetService("Players")
@@ -47,7 +47,7 @@ local lbl = Instance.new("TextLabel")
 lbl.Size                   = UDim2.new(1, -14, 1, 0)
 lbl.Position               = UDim2.new(0, 7, 0, 0)
 lbl.BackgroundTransparency = 1
-lbl.Text                   = "PUISSANCE RÉCOLTÉE : 0 ⚡"
+lbl.Text                   = "PUISSANCE :0 ⚡"
 lbl.TextColor3             = Color3.fromRGB(20, 200, 70)
 lbl.Font                   = Enum.Font.GothamBold
 lbl.TextScaled             = true
@@ -85,7 +85,7 @@ local COL_NORMAL = Color3.fromRGB(20, 200, 70)
 
 -- ── Réception des récoltes ───────────────────────────────────────────────────
 HarvestResult.OnClientEvent:Connect(function(amount: number, total: number)
-    lbl.Text = "PUISSANCE RÉCOLTÉE : " .. fmt(total) .. " ⚡"
+    lbl.Text = "PUISSANCE :" .. fmt(total) .. " ⚡"
 
     -- Flash vert clair bref
     lbl.TextColor3 = COL_FLASH

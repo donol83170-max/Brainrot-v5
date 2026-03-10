@@ -4,6 +4,8 @@
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService      = game:GetService("TweenService")
+local Debris            = game:GetService("Debris")
+local RunService        = game:GetService("RunService")
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -86,6 +88,47 @@ local function showNoCoins()
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
+-- CONFETTIS DE RARETÉ
+-- ══════════════════════════════════════════════════════════════════════════════
+local function spawnConfetti(color: Color3)
+    local character = player.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local part = Instance.new("Part")
+    part.Size         = Vector3.new(0.1, 0.1, 0.1)
+    part.Anchored     = true
+    part.CanCollide   = false
+    part.Transparency = 1
+    part.CFrame       = CFrame.new(root.Position + Vector3.new(0, 4, 0))
+    part.Parent       = workspace
+
+    local pe = Instance.new("ParticleEmitter")
+    pe.Color        = ColorSequence.new(color)
+    pe.LightEmission = 0.4
+    pe.Size         = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.45),
+        NumberSequenceKeypoint.new(1, 0.1),
+    })
+    pe.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0),
+        NumberSequenceKeypoint.new(0.8, 0),
+        NumberSequenceKeypoint.new(1,   1),
+    })
+    pe.Speed        = NumberRange.new(10, 22)
+    pe.SpreadAngle  = Vector2.new(75, 75)
+    pe.Rotation     = NumberRange.new(0, 360)
+    pe.RotSpeed     = NumberRange.new(-200, 200)
+    pe.Lifetime     = NumberRange.new(1.8, 3.2)
+    pe.Rate         = 0
+    pe.Parent       = part
+
+    pe:Emit(90)
+    Debris:AddItem(part, 4)
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
 -- PANNEAU DE RÉSULTAT
 -- ══════════════════════════════════════════════════════════════════════════════
 local function showResult(data)
@@ -96,6 +139,9 @@ local function showResult(data)
     local rarityColor = getRarityColor(data.memeRarity)
     local rarityLabel = getRarityLabel(data.memeRarity)
     print("[WheelClient] showResult — memeRarity='" .. tostring(data.memeRarity) .. "' → couleur appliquée")
+
+    -- Explosion de confettis colorés selon la rareté
+    spawnConfetti(rarityColor)
 
     local sg = Instance.new("ScreenGui")
     sg.Name           = "SpinResultGui"
@@ -157,29 +203,104 @@ local function showResult(data)
     rarityLbl.TextScaled             = true
     rarityLbl.Parent                 = rarityBadge
 
-    -- Image du mème
-    local imgFrame = Instance.new("Frame")
-    imgFrame.Size             = UDim2.new(0, 220, 0, 220)
-    imgFrame.AnchorPoint      = Vector2.new(0.5, 0)
-    imgFrame.Position         = UDim2.new(0.5, 0, 0, 114)
-    imgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
-    imgFrame.BorderSizePixel  = 0
-    imgFrame.Parent           = panel
-    Instance.new("UICorner", imgFrame).CornerRadius = UDim.new(0.08, 0)
+    -- ViewportFrame 3D (modèle Brainrot en rotation)
+    local vp = Instance.new("ViewportFrame")
+    vp.Size             = UDim2.new(0, 220, 0, 220)
+    vp.AnchorPoint      = Vector2.new(0.5, 0.5)
+    vp.Position         = UDim2.new(0.5, 0, 0.5, -10)  -- centré dans le panel
+    vp.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    vp.BorderSizePixel  = 0
+    vp.Ambient          = Color3.fromRGB(160, 160, 160)
+    vp.LightDirection   = Vector3.new(-1, -2, -1)
+    vp.Parent           = panel
+    Instance.new("UICorner", vp).CornerRadius = UDim.new(0.08, 0)
 
-    local imgStroke = Instance.new("UIStroke")
-    imgStroke.Color     = rarityColor
-    imgStroke.Thickness = 3
-    imgStroke.Parent    = imgFrame
+    local vpStroke = Instance.new("UIStroke")
+    vpStroke.Color     = rarityColor
+    vpStroke.Thickness = 3
+    vpStroke.Parent    = vp
 
-    local img = Instance.new("ImageLabel")
-    img.Size             = UDim2.new(0.9, 0, 0.9, 0)
-    img.AnchorPoint      = Vector2.new(0.5, 0.5)
-    img.Position         = UDim2.new(0.5, 0, 0.5, 0)
-    img.BackgroundTransparency = 1
-    img.Image            = "rbxassetid://" .. data.imageId
-    img.ScaleType        = Enum.ScaleType.Fit
-    img.Parent           = imgFrame
+    -- Recherche du modèle dans BrainrotModels (insensible à la casse, ignore placeholders)
+    local brainrotFolder = ReplicatedStorage:FindFirstChild("BrainrotModels")
+    local modelClone: Instance? = nil
+    if brainrotFolder then
+        local searchName = string.lower(data.memeName)
+        for _, child in ipairs(brainrotFolder:GetChildren()) do
+            if string.lower(child.Name) == searchName
+            and not child:GetAttribute("IsPlaceholder") then
+                modelClone = child:Clone()
+                break
+            end
+        end
+    end
+
+    -- Connexion de rotation (sera déconnectée à la fermeture)
+    local rotConn: RBXScriptConnection? = nil
+
+    if modelClone then
+        modelClone.Parent = vp
+
+        -- Ancrer toutes les parts pour le viewport
+        for _, part in ipairs((modelClone :: Instance):GetDescendants()) do
+            if part:IsA("BasePart") then
+                (part :: BasePart).Anchored   = true
+                (part :: BasePart).CastShadow = false
+            end
+        end
+        if modelClone:IsA("BasePart") then
+            (modelClone :: BasePart).Anchored   = true
+            (modelClone :: BasePart).CastShadow = false
+        end
+
+        -- Centre et dimensions via bounding box
+        local boundCF: CFrame, boundSize: Vector3
+        if modelClone:IsA("Model") then
+            boundCF, boundSize = (modelClone :: Model):GetBoundingBox()
+        elseif modelClone:IsA("BasePart") then
+            boundCF  = (modelClone :: BasePart).CFrame
+            boundSize = (modelClone :: BasePart).Size
+        else
+            local bp = (modelClone :: Instance):FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+            boundCF  = bp and bp.CFrame  or CFrame.new()
+            boundSize = bp and bp.Size   or Vector3.new(2, 2, 2)
+        end
+        local center  = boundCF.Position
+        local maxDim  = math.max(boundSize.X, boundSize.Y, boundSize.Z)
+
+        -- Caméra positionnée de face, légèrement au-dessus du centre
+        local cam = Instance.new("Camera")
+        local dist = maxDim * 2.5
+        cam.FieldOfView = 40
+        cam.CFrame      = CFrame.lookAt(
+            center + Vector3.new(0, boundSize.Y * 0.1, dist),
+            center
+        )
+        cam.Parent            = vp
+        vp.CurrentCamera      = cam
+
+        -- Rotation continue sur Y
+        local angle = 0
+        rotConn = RunService.RenderStepped:Connect(function(dt: number)
+            if not modelClone or not modelClone.Parent then return end
+            angle += dt * 55  -- ~55°/s
+            local rotCF = CFrame.new(center) * CFrame.Angles(0, math.rad(angle), 0)
+            if modelClone:IsA("Model") then
+                (modelClone :: Model):PivotTo(rotCF)
+            elseif modelClone:IsA("BasePart") then
+                (modelClone :: BasePart).CFrame = rotCF
+            end
+        end)
+    else
+        -- Fallback : image statique si le modèle 3D est absent
+        local img = Instance.new("ImageLabel")
+        img.Size                   = UDim2.new(0.9, 0, 0.9, 0)
+        img.AnchorPoint            = Vector2.new(0.5, 0.5)
+        img.Position               = UDim2.new(0.5, 0, 0.5, 0)
+        img.BackgroundTransparency = 1
+        img.Image                  = "rbxassetid://" .. tostring(data.imageId or 0)
+        img.ScaleType              = Enum.ScaleType.Fit
+        img.Parent                 = vp
+    end
 
     -- Nom du mème
     local nameLbl = Instance.new("TextLabel")
@@ -222,6 +343,7 @@ local function showResult(data)
 
     -- Fermeture
     local function close()
+        if rotConn then rotConn:Disconnect() ; rotConn = nil end
         TweenService:Create(panel,
             TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
             { Size = UDim2.new(0, 0, 0, 0) }
