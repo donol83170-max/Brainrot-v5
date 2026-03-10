@@ -110,39 +110,33 @@ end
 -- Images gérées dans ReplicatedStorage/BrainrotData.lua (plus de table locale)
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- CORRECTIONS D'ORIENTATION PAR MODÈLE
+-- CONFIGURATION PAR MODÈLE — ajuste toi-même chaque entrée
 -- ══════════════════════════════════════════════════════════════════════════════
--- Ajoute ici les modèles qui ne sont pas droits sur leur socle.
--- La clé est le Name exact du brainrot (tel que dans LootTables).
--- Les angles sont en DEGRÉS et s'appliquent APRÈS l'orientation de base.
---   x = inclinaison avant/arrière
---   y = rotation sur soi-même (gauche/droite)
---   z = inclinaison côté (roulis)
+--  scale  : multiplicateur de taille  (1 = taille d'import, 2 = double, 0.5 = moitié)
+--  offset : CFrame appliqué APRÈS le positionnement de base sur le socle
+--           Utilise CFrame.new(0, yOffset, 0) pour monter/descendre le modèle
+--           Utilise CFrame.Angles(rx, ry, rz) pour le tourner / le redresser
+--           Combine les deux : CFrame.new(0,1,0) * CFrame.Angles(0, math.rad(90), 0)
 --
--- Exemple :
---   ["Ballerina Cappuccina"] = { x = 0, y = 180, z = 0 },  -- retourner face à l'autre sens
---   ["Bombardiro Crocodilo"] = { x = 90, y = 0,   z = 0 },  -- couché → debout
---
-local MODEL_ORIENTATION_CORRECTIONS: {[string]: {x: number, y: number, z: number}} = {
-    -- z = 90 annule le -90° de base (modèles Toolbox déjà debouts en Roblox Y-up)
-    -- Ajuste y si le modèle est dos au couloir (essaie 180)
-    -- Ajuste x si le modèle est couché vers l'avant/arrière (essaie 90 ou -90)
-    ["Ballerina Cappuccina"]      = { x = 0, y = 0, z = 90 },
-    ["Bombardiro Crocodilo"]      = { x = 0, y = 0, z = 90 },
-    ["Bombombini Gusini"]         = { x = 0, y = 0, z = 90 },
-    ["Cappuccino Assassino"]      = { x = 0, y = 0, z = 90 },
-    ["Lirili Larila"]             = { x = 0, y = 0, z = 90 },
-    ["Six Seven"]                 = { x = 0, y = 0, z = 90 },
-    ["Tralalero Tralala"]         = { x = 0, y = 0, z = 90 },
-    ["Trippi Troppi"]             = { x = 0, y = 0, z = 90 },
-    ["Brr Brr Patapim"]           = { x = 0, y = 0, z = 90 },
-    ["Galaxy W Or L"]             = { x = 0, y = 0, z = 90 },
-    ["Gold Chimpanzini Bananini"] = { x = 0, y = 0, z = 90 },
-    ["Gold Los Tralaleritos"]     = { x = 0, y = 0, z = 90 },
-    ["Diamond Six Seven"]         = { x = 0, y = 0, z = 90 },
-    ["Diamond Tung Sahur"]        = { x = 0, y = 0, z = 90 },
-    ["Dragon Cannelloni"]         = { x = 0, y = 0, z = 90 },
-    ["Strawberry Elephant"]       = { x = 0, y = 0, z = 90 },
+-- Toutes les valeurs neutres par défaut — modifie modèle par modèle selon ce que tu vois.
+-- ══════════════════════════════════════════════════════════════════════════════
+local BrainrotOffsets: {[string]: {scale: number, offset: CFrame}} = {
+    ["67"]                    = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Ballerina Cappuccina"]  = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Bombardiro Crocodilo"]  = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Bombombini Gusini"]     = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Cappuccino Assassino"]  = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Lirilì Larilà"]         = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Tralalero Tralala"]     = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Trippi Troppi"]         = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Brr Brr Patapim"]       = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Chimpanzini Bananini"]  = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Los 67"]                = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Los Tralaleritos"]      = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Tung Tung Tung Sahur"]  = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["W or L"]                = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Dragon Cannelloni"]     = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
+    ["Strawberry Elephant"]   = { scale = 1, offset = CFrame.Angles(0, 0, 0) },
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -997,36 +991,19 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             end
         end
 
-        -- Auto-scaling : contenir dans MAX_FIGURINE_DIM studs, puis boost ×1.5
-        if clone:IsA("Model") then
-            local ok, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
-            if ok and rawBB then
-                local maxDim = math.max((rawBB :: Vector3).X, (rawBB :: Vector3).Y, (rawBB :: Vector3).Z)
-                if maxDim > 0.01 and maxDim > MAX_FIGURINE_DIM then
-                    pcall(function() (clone :: Model):ScaleTo(MAX_FIGURINE_DIM / maxDim) end)
-                end
-            end
-            -- Boost visuel ×2.25 (taille finale sur le socle)
-            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * 2.25) end)
-        end
+        -- ── Config par modèle (BrainrotOffsets) ──────────────────────────────
+        local cfg = BrainrotOffsets[itemData.Name]
 
-        -- ── Orientation : debout (axe Z) + face vers le couloir (axe Y) ──────
-        -- Étape 1 — Redressement : rotation +90° sur Z = modèle debout
-        --           (utilise Z et non X pour éviter de coucher sur le côté)
-        -- Étape 2 — Face au couloir : rotation Y selon le côté du socle
-        --   Slots impairs = côté gauche (X<0) → yRot = +90° (face vers +X = centre)
-        --   Slots pairs   = côté droit  (X>0) → yRot = -90° (face vers -X = centre)
-        -- Étape 3 — Correction individuelle (MODEL_ORIENTATION_CORRECTIONS)
-        local yRot  = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
-        local correction = MODEL_ORIENTATION_CORRECTIONS[itemData.Name]
-        local correctionCF = correction
-            and CFrame.Angles(math.rad(correction.x), math.rad(correction.y), math.rad(correction.z))
-            or CFrame.identity
-        local standCF = CFrame.Angles(0, 0, math.rad(-90)) * CFrame.Angles(0, yRot, 0) * correctionCF
+        -- Scale individuel (appliqué uniquement sur les Model)
+        if clone:IsA("Model") and cfg and cfg.scale ~= 1 then
+            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * cfg.scale) end)
+        end
 
         -- Position cible : 2 studs au-dessus du dessus du socle
         local targetPos = (socleTopCF * CFrame.new(0, 2, 0)).Position
-        local targetCF  = CFrame.new(targetPos) * standCF
+        -- Offset individuel (rotation + décalage Y) appliqué après la position de base
+        local offsetCF  = (cfg and cfg.offset) or CFrame.identity
+        local targetCF  = CFrame.new(targetPos) * offsetCF
 
         if clone:IsA("Model") then
             local mdl = clone :: Model
