@@ -47,10 +47,28 @@ end
 game.Players.PlayerAdded:Connect(onPlayerAdded)
 game.Players.PlayerRemoving:Connect(onPlayerRemoving)
 
--- BindToClose pour sauvegarder si le serveur ferme
+-- BindToClose : sauvegardes en parallèle, on attend qu'elles se terminent
 game:BindToClose(function()
+    local pending = 0
     for _, player in ipairs(game.Players:GetPlayers()) do
-        DataManager.SaveData(player)
+        pending += 1
+        task.spawn(function()
+            DataManager.SaveData(player)
+            pending -= 1
+        end)
+    end
+    local deadline = tick() + 25
+    repeat task.wait(0.1) until pending == 0 or tick() > deadline
+end)
+
+-- Auto-sauvegarde périodique toutes les 60 s
+-- (protège contre les arrêts brusques en Studio ou les crashs serveur)
+task.spawn(function()
+    while true do
+        task.wait(60)
+        for _, player in ipairs(game.Players:GetPlayers()) do
+            task.spawn(function() DataManager.SaveData(player) end)
+        end
     end
 end)
 

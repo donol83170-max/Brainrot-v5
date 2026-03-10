@@ -1337,11 +1337,16 @@ local function onPlayerAdded(player: Player)
     end
 
     -- Restaure la Puissance totale depuis le DataStore (persistance inter-sessions)
-    local savedPower = DataManager.GetPowerTotal(player)
-    totalHarvested[player.UserId] = savedPower
-
-    -- Sync le total sauvegardé vers le HarvestHUD client (amount=0 = pas de nouvelle récolte)
-    task.delay(4, function()
+    -- DataManager.LoadData est asynchrone (GetAsync) — on attend qu'il ait fini.
+    task.spawn(function()
+        for _ = 1, 30 do
+            if DataManager.GetData(player) then break end
+            task.wait(0.3)
+        end
+        local savedPower = DataManager.GetPowerTotal(player)
+        totalHarvested[player.UserId] = savedPower
+        -- Sync le HUD client avec le total initial
+        task.wait(2)
         if player.Parent then
             HarvestResult:FireClient(player, 0, totalHarvested[player.UserId] or 0)
         end
