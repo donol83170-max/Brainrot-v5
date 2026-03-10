@@ -124,7 +124,25 @@ end
 --   ["Bombardiro Crocodilo"] = { x = 90, y = 0,   z = 0 },  -- couché → debout
 --
 local MODEL_ORIENTATION_CORRECTIONS: {[string]: {x: number, y: number, z: number}} = {
-    -- ["Nom du brainrot"] = { x = 0, y = 0, z = 0 },
+    -- z = 90 annule le -90° de base (modèles Toolbox déjà debouts en Roblox Y-up)
+    -- Ajuste y si le modèle est dos au couloir (essaie 180)
+    -- Ajuste x si le modèle est couché vers l'avant/arrière (essaie 90 ou -90)
+    ["Ballerina Cappuccina"]      = { x = 0, y = 0, z = 90 },
+    ["Bombardiro Crocodilo"]      = { x = 0, y = 0, z = 90 },
+    ["Bombombini Gusini"]         = { x = 0, y = 0, z = 90 },
+    ["Cappuccino Assassino"]      = { x = 0, y = 0, z = 90 },
+    ["Lirili Larila"]             = { x = 0, y = 0, z = 90 },
+    ["Six Seven"]                 = { x = 0, y = 0, z = 90 },
+    ["Tralalero Tralala"]         = { x = 0, y = 0, z = 90 },
+    ["Trippi Troppi"]             = { x = 0, y = 0, z = 90 },
+    ["Brr Brr Patapim"]           = { x = 0, y = 0, z = 90 },
+    ["Galaxy W Or L"]             = { x = 0, y = 0, z = 90 },
+    ["Gold Chimpanzini Bananini"] = { x = 0, y = 0, z = 90 },
+    ["Gold Los Tralaleritos"]     = { x = 0, y = 0, z = 90 },
+    ["Diamond Six Seven"]         = { x = 0, y = 0, z = 90 },
+    ["Diamond Tung Sahur"]        = { x = 0, y = 0, z = 90 },
+    ["Dragon Cannelloni"]         = { x = 0, y = 0, z = 90 },
+    ["Strawberry Elephant"]       = { x = 0, y = 0, z = 90 },
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
