@@ -4,32 +4,165 @@
 local LootTables = {}
 
 LootTables.Wheels = {
-    [1] = { -- Roue de départ
+
+    -- ── Roue 1 : Roue Noob (centre, position 0,0,0) ───────────────────────────
+    [1] = {
         Name = "Roue Noob",
+        Cost = 20,
+        Currency = "Gold",
         Items = {
-            -- NORMAL (60%)
-            { Id = "BruhSound", Name = "Son Bruh", Rarity = "NORMAL" },
-            { Id = "NoobFace", Name = "Tête de Noob", Rarity = "NORMAL" },
-            { Id = "DefaultPizza", Name = "Pizza Froide", Rarity = "NORMAL" },
+            -- NORMAL (60%) — segments 1, 2, 3
+            { Id = "BruhSound",    Name = "Son Bruh",         Rarity = "NORMAL",    SegmentId = 1  },
+            { Id = "NoobFace",     Name = "Tête de Noob",     Rarity = "NORMAL",    SegmentId = 2  },
+            { Id = "DefaultPizza", Name = "Pizza Froide",      Rarity = "NORMAL",    SegmentId = 3  },
 
-            -- RARE (20%)
-            { Id = "MewingEmoji", Name = "Emoji Mewing", Rarity = "RARE" },
-            { Id = "BlueTie", Name = "Cravate Bleue", Rarity = "RARE" },
-            { Id = "SigmaSmile", Name = "Sourire Sigma", Rarity = "RARE" },
+            -- RARE (20%) — segments 4, 5, 6
+            { Id = "MewingEmoji",  Name = "Emoji Mewing",      Rarity = "RARE",      SegmentId = 4  },
+            { Id = "BlueTie",      Name = "Cravate Bleue",     Rarity = "RARE",      SegmentId = 5  },
+            { Id = "SigmaSmile",   Name = "Sourire Sigma",     Rarity = "RARE",      SegmentId = 6  },
 
-            -- MYTHIC (10%)
-            { Id = "GigachadJaw", Name = "Mâchoire Gigachad", Rarity = "MYTHIC" },
-            { Id = "PizzaTower", Name = "Tour de Pizza", Rarity = "MYTHIC" },
+            -- MYTHIC (10%) — segments 7, 8
+            { Id = "GigachadJaw",  Name = "Mâchoire Gigachad", Rarity = "MYTHIC",    SegmentId = 7  },
+            { Id = "PizzaTower",   Name = "Tour de Pizza",     Rarity = "MYTHIC",    SegmentId = 8  },
 
-            -- LEGENDARY (8%)
-            { Id = "SkibidiHead", Name = "Tête Skibidi", Rarity = "LEGENDARY" },
-            { Id = "GoldenSigma", Name = "Sigma d'Or", Rarity = "LEGENDARY" },
+            -- LEGENDARY (8%) — segments 9, 10
+            { Id = "SkibidiHead",  Name = "Tête Skibidi",      Rarity = "LEGENDARY", SegmentId = 9  },
+            { Id = "GoldenSigma",  Name = "Sigma d'Or",        Rarity = "LEGENDARY", SegmentId = 10 },
 
-            -- ULTRA (2%)
-            { Id = "GalaxySigma", Name = "Sigma Galactique", Rarity = "ULTRA" },
-            { Id = "DiamondSkibidi", Name = "Skibidi Diamant", Rarity = "ULTRA" },
+            -- ULTRA (2%) — segment 11
+            { Id = "GalaxySigma",    Name = "Sigma Galactique", Rarity = "ULTRA",    SegmentId = 11 },
+
+            -- NORMAL (60%) — segments 12, 13 (extra)
+            { Id = "DiamondSkibidi", Name = "Skibidi Diamant",  Rarity = "NORMAL",   SegmentId = 12 },
+            { Id = "JokeCrafter",    Name = "Joke Crafter",     Rarity = "NORMAL",   SegmentId = 13 },
+
+            -- RARE (20%) — segment 14 (extra)
+            { Id = "BrainrotKing",   Name = "Roi Brainrot",     Rarity = "RARE",     SegmentId = 14 },
+
+            -- MYTHIC (10%) — segment 15 (extra)
+            { Id = "SkibidiGod",     Name = "Dieu Skibidi",     Rarity = "MYTHIC",   SegmentId = 15 },
+
+            -- ULTRA (2%) — segment 16 (extra)
+            { Id = "UltimateNoob",   Name = "Noob Ultime",      Rarity = "ULTRA",    SegmentId = 16 },
         }
-    }
+    },
+
+    -- ── Roue 2 : Roue Sigma (gauche, position -70,0,0) ────────────────────────
+    [2] = {
+        Name = "Roue Sigma",
+        Cost = 100,
+        Currency = "Gold",
+        Items = {
+            -- NORMAL (60%) — segments 1, 2, 3
+            { Id = "CrunchyCookie", Name = "Cookie Croustillant", Rarity = "NORMAL",    SegmentId = 1  },
+            { Id = "BasicRizzler",  Name = "Rizzler Basique",     Rarity = "NORMAL",    SegmentId = 2  },
+            { Id = "NpcFace",       Name = "Tête de PNJ",         Rarity = "NORMAL",    SegmentId = 3  },
+
+            -- RARE (20%) — segments 4, 5, 6
+            { Id = "SigmaGrind",    Name = "Grind Sigma",         Rarity = "RARE",      SegmentId = 4  },
+            { Id = "Rizzler500",    Name = "Rizzler 500",         Rarity = "RARE",      SegmentId = 5  },
+            { Id = "BrainrotWave",  Name = "Vague Brainrot",      Rarity = "RARE",      SegmentId = 6  },
+
+            -- MYTHIC (10%) — segments 7, 8
+            { Id = "SigmaKing",     Name = "Roi Sigma",           Rarity = "MYTHIC",    SegmentId = 7  },
+            { Id = "GlizzyGoblin",  Name = "Gobelin Glizzy",      Rarity = "MYTHIC",    SegmentId = 8  },
+
+            -- LEGENDARY (8%) — segments 9, 10
+            { Id = "UltraRizzler",  Name = "Rizzler Ultra",       Rarity = "LEGENDARY", SegmentId = 9  },
+            { Id = "SigmaChad",     Name = "Sigma Chad",          Rarity = "LEGENDARY", SegmentId = 10 },
+
+            -- ULTRA (2%) — segment 11
+            { Id = "OmegaSigma",    Name = "Omega Sigma",         Rarity = "ULTRA",     SegmentId = 11 },
+
+            -- NORMAL (60%) — segments 12, 13 (extra)
+            { Id = "DivineRizzler", Name = "Rizzler Divin",        Rarity = "NORMAL",    SegmentId = 12 },
+            { Id = "ChadVibes",     Name = "Chad Vibes",           Rarity = "NORMAL",    SegmentId = 13 },
+
+            -- RARE (20%) — segment 14 (extra)
+            { Id = "SigmaFlash",    Name = "Sigma Flash",          Rarity = "RARE",      SegmentId = 14 },
+
+            -- MYTHIC (10%) — segment 15 (extra)
+            { Id = "MegaRizzler",   Name = "Méga Rizzler",         Rarity = "MYTHIC",    SegmentId = 15 },
+
+            -- ULTRA (2%) — segment 16 (extra)
+            { Id = "AbsoluteSigma", Name = "Sigma Absolu",         Rarity = "ULTRA",     SegmentId = 16 },
+        }
+    },
+
+    -- ── Roue 3 : Roue Ultra (droite, position 70,0,0) ─────────────────────────
+    [3] = {
+        Name = "Roue Ultra",
+        Cost = 500,
+        Currency = "Gold",
+        Items = {
+            -- NORMAL (60%) — segments 1, 2, 3
+            { Id = "CosmicNoob",   Name = "Noob Cosmique",      Rarity = "NORMAL",    SegmentId = 1  },
+            { Id = "VoidPizza",    Name = "Pizza du Vide",       Rarity = "NORMAL",    SegmentId = 2  },
+            { Id = "NebulaBruh",   Name = "Bruh Nébuleux",      Rarity = "NORMAL",    SegmentId = 3  },
+
+            -- RARE (20%) — segments 4, 5, 6
+            { Id = "StarSigma",      Name = "Sigma Stellaire",   Rarity = "RARE",      SegmentId = 4  },
+            { Id = "LunarSkibidi",   Name = "Skibidi Lunaire",   Rarity = "RARE",      SegmentId = 5  },
+            { Id = "GalacticMewing", Name = "Mewing Galactique", Rarity = "RARE",      SegmentId = 6  },
+
+            -- MYTHIC (10%) — segments 7, 8
+            { Id = "NovaSigma",     Name = "Nova Sigma",         Rarity = "MYTHIC",    SegmentId = 7  },
+            { Id = "BlackHoleRizz", Name = "Rizz Trou Noir",     Rarity = "MYTHIC",    SegmentId = 8  },
+
+            -- LEGENDARY (8%) — segments 9, 10
+            { Id = "UniverseChad",   Name = "Chad de l'Univers", Rarity = "LEGENDARY", SegmentId = 9  },
+            { Id = "CosmicSkibidi",  Name = "Skibidi Cosmique",  Rarity = "LEGENDARY", SegmentId = 10 },
+
+            -- ULTRA (2%) — segment 11
+            { Id = "AbsoluteGigachad", Name = "Gigachad Absolu",    Rarity = "ULTRA",  SegmentId = 11 },
+
+            -- NORMAL (60%) — segments 12, 13 (extra)
+            { Id = "TrueOmegaSigma",   Name = "Vrai Omega Sigma",   Rarity = "NORMAL", SegmentId = 12 },
+            { Id = "StarNoob",         Name = "Noob Étoile",        Rarity = "NORMAL", SegmentId = 13 },
+
+            -- RARE (20%) — segment 14 (extra)
+            { Id = "NebulaSigma",      Name = "Sigma Nébuleux",     Rarity = "RARE",   SegmentId = 14 },
+
+            -- MYTHIC (10%) — segment 15 (extra)
+            { Id = "CelestialRizz",    Name = "Rizz Céleste",       Rarity = "MYTHIC", SegmentId = 15 },
+
+            -- ULTRA (2%) — segment 16 (extra)
+            { Id = "CosmicGigachad",   Name = "Gigachad Cosmique",  Rarity = "ULTRA",  SegmentId = 16 },
+        }
+    },
+    -- ── Roue 4 : Roue Brainrot v2.0 (16 segments — Pool system) ──────────────
+    -- IDs et Noms SYNCHRONISÉS avec WheelSystem.server.lua (POOL table)
+    -- Les Noms correspondent EXACTEMENT aux enfants de ReplicatedStorage.BrainrotModels
+    [4] = {
+        Name = "Roue Brainrot",
+        Cost = 20,
+        Currency = "Gold",
+        Items = {
+            -- COMMON (60%) — 8 items
+            { Id = "BallerinaCapp",    Name = "Ballerina Cappuccina",       Rarity = "COMMON",    SegmentId = 1  },
+            { Id = "BombardiroCroc",   Name = "Bombardiro Crocodilo",       Rarity = "COMMON",    SegmentId = 2  },
+            { Id = "BombombiniGus",    Name = "Bombombini Gusini",          Rarity = "COMMON",    SegmentId = 4  },
+            { Id = "CappuccinoAss",    Name = "Cappuccino Assassino",       Rarity = "COMMON",    SegmentId = 5  },
+            { Id = "LirilaLarila",     Name = "Lirili Larila",              Rarity = "COMMON",    SegmentId = 7  },
+            { Id = "SixSeven",         Name = "Six Seven",                  Rarity = "COMMON",    SegmentId = 9  },
+            { Id = "Tralalero",        Name = "Tralalero Tralala",          Rarity = "COMMON",    SegmentId = 11 },
+            { Id = "TrippiTroppi",     Name = "Trippi Troppi",              Rarity = "COMMON",    SegmentId = 13 },
+
+            -- RARE (25%) — 4 items
+            { Id = "BrBrPatapim",      Name = "Brr Brr Patapim",           Rarity = "RARE",      SegmentId = 3  },
+            { Id = "GalaxyWOrL",       Name = "Galaxy W Or L",             Rarity = "RARE",      SegmentId = 8  },
+            { Id = "GoldChimpanzini",  Name = "Gold Chimpanzini Bananini", Rarity = "RARE",      SegmentId = 12 },
+            { Id = "GoldLosTral",      Name = "Gold Los Tralaleritos",     Rarity = "RARE",      SegmentId = 16 },
+
+            -- EPIC (14%) — 2 items
+            { Id = "DiamondSixSeven",  Name = "Diamond Six Seven",         Rarity = "EPIC",      SegmentId = 10 },
+            { Id = "DiamondTungSahur", Name = "Diamond Tung Sahur",        Rarity = "EPIC",      SegmentId = 14 },
+
+            -- LEGENDARY (1%) — 2 items
+            { Id = "DragonCannell",    Name = "Dragon Cannelloni",         Rarity = "LEGENDARY", SegmentId = 6  },
+            { Id = "StrawberryEleph",  Name = "Strawberry Elephant",       Rarity = "LEGENDARY", SegmentId = 15 },
+        }
+    },
 }
 
 return LootTables

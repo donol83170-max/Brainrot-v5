@@ -16,6 +16,12 @@ local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
 local function onPlayerAdded(player)
     print("Welcome to Brainrot, " .. player.Name .. "!")
     DataManager.LoadData(player)
+    
+    -- Augmente la vitesse (Vitesse de base = 16, x2 = 32)
+    player.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+        humanoid.WalkSpeed = 32
+    end)
 end
 
 local function onPlayerRemoving(player)

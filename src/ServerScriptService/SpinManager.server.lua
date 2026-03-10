@@ -1,0 +1,3 @@
+-- SpinManager.server.lua — DÉSACTIVÉ
+-- Retiré lors du nettoyage. Le nouveau système de roues créera
+-- son propre canal de communication quand il sera implémenté.

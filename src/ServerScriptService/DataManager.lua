@@ -8,7 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Constants"))
 
-local DATASTORE_NAME = "Brainrot_v1"
+local DATASTORE_NAME = "Brainrot_v2" -- v2 : données de départ avec 300 Gold + 1 Ticket
 local playerDataStore
 
 -- Protection contre les erreurs si l'API n'est pas activée dans Studio
@@ -107,6 +107,25 @@ function DataManager.AddItem(player, item)
 	data.Collection[item.Id] = true
 
 	print("🎒 [Inventory] " .. player.Name .. " a reçu : " .. item.Name)
+end
+
+-- Dépenser des tickets
+function DataManager.SpendTicket(player, amount)
+    amount = amount or 1
+    local data = playerCache[player.UserId]
+    if not data then return false end
+    if data.Stats.Tickets < amount then return false end
+    data.Stats.Tickets -= amount
+    return true
+end
+
+-- Dépenser de l'Or
+function DataManager.SpendGold(player, amount)
+    local data = playerCache[player.UserId]
+    if not data then return false end
+    if data.Stats.Gold < amount then return false end
+    data.Stats.Gold -= amount
+    return true
 end
 
 -- Retirer un item
