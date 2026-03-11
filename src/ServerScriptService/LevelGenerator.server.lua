@@ -369,49 +369,58 @@ atmo.Parent    = Lighting
 print("✨ [LevelGenerator] Ambiance configurée")
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 6. SOL LEGO — Grille de dalles vertes avec Studs apparents
+-- 6. SOL LEGO — Dalles 32×32 vertes avec Studs au niveau Y=0
 -- ══════════════════════════════════════════════════════════════════════════════
+
+-- Si une Baseplate Roblox existe dans le Workspace, on la re-style en LEGO vert
+local existingBase = Workspace:FindFirstChild("Baseplate")
+if existingBase and existingBase:IsA("BasePart") then
+    local base = existingBase :: BasePart
+    base.Color        = Color3.fromRGB(75, 151, 74)
+    base.Material     = Enum.Material.SmoothPlastic
+    base.TopSurface   = Enum.SurfaceType.Studs
+    base.Reflectance  = 0.06
+    print("🟩 [LevelGenerator] Baseplate → LEGO vert")
+end
+
+-- Grille de dalles 32×32 LEGO (TILE_SZ = taille standard d'une plaque LEGO)
+-- Top surface at Y=0 → centre à Y = -0.6 (épaisseur 1.2)
 local legoGround = Instance.new("Folder")
 legoGround.Name   = "LegoGround"
 legoGround.Parent = envFolder
 
-local TILE_W  = 50   -- Largeur d'une tuile (studs)
-local TILE_D  = 50   -- Profondeur d'une tuile
-local TILE_H  = 1    -- Épaisseur (1 stud)
-local GRID_CX = 0    -- Centre X de la grille
-local GRID_CZ = 0    -- Centre Z de la grille
+local TILE_SZ = 32           -- 32×32 studs = plaque LEGO classique
+local TILE_THICK = 1.2       -- épaisseur (1 plaque LEGO = 1.2 stud)
+local COLS = 20              -- 20 × 32 = 640 studs de large
+local ROWS = 18              -- 18 × 32 = 576 studs de long
+local ORIG_X = -(COLS / 2) * TILE_SZ  -- bord gauche
+local ORIG_Z = -(ROWS / 2) * TILE_SZ  -- bord avant
 
--- Couleurs alternées pour l'effet LEGO classique
-local LEGO_COLORS = {
-    Color3.fromRGB( 75, 151,  74), -- Vert vif LEGO (Bright Green)
-    Color3.fromRGB( 88, 166,  86), -- Vert moyen
-    Color3.fromRGB( 63, 137,  61), -- Vert foncé
-}
-
--- 12 colonnes × 8 rangées = 600 × 400 studs couverts
-local COLS = 12
-local ROWS = 8
+-- Deux verts alternés pour l'effet damier LEGO
+local LEGO_A = Color3.fromRGB(75, 151, 74)   -- Bright Green
+local LEGO_B = Color3.fromRGB(63, 137, 61)   -- Dark Green
 
 for row = 0, ROWS - 1 do
     for col = 0, COLS - 1 do
-        local tileX = GRID_CX + (col - COLS / 2 + 0.5) * TILE_W
-        local tileZ = GRID_CZ + (row - ROWS / 2 + 0.5) * TILE_D
-        local colorIdx = ((row + col) % #LEGO_COLORS) + 1
+        local cx = ORIG_X + col * TILE_SZ + TILE_SZ / 2
+        local cz = ORIG_Z + row * TILE_SZ + TILE_SZ / 2
 
         local tile = Instance.new("Part")
-        tile.Name       = "Tile_" .. row .. "_" .. col
-        tile.Size       = Vector3.new(TILE_W, TILE_H, TILE_D)
-        tile.Position   = Vector3.new(tileX, -1.5, tileZ) -- dessous du sol principal
-        tile.Anchored   = true
-        tile.CanCollide = false  -- Le sol principal (WorldAssets) reste la vraie collision
-        tile.Color      = LEGO_COLORS[colorIdx]
-        tile.Material   = Enum.Material.SmoothPlastic
-        tile.TopSurface = Enum.SurfaceType.Studs  -- ← STYLE LEGO
+        tile.Name          = "LegoTile_" .. row .. "_" .. col
+        tile.Size          = Vector3.new(TILE_SZ, TILE_THICK, TILE_SZ)
+        tile.Position      = Vector3.new(cx, -TILE_THICK / 2, cz)  -- top à Y=0
+        tile.Anchored      = true
+        tile.CanCollide    = true
+        tile.Color         = if (row + col) % 2 == 0 then LEGO_A else LEGO_B
+        tile.Material      = Enum.Material.SmoothPlastic
+        tile.Reflectance   = 0.06
+        tile.TopSurface    = Enum.SurfaceType.Studs   -- ← les petits ronds LEGO
         tile.BottomSurface = Enum.SurfaceType.Smooth
-        tile.Parent     = legoGround
+        tile.CastShadow    = false
+        tile.Parent        = legoGround
     end
 end
-print("🟩 [LevelGenerator] Sol LEGO généré (" .. (COLS * ROWS) .. " tuiles)")
+print("🟩 [LevelGenerator] Sol LEGO : " .. (COLS * ROWS) .. " dalles 32×32 avec Studs")
 
 print("🌍 [LevelGenerator] Génération du monde terminée !")
 
