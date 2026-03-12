@@ -369,58 +369,102 @@ atmo.Parent    = Lighting
 print("✨ [LevelGenerator] Ambiance configurée")
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 6. SOL LEGO — Dalles 32×32 vertes avec Studs au niveau Y=0
+-- 6. SOL — plaques de base (visuelles sans collision)
+-- Le rendu LEGO (GreenBlock / GreyBlock) est géré côté CLIENT par StudRenderer.
 -- ══════════════════════════════════════════════════════════════════════════════
 
--- Si une Baseplate Roblox existe dans le Workspace, on la re-style en LEGO vert
+local LEGO_GREEN = Color3.fromRGB(75, 151, 75)
+local DIRT_BROWN = Color3.fromRGB(170, 85, 0)
+local PLATE_H    = 0.8
+
+-- ── Baseplate Roblox → cachée ─────────────────────────────────────────────────
 local existingBase = Workspace:FindFirstChild("Baseplate")
 if existingBase and existingBase:IsA("BasePart") then
-    local base = existingBase :: BasePart
-    base.Color        = Color3.fromRGB(75, 151, 74)
-    base.Material     = Enum.Material.SmoothPlastic
-    base.TopSurface   = Enum.SurfaceType.Studs
-    base.Reflectance  = 0.06
-    print("🟩 [LevelGenerator] Baseplate → LEGO vert")
+    (existingBase :: BasePart).Transparency = 1
+    (existingBase :: BasePart).CanCollide   = false
 end
 
--- Grille de dalles 32×32 LEGO (TILE_SZ = taille standard d'une plaque LEGO)
--- Top surface at Y=0 → centre à Y = -0.6 (épaisseur 1.2)
-local legoGround = Instance.new("Folder")
-legoGround.Name   = "LegoGround"
-legoGround.Parent = envFolder
+-- ── Sol de collision global (invisible) ──────────────────────────────────────
+-- PLATE_H = 0.8 → grass center Y = 0.5, grass top Y = 0.9
+-- CollisionFloor top doit coïncider avec la top surface de l'herbe → center Y = 0.4
+local GRASS_TOP_Y = 0.1 + PLATE_H  -- = 0.9  (0.1 offset + plaque complète)
 
-local TILE_SZ = 32           -- 32×32 studs = plaque LEGO classique
-local TILE_THICK = 1.2       -- épaisseur (1 plaque LEGO = 1.2 stud)
-local COLS = 20              -- 20 × 32 = 640 studs de large
-local ROWS = 18              -- 18 × 32 = 576 studs de long
-local ORIG_X = -(COLS / 2) * TILE_SZ  -- bord gauche
-local ORIG_Z = -(ROWS / 2) * TILE_SZ  -- bord avant
+local collisionFloor = Instance.new("Part")
+collisionFloor.Name         = "CollisionFloor"
+collisionFloor.Size         = Vector3.new(700, 1, 700)
+collisionFloor.CFrame       = CFrame.new(0, GRASS_TOP_Y - 0.5, 0)  -- top exactement à GRASS_TOP_Y
+collisionFloor.Anchored     = true
+collisionFloor.CanCollide   = true
+collisionFloor.Locked       = true
+collisionFloor.Transparency = 1
+collisionFloor.CastShadow   = false
+collisionFloor.Parent       = envFolder
 
--- Deux verts alternés pour l'effet damier LEGO
-local LEGO_A = Color3.fromRGB(75, 151, 74)   -- Bright Green
-local LEGO_B = Color3.fromRGB(63, 137, 61)   -- Dark Green
+-- ── SpawnLocation positionné sur la surface visible ──────────────────────────
+local spawnLoc = Instance.new("SpawnLocation")
+spawnLoc.Name         = "SpawnLocation"
+spawnLoc.Size         = Vector3.new(6, 1, 6)
+-- Base du SpawnLocation = face supérieure du CollisionFloor
+spawnLoc.CFrame       = CFrame.new(0, GRASS_TOP_Y + 0.5, 0)
+spawnLoc.Anchored     = true
+spawnLoc.CanCollide   = true
+spawnLoc.Neutral      = true     -- tous les joueurs peuvent spawner ici
+spawnLoc.Duration     = 0
+spawnLoc.Transparency = 1        -- invisible : la texture verte sert de repère visuel
+spawnLoc.Parent       = envFolder
 
-for row = 0, ROWS - 1 do
-    for col = 0, COLS - 1 do
-        local cx = ORIG_X + col * TILE_SZ + TILE_SZ / 2
-        local cz = ORIG_Z + row * TILE_SZ + TILE_SZ / 2
+-- ── Dalles de base (visuelles, sans collision) ────────────────────────────────
+-- Grille 7×7 de plaques 32×32 — LegoRenderer ajoute les studs en tâche de fond
+task.spawn(function()
+    local TILE  = 32
+    local RANGE = 3   -- ±3 → 7×7 = 49 dalles, 224×224 studs
 
-        local tile = Instance.new("Part")
-        tile.Name          = "LegoTile_" .. row .. "_" .. col
-        tile.Size          = Vector3.new(TILE_SZ, TILE_THICK, TILE_SZ)
-        tile.Position      = Vector3.new(cx, -TILE_THICK / 2, cz)  -- top à Y=0
-        tile.Anchored      = true
-        tile.CanCollide    = true
-        tile.Color         = if (row + col) % 2 == 0 then LEGO_A else LEGO_B
-        tile.Material      = Enum.Material.SmoothPlastic
-        tile.Reflectance   = 0.06
-        tile.TopSurface    = Enum.SurfaceType.Studs   -- ← les petits ronds LEGO
-        tile.BottomSurface = Enum.SurfaceType.Smooth
-        tile.CastShadow    = false
-        tile.Parent        = legoGround
+    local legoRoot = Instance.new("Folder")
+    legoRoot.Name  = "LegoGround_3D"
+    legoRoot.Parent= envFolder
+
+    for tx = -RANGE, RANGE do
+        local colFolder = Instance.new("Folder")
+        colFolder.Name  = "Col_" .. tx
+        colFolder.Parent= legoRoot
+
+        for tz = -RANGE, RANGE do
+            local cx = tx * TILE + TILE / 2
+            local cz = tz * TILE + TILE / 2
+            local plateY = 0.1 + PLATE_H / 2  -- top à Y ≈ 0.5
+
+            -- Bordure terre
+            local dirt = Instance.new("Part")
+            dirt.Name  = "Dirt_" .. tx .. "_" .. tz
+            dirt.Size  = Vector3.new(TILE + 3, PLATE_H, TILE + 3)
+            dirt.CFrame= CFrame.new(cx, plateY - PLATE_H, cz)
+            dirt.Anchored=true ; dirt.CanCollide=false ; dirt.Locked=true
+            dirt.Color = DIRT_BROWN ; dirt.Material=Enum.Material.SmoothPlastic
+            dirt.TopSurface=Enum.SurfaceType.Smooth
+            dirt.BottomSurface=Enum.SurfaceType.Smooth
+            dirt.CastShadow=false ; dirt.Parent=colFolder
+
+            -- Plaque verte
+            local base = Instance.new("Part")
+            base.Name  = "GrassBase_" .. tx .. "_" .. tz
+            base.Size  = Vector3.new(TILE, PLATE_H, TILE)
+            base.CFrame= CFrame.new(cx, plateY, cz)
+            base.Anchored=true ; base.CanCollide=false ; base.Locked=true
+            base.Color = LEGO_GREEN ; base.Material=Enum.Material.SmoothPlastic
+            base.Reflectance=0.1
+            base.TopSurface=Enum.SurfaceType.Smooth
+            base.BottomSurface=Enum.SurfaceType.Smooth
+            base.CastShadow=false ; base.Parent=colFolder
+
+            task.wait()   -- 1 yield par dalle
+        end
     end
-end
-print("🟩 [LevelGenerator] Sol LEGO : " .. (COLS * ROWS) .. " dalles 32×32 avec Studs")
+
+    print(string.format(
+        "[LevelGenerator] Sol — %d plaques de base générées (rendu LEGO côté client)",
+        (RANGE * 2 + 1) ^ 2
+    ))
+end)
 
 print("🌍 [LevelGenerator] Génération du monde terminée !")
 

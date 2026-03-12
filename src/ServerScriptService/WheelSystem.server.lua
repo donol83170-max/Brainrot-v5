@@ -1,20 +1,20 @@
 --!strict
--- WheelSystem.server.lua — 12 SEGMENTS · POOL SYSTEM · v4 PIVOT CHIRURGICAL
+-- WheelSystem.server.lua — MULTI-ROLL SYSTEM
 --
--- RÈGLE DE PHYSIQUE (critique) :
---   SEUL le Pivot est Anchored = true.
---   WheelDisk : Anchored = false + WeldConstraint → suit le Pivot.
---   Toutes les pièces statiques (jante, billes, dôme) : Anchored = true, NON soudées.
+-- ARCHITECTURE DES DOSSIERS :
+--   Workspace/
+--     CasinoMachine/          ← structure FIXE, générée une seule fois au démarrage
+--       MachineBase, Wheel, Lever, Screen, Pedestals, RentrerBtn …
+--       MiniClones/           ← sous-dossier VOLATILE : contient uniquement les
+--                                clones des Brainrots gagnés, jamais rien d'autre
 --
--- ROTATION CASINO (deux phases) :
---   Phase 1 — Spin rapide (constante)  : RunService.Heartbeat, N tours complets.
---   Phase 2 — Décélération (QuartOut)  : TweenService sur NumberValue → Heartbeat.
---   Résultat : départ rapide → ralentissement réaliste → arrêt précis sur le segment.
+-- RÈGLE ABSOLUE :
+--   • ClearAllChildren / Destroy ne s'appliquent QUE sur MiniClones.
+--   • CasinoMachine lui-même n'est jamais vidé ni détruit pendant le jeu.
 --
--- AXEL DU CYLINDRE ROBLOX = X  (Size.X = épaisseur du disque)
---   ORIGINAL_CFRAME = CFrame.Angles(0, 180°, 0)  → local +X pointe vers world -X (fontaine) ✓
---   Spin    = CFrame.Angles(deg, 0, 0)   → rotation autour de local X = axe du disque ✓
---   SurfaceGui Face = NormalId.Right → face plate circulaire visible depuis la fontaine ✓
+-- FLUX :
+--   Spin → clone dans MiniClones, positionné sur le slot libre.
+--   Rentrer → items → galerie joueur, puis MiniClones:ClearAllChildren().
 
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
@@ -24,105 +24,112 @@ local TweenService        = game:GetService("TweenService")
 local Workspace           = game:GetService("Workspace")
 
 local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
+local SpawnFX     = require(ServerScriptService:WaitForChild("SpawnFX"))
 
 local Events           = ReplicatedStorage:WaitForChild("Events")
 local SpinResult       = Events:WaitForChild("SpinResult")
 local UpdateClientData = Events:WaitForChild("UpdateClientData")
-local RequestSpin      = Events:FindFirstChild("RequestSpin")
-if not RequestSpin then
-    RequestSpin = Instance.new("RemoteEvent")
-    RequestSpin.Name = "RequestSpin"
-    RequestSpin.Parent = Events
+
+local function getOrCreateEvent(name: string): RemoteEvent
+    local e = Events:FindFirstChild(name)
+    if not e then
+        e        = Instance.new("RemoteEvent")
+        e.Name   = name
+        e.Parent = Events
+    end
+    return e :: RemoteEvent
 end
+
+local RequestSpin   = getOrCreateEvent("RequestSpin")
+local MachineUpdate = getOrCreateEvent("MachineUpdate")
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONFIG
 -- ══════════════════════════════════════════════════════════════════════════════
-local N_SEGMENTS       = 16
-local SEG_ANGLE        = 360 / N_SEGMENTS   -- 22.5° par segment
-local SPIN_COST        = 20
-local FULL_ROTATIONS   = 5     -- tours complets en phase 1
-local PHASE1_DURATION  = 3.5   -- secondes — spin rapide constant
-local PHASE2_DURATION  = 2.0   -- secondes — TweenService QuartOut (décélération)
-local SPIN_DURATION    = PHASE1_DURATION + PHASE2_DURATION   -- 5.5 s au total
--- ── Position & taille ────────────────────────────────────────────────────────
--- Fontaine centrale à X=0, Z=0 (WorldAssets). Roue reculée loin de la fontaine.
--- WHEEL_CENTER.X = +40 (40 studs à droite → large espace de circulation devant).
--- Z=0 → centrée sur l'allée centrale. Face du disque vers -X (fontaine) ✓
-local WHEEL_CENTER     = Vector3.new(40, 18, 0)
-local WHEEL_RADIUS     = 10   -- agrandi pour la visibilité depuis les galeries
+local N_SEGMENTS      = 16
+local SEG_ANGLE       = 360 / N_SEGMENTS   -- 22.5° par segment
+local SPIN_COST       = 20
+local FULL_ROTATIONS  = 5
+local PHASE1_DURATION = 3.5
+local PHASE2_DURATION = 2.0
+local SPIN_DURATION   = PHASE1_DURATION + PHASE2_DURATION  -- 5.5 s
+
+local WHEEL_CENTER  = Vector3.new(40, 18, 0)
+local MACHINE_X     = WHEEL_CENTER.X
+local MACHINE_Z     = WHEEL_CENTER.Z
+local SCALE         = 1.05
 
 local RARITY_COLORS = {
-    COMMON    = Color3.fromRGB(  0, 255,   0),  -- VERT (table officielle)
-    RARE      = Color3.fromRGB(  0, 130, 255),  -- BLEU
-    EPIC      = Color3.fromRGB(255,   0, 255),  -- VIOLET
-    LEGENDARY = Color3.fromRGB(255, 215,   0),  -- DORÉ
+    COMMON          = Color3.fromRGB(  0, 255,   0),
+    RARE            = Color3.fromRGB(  0, 130, 255),
+    EPIC            = Color3.fromRGB(255,   0, 255),
+    LEGENDARY       = Color3.fromRGB(255, 215,   0),
+    ULTRA_LEGENDARY = Color3.fromRGB(255,  50,  50),
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- POOLS DE RARETÉ
 -- ══════════════════════════════════════════════════════════════════════════════
 local POOL = {
-    -- ── COMMON (60%) — 8 items ────────────────────────────────────────────────
     COMMON = {
-        { itemId = "Item67",           imageId = 0, name = "67"                       },
-        { itemId = "BallerinaCapp",    imageId = 0, name = "Ballerina Cappuccina"      },
-        { itemId = "BombardiroCroc",   imageId = 0, name = "Bombardiro Crocodilo"      },
-        { itemId = "BombombiniGus",    imageId = 0, name = "Bombombini Gusini"         },
-        { itemId = "CappuccinoAss",    imageId = 0, name = "Cappuccino Assassino"      },
-        { itemId = "LirilaLarila",     imageId = 0, name = "Lirilì Larilà"             },
-        { itemId = "Tralalero",        imageId = 0, name = "Tralalero Tralala"         },
-        { itemId = "TrippiTroppi",     imageId = 0, name = "Trippi Troppi"             },
+        { itemId = "BallerinaCapp",   imageId = 0, name = "Ballerina Cappuccina" },
+        { itemId = "BombardiroCroc",  imageId = 0, name = "Bombardiro Crocodilo" },
+        { itemId = "BombombiniGus",   imageId = 0, name = "Bombombini Gusini"    },
+        { itemId = "CappuccinoAss",   imageId = 0, name = "Cappuccino Assassino" },
+        { itemId = "LirilaLarila",    imageId = 0, name = "Lirilì Larilà"        },
+        { itemId = "Tralalero",       imageId = 0, name = "Tralalero Tralala"    },
+        { itemId = "TrippiTroppi",    imageId = 0, name = "Trippi Troppi"        },
     },
-    -- ── RARE (25%) — 4 items ─────────────────────────────────────────────────
     RARE = {
-        { itemId = "BrBrPatapim",      imageId = 0, name = "Brr Brr Patapim"          },
-        { itemId = "ChimpanziniBan",   imageId = 0, name = "Chimpanzini Bananini"      },
-        { itemId = "Los67",            imageId = 0, name = "Los 67"                   },
-        { itemId = "LosTralaleritos",  imageId = 0, name = "Los Tralaleritos"          },
+        { itemId = "BrBrPatapim",     imageId = 0, name = "Brr Brr Patapim"      },
+        { itemId = "ChimpanziniBan",  imageId = 0, name = "Chimpanzini Bananini" },
+        { itemId = "Los67",           imageId = 0, name = "Los 67"               },
+        { itemId = "LosTralaleritos", imageId = 0, name = "Los Tralaleritos"     },
     },
-    -- ── EPIC (14%) — 2 items ─────────────────────────────────────────────────
     EPIC = {
-        { itemId = "TungTungSahur",    imageId = 0, name = "Tung Tung Tung Sahur"     },
-        { itemId = "WOrL",             imageId = 0, name = "W or L"                   },
+        { itemId = "TungTungSahur",   imageId = 0, name = "Tung Tung Tung Sahur" },
+        { itemId = "WOrL",            imageId = 0, name = "W or L"               },
     },
-    -- ── LEGENDARY (1%) — 2 items ─────────────────────────────────────────────
     LEGENDARY = {
-        { itemId = "DragonCannell",    imageId = 0, name = "Dragon Cannelloni"        },
-        { itemId = "StrawberryEleph",  imageId = 0, name = "Strawberry Elephant"      },
+        { itemId = "Item67",          imageId = 0, name = "67"                   },
+    },
+    ULTRA_LEGENDARY = {
+        { itemId = "DragonCannell",   imageId = 0, name = "Dragon Cannelloni"    },
+        { itemId = "StrawberryEleph", imageId = 0, name = "Strawberry Elephant"  },
     },
 }
 
 local RARITY_WEIGHTS = {
-    { rarity = "COMMON",    weight = 60 },
-    { rarity = "RARE",      weight = 25 },
-    { rarity = "EPIC",      weight = 14 },
-    { rarity = "LEGENDARY", weight = 1  },
+    { rarity = "COMMON",          weight = 595 },
+    { rarity = "RARE",            weight = 250 },
+    { rarity = "EPIC",            weight = 140 },
+    { rarity = "LEGENDARY",       weight =  10 },
+    { rarity = "ULTRA_LEGENDARY", weight =   5 },
 }
 
--- 16 segments — distribution visuelle équilibrée sur la roue
--- COMMON×8, RARE×4, EPIC×2, LEGENDARY×2
 local SEGMENTS = {
-    { rarity = "COMMON",    item = POOL.COMMON[1]    },  --  1 67
-    { rarity = "COMMON",    item = POOL.COMMON[2]    },  --  2 Ballerina Cappuccina
-    { rarity = "RARE",      item = POOL.RARE[1]      },  --  3 Brr Brr Patapim
-    { rarity = "COMMON",    item = POOL.COMMON[3]    },  --  4 Bombardiro Crocodilo
-    { rarity = "COMMON",    item = POOL.COMMON[4]    },  --  5 Bombombini Gusini
-    { rarity = "LEGENDARY", item = POOL.LEGENDARY[1] },  --  6 Dragon Cannelloni
-    { rarity = "COMMON",    item = POOL.COMMON[5]    },  --  7 Cappuccino Assassino
-    { rarity = "RARE",      item = POOL.RARE[2]      },  --  8 Chimpanzini Bananini
-    { rarity = "COMMON",    item = POOL.COMMON[6]    },  --  9 Lirilì Larilà
-    { rarity = "EPIC",      item = POOL.EPIC[1]      },  -- 10 Tung Tung Tung Sahur
-    { rarity = "COMMON",    item = POOL.COMMON[7]    },  -- 11 Tralalero Tralala
-    { rarity = "RARE",      item = POOL.RARE[3]      },  -- 12 Los 67
-    { rarity = "COMMON",    item = POOL.COMMON[8]    },  -- 13 Trippi Troppi
-    { rarity = "EPIC",      item = POOL.EPIC[2]      },  -- 14 W or L
-    { rarity = "LEGENDARY", item = POOL.LEGENDARY[2] },  -- 15 Strawberry Elephant
-    { rarity = "RARE",      item = POOL.RARE[4]      },  -- 16 Los Tralaleritos
+    { rarity = "COMMON",          item = POOL.COMMON[1]          },
+    { rarity = "COMMON",          item = POOL.COMMON[2]          },
+    { rarity = "RARE",            item = POOL.RARE[1]            },
+    { rarity = "COMMON",          item = POOL.COMMON[3]          },
+    { rarity = "COMMON",          item = POOL.COMMON[4]          },
+    { rarity = "ULTRA_LEGENDARY", item = POOL.ULTRA_LEGENDARY[1] },
+    { rarity = "COMMON",          item = POOL.COMMON[5]          },
+    { rarity = "RARE",            item = POOL.RARE[2]            },
+    { rarity = "COMMON",          item = POOL.COMMON[6]          },
+    { rarity = "EPIC",            item = POOL.EPIC[1]            },
+    { rarity = "COMMON",          item = POOL.COMMON[7]          },
+    { rarity = "RARE",            item = POOL.RARE[3]            },
+    { rarity = "LEGENDARY",       item = POOL.LEGENDARY[1]       },
+    { rarity = "EPIC",            item = POOL.EPIC[2]            },
+    { rarity = "ULTRA_LEGENDARY", item = POOL.ULTRA_LEGENDARY[2] },
+    { rarity = "RARE",            item = POOL.RARE[4]            },
 }
-
-local SEGS_BY_RARITY: {[string]: {number}} = { COMMON={}, RARE={}, EPIC={}, LEGENDARY={} }
 assert(#SEGMENTS == N_SEGMENTS, "SEGMENTS count mismatch")
+
+local SEGS_BY_RARITY: {[string]: {number}} = {
+    COMMON={}, RARE={}, EPIC={}, LEGENDARY={}, ULTRA_LEGENDARY={}
+}
 for idx, seg in ipairs(SEGMENTS) do
     table.insert(SEGS_BY_RARITY[seg.rarity], idx)
 end
@@ -133,7 +140,7 @@ end
 math.randomseed(os.clock() * 1000)
 
 local function pickRarity(): string
-    local roll = math.random(1, 100)
+    local roll = math.random(1, 1000)
     local cum  = 0
     for _, entry in ipairs(RARITY_WEIGHTS) do
         cum += entry.weight
@@ -148,193 +155,372 @@ local function pickItem(rarity: string)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- CFRAME HELPERS
--- ORIGINAL_CFRAME = point d'ancrage fixe de toutes les rotations.
--- CFrame.Angles(0, 180°, 0) → local +X pointe vers world -X (vers fontaine) ✓
--- Spin = CFrame.Angles(deg, 0, 0) → rotation autour de local X = axe du disque ✓
+-- CONSTRUCTION PHYSIQUE — STRUCTURE FIXE
+-- Générée UNE SEULE FOIS au démarrage du serveur.
+-- Jamais modifiée, vidée ou détruite pendant le jeu.
 -- ══════════════════════════════════════════════════════════════════════════════
-local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(180), 0)
 
--- Retourne le CFrame du Pivot pour un angle de spin donné (en degrés, cumulatif).
--- Toutes les rotations TweenService sont relatives à ORIGINAL_CFRAME.
-local function getPivotCF(deg: number): CFrame
-    return ORIGINAL_CFRAME * CFrame.Angles(math.rad(deg), 0, 0)
-end
+-- Supprime l'ancienne instance si le serveur redémarre (Studio Play)
+local oldCasino = Workspace:FindFirstChild("CasinoMachine")
+if oldCasino then oldCasino:Destroy() end
 
--- ══════════════════════════════════════════════════════════════════════════════
--- CONSTRUCTION PHYSIQUE
--- ══════════════════════════════════════════════════════════════════════════════
--- Nettoyage Total (Destruction de l'ancienne roue pour forcer la v5 physique)
-local oldWheel = Workspace:FindFirstChild("BrainrotWheel")
-if oldWheel then
-    oldWheel:Destroy()
-end
+-- ── Dossier racine ────────────────────────────────────────────────────────────
+local casinoFolder   = Instance.new("Folder")
+casinoFolder.Name    = "CasinoMachine"
+casinoFolder.Parent  = Workspace
 
-local wheelFolder       = Instance.new("Folder")
-wheelFolder.Name        = "BrainrotWheel"
-wheelFolder.Parent      = Workspace
+-- ── Sous-dossier VOLATILE pour les mini-clones ────────────────────────────────
+-- SEUL endroit où ClearAllChildren est autorisé.
+local miniClonesFolder   = Instance.new("Folder")
+miniClonesFolder.Name    = "MiniClones"
+miniClonesFolder.Parent  = casinoFolder
 
--- ── Borne de Casino (Slot Machine) ────────────────────────────────────────────────
-local MACHINE_X = WHEEL_CENTER.X
-local MACHINE_Z = WHEEL_CENTER.Z
-local SCALE = 1.05 -- Agrandissement de 5%
+-- ── Machine (socle principal) ─────────────────────────────────────────────────
+local machineBase          = Instance.new("Part")
+machineBase.Name           = "MachineBase"
+machineBase.Size           = Vector3.new(6 * SCALE, 12 * SCALE, 8 * SCALE)
+machineBase.Position       = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z)
+machineBase.Anchored       = true
+machineBase.Material       = Enum.Material.SmoothPlastic
+machineBase.Color          = Color3.fromRGB(200, 0, 0)
+machineBase.TopSurface     = Enum.SurfaceType.Smooth
+machineBase.BottomSurface  = Enum.SurfaceType.Smooth
+machineBase.Parent         = casinoFolder
 
--- Socle rectangulaire principal (Métal Gris -> Peinture Rouge)
-local machineBase       = Instance.new("Part")
-machineBase.Name        = "MachineBase"
-machineBase.Size        = Vector3.new(6 * SCALE, 12 * SCALE, 8 * SCALE) 
-machineBase.Position    = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z)
-machineBase.Anchored    = true
-machineBase.Material    = Enum.Material.SmoothPlastic
-machineBase.Color       = Color3.fromRGB(200, 0, 0)
-machineBase.Parent      = wheelFolder
-
--- Dégradé de Rouge "High Quality Paint" avec SurfaceGuis
-local function applyGradientToFace(part, face)
-    local sg = Instance.new("SurfaceGui")
-    sg.Face = face
-    sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-    sg.PixelsPerStud = 50
+local function applyGradientToFace(part: BasePart, face: Enum.NormalId)
+    local sg          = Instance.new("SurfaceGui")
+    sg.Face           = face
+    sg.SizingMode     = Enum.SurfaceGuiSizingMode.PixelsPerStud
+    sg.PixelsPerStud  = 50
     sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    sg.Parent = part
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    frame.BorderSizePixel = 0
-    frame.Parent = sg
-    
-    local grad = Instance.new("UIGradient")
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 0, 0)),   -- Rouge profond
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 25, 25))  -- Rouge écarlate brillant
+    sg.Parent         = part
+
+    local frame                = Instance.new("Frame")
+    frame.Size                 = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3     = Color3.fromRGB(255, 255, 255)
+    frame.BorderSizePixel      = 0
+    frame.Parent               = sg
+
+    local grad    = Instance.new("UIGradient")
+    grad.Color    = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 0, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 25, 25)),
     })
-    grad.Rotation = -90 -- Bas vers le haut
-    grad.Parent = frame
+    grad.Rotation = -90
+    grad.Parent   = frame
 end
-applyGradientToFace(machineBase, Enum.NormalId.Left)   -- Face avant (-X local est Left)
-applyGradientToFace(machineBase, Enum.NormalId.Right)  -- Dos
-applyGradientToFace(machineBase, Enum.NormalId.Front)  -- Côté
-applyGradientToFace(machineBase, Enum.NormalId.Back)   -- Côté
+applyGradientToFace(machineBase, Enum.NormalId.Left)
+applyGradientToFace(machineBase, Enum.NormalId.Right)
+applyGradientToFace(machineBase, Enum.NormalId.Front)
+applyGradientToFace(machineBase, Enum.NormalId.Back)
 
--- Lumières Néon sur les bords (Or brillant fixe)
-local neonLeft = Instance.new("Part")
-neonLeft.Name = "NeonLeft"
-neonLeft.Size = Vector3.new(6.1 * SCALE, 12.2 * SCALE, 0.4 * SCALE)
-neonLeft.Position = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z - 3.8 * SCALE)
-neonLeft.Anchored = true; neonLeft.Material = Enum.Material.Neon
-neonLeft.Color = Color3.fromRGB(255, 215, 0); neonLeft.Parent = wheelFolder
+local neonLeft          = Instance.new("Part")
+neonLeft.Name           = "NeonLeft"
+neonLeft.Size           = Vector3.new(6.1 * SCALE, 12.2 * SCALE, 0.4 * SCALE)
+neonLeft.Position       = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z - 3.8 * SCALE)
+neonLeft.Anchored       = true
+neonLeft.Material       = Enum.Material.Neon
+neonLeft.Color          = Color3.fromRGB(255, 215, 0)
+neonLeft.Parent         = casinoFolder
 
-local neonRight = Instance.new("Part")
-neonRight.Name = "NeonRight"
-neonRight.Size = Vector3.new(6.1 * SCALE, 12.2 * SCALE, 0.4 * SCALE)
-neonRight.Position = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z + 3.8 * SCALE)
-neonRight.Anchored = true; neonRight.Material = Enum.Material.Neon
-neonRight.Color = Color3.fromRGB(255, 215, 0); neonRight.Parent = wheelFolder
+local neonRight         = Instance.new("Part")
+neonRight.Name          = "NeonRight"
+neonRight.Size          = Vector3.new(6.1 * SCALE, 12.2 * SCALE, 0.4 * SCALE)
+neonRight.Position      = Vector3.new(MACHINE_X, 6 * SCALE, MACHINE_Z + 3.8 * SCALE)
+neonRight.Anchored      = true
+neonRight.Material      = Enum.Material.Neon
+neonRight.Color         = Color3.fromRGB(255, 215, 0)
+neonRight.Parent        = casinoFolder
 
--- Cadre doré de l'écran
-local screenBorder = Instance.new("Part")
-screenBorder.Name = "ScreenBorder"
-screenBorder.Size = Vector3.new(0.6 * SCALE, 6.4 * SCALE, 7.4 * SCALE)
-screenBorder.CFrame = CFrame.new(MACHINE_X - 3.05 * SCALE, 9 * SCALE, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
-screenBorder.Anchored = true
-screenBorder.Material = Enum.Material.Metal
-screenBorder.Color = Color3.fromRGB(255, 215, 0)
-screenBorder.Parent = wheelFolder
+local screenBorder      = Instance.new("Part")
+screenBorder.Name       = "ScreenBorder"
+screenBorder.Size       = Vector3.new(0.6 * SCALE, 6.4 * SCALE, 7.4 * SCALE)
+screenBorder.CFrame     = CFrame.new(MACHINE_X - 3.05 * SCALE, 9 * SCALE, MACHINE_Z)
+                        * CFrame.Angles(0, 0, math.rad(-15))
+screenBorder.Anchored   = true
+screenBorder.Material   = Enum.Material.Metal
+screenBorder.Color      = Color3.fromRGB(255, 215, 0)
+screenBorder.Parent     = casinoFolder
 
--- Écran incliné noir
 local screenPart        = Instance.new("Part")
 screenPart.Name         = "ScreenPart"
 screenPart.Size         = Vector3.new(0.65 * SCALE, 6 * SCALE, 7 * SCALE)
-screenPart.CFrame       = CFrame.new(MACHINE_X - 3.1 * SCALE, 9 * SCALE, MACHINE_Z) * CFrame.Angles(0, 0, math.rad(-15))
+screenPart.CFrame       = CFrame.new(MACHINE_X - 3.1 * SCALE, 9 * SCALE, MACHINE_Z)
+                        * CFrame.Angles(0, 0, math.rad(-15))
 screenPart.Anchored     = true
 screenPart.Material     = Enum.Material.SmoothPlastic
 screenPart.Color        = Color3.fromRGB(15, 15, 15)
-screenPart.Parent       = wheelFolder
+screenPart.Parent       = casinoFolder
 
--- SurfaceGui sur l'écran (Face = Left)
 local screenGui         = Instance.new("SurfaceGui")
 screenGui.Face          = Enum.NormalId.Left
 screenGui.CanvasSize    = Vector2.new(800 * SCALE, 600 * SCALE)
 screenGui.Parent        = screenPart
 
-local titleText = Instance.new("TextLabel")
-titleText.Size = UDim2.new(1, 0, 1, 0)
-titleText.BackgroundTransparency = 1
-titleText.Text = "SPIN TO WIN\nBRAINROT"
-titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleText.Font = Enum.Font.LuckiestGuy
-titleText.TextScaled = true
-titleText.TextStrokeTransparency = 0
-titleText.TextStrokeColor3 = Color3.new(0, 0, 0)
-titleText.Parent = screenGui
+local titleText                      = Instance.new("TextLabel")
+titleText.Size                       = UDim2.new(1, 0, 1, 0)
+titleText.BackgroundTransparency     = 1
+titleText.Text                       = "SPIN TO WIN\nBRAINROT"
+titleText.TextColor3                 = Color3.fromRGB(255, 255, 255)
+titleText.Font                       = Enum.Font.LuckiestGuy
+titleText.TextScaled                 = true
+titleText.TextStrokeTransparency     = 0
+titleText.TextStrokeColor3           = Color3.new(0, 0, 0)
+titleText.Parent                     = screenGui
 
--- Levier doré sur la face avant (-X), en bas à droite (+Z du point de vue face avant)
-local leverBaseCF = CFrame.new(MACHINE_X - 3.2 * SCALE, 5.5 * SCALE, MACHINE_Z + 2.5 * SCALE) 
-                  * CFrame.Angles(0, math.rad(-90), 0) 
+-- ── Levier ────────────────────────────────────────────────────────────────────
+local leverBaseCF = CFrame.new(MACHINE_X - 3.2 * SCALE, 5.5 * SCALE, MACHINE_Z + 2.5 * SCALE)
+                  * CFrame.Angles(0, math.rad(-90), 0)
                   * CFrame.Angles(math.rad(30), 0, 0)
 
 local leverArm        = Instance.new("Part")
+leverArm.Name         = "LeverArm"
 leverArm.Shape        = Enum.PartType.Cylinder
 leverArm.Size         = Vector3.new(0.4 * SCALE, 3 * SCALE, 0.4 * SCALE)
 leverArm.Anchored     = true
 leverArm.Material     = Enum.Material.Metal
 leverArm.Color        = Color3.fromRGB(255, 215, 0)
-leverArm.Parent       = wheelFolder
+leverArm.Parent       = casinoFolder
 
 local leverBall       = Instance.new("Part")
+leverBall.Name        = "LeverBall"
 leverBall.Shape       = Enum.PartType.Ball
 leverBall.Size        = Vector3.new(1.2 * SCALE, 1.2 * SCALE, 1.2 * SCALE)
 leverBall.Anchored    = true
 leverBall.Material    = Enum.Material.SmoothPlastic
 leverBall.Color       = Color3.fromRGB(255, 40, 40)
-leverBall.Parent      = wheelFolder
+leverBall.Parent      = casinoFolder
 
--- Fonction de mise à jour du levier
-local function updateLever(angleDeg)
-    -- Levier pivote via l'axe X local. Une augmentation de angleDeg bascule le levier vers le bas.
-    local pivotCF = leverBaseCF * CFrame.Angles(math.rad(angleDeg), 0, 0)
-    leverArm.CFrame = pivotCF * CFrame.new(0, 1.5 * SCALE, 0) 
+local function updateLever(angleDeg: number)
+    local pivotCF    = leverBaseCF * CFrame.Angles(math.rad(angleDeg), 0, 0)
+    leverArm.CFrame  = pivotCF * CFrame.new(0, 1.5 * SCALE, 0)
     leverBall.CFrame = pivotCF * CFrame.new(0, 3 * SCALE, 0)
 end
-updateLever(0) -- Position repos (déjà incliné de 30° par leverBaseCF)
+updateLever(0)
 
--- ClickDetector sur la boule rouge à l'avant
-local clickDetector = Instance.new("ClickDetector")
-clickDetector.MaxActivationDistance = 40
-clickDetector.Parent = leverBall
+local clickDetector                   = Instance.new("ClickDetector")
+clickDetector.MaxActivationDistance   = 40
+clickDetector.Parent                  = leverBall
 
--- ClickDetector sur l'écran (même effet que le levier, distance réduite)
-local screenClickDetector = Instance.new("ClickDetector")
-screenClickDetector.MaxActivationDistance = 15
-screenClickDetector.Parent = screenPart
+local screenClickDetector                   = Instance.new("ClickDetector")
+screenClickDetector.MaxActivationDistance   = 15
+screenClickDetector.Parent                  = screenPart
 
-local tickSound = Instance.new("Sound")
-tickSound.SoundId = "rbxassetid://6026984224"
-tickSound.Volume = 0.5
-tickSound.Parent = machineBase
+local tickSound         = Instance.new("Sound")
+tickSound.SoundId       = "rbxassetid://6026984224"
+tickSound.Volume        = 0.5
+tickSound.Parent        = machineBase
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- LOGIQUE
+-- SLOTS — 6 SOCLES D'EXPOSITION
+-- Tous enfants directs de casinoFolder.
+-- Les mini-clones NE sont PAS leurs enfants — ils vont dans miniClonesFolder.
+-- ══════════════════════════════════════════════════════════════════════════════
+local MAX_SLOTS      = 6
+local SLOT_FLOOR_Y   = 0
+local SLOT_OFFSETS_Z: {number} = { -7, -12, -17, 7, 12, 17 }
+
+local PEDESTAL_H     = 3
+local PEDESTAL_TOP_H = 0.5
+local PEDESTAL_W     = 3.5
+local PEDESTAL_TOP_W = 4
+local PEDESTAL_SURF_Y = SLOT_FLOOR_Y + PEDESTAL_H + PEDESTAL_TOP_H  -- = 3.5
+
+-- Positions monde du dessus de chaque socle (où se posent les mini-clones)
+local SLOT_WORLD_POS: {Vector3} = {}
+for i, dz in ipairs(SLOT_OFFSETS_Z) do
+    SLOT_WORLD_POS[i] = Vector3.new(MACHINE_X, PEDESTAL_SURF_Y, MACHINE_Z + dz)
+end
+
+for i, dz in ipairs(SLOT_OFFSETS_Z) do
+    local cx = MACHINE_X
+    local cz = MACHINE_Z + dz
+
+    local col              = Instance.new("Part")
+    col.Name               = "SlotPedestal_" .. i
+    col.Size               = Vector3.new(PEDESTAL_W, PEDESTAL_H, PEDESTAL_W)
+    col.CFrame             = CFrame.new(cx, SLOT_FLOOR_Y + PEDESTAL_H / 2, cz)
+    col.Anchored           = true
+    col.CanCollide         = true
+    col.Material           = Enum.Material.SmoothPlastic
+    col.Color              = Color3.fromRGB(160, 10, 10)
+    col.TopSurface         = Enum.SurfaceType.Smooth
+    col.BottomSurface      = Enum.SurfaceType.Smooth
+    col.Parent             = casinoFolder
+
+    local plateau          = Instance.new("Part")
+    plateau.Name           = "SlotPlateTop_" .. i
+    plateau.Size           = Vector3.new(PEDESTAL_TOP_W, PEDESTAL_TOP_H, PEDESTAL_TOP_W)
+    plateau.CFrame         = CFrame.new(cx, PEDESTAL_SURF_Y - PEDESTAL_TOP_H / 2, cz)
+    plateau.Anchored       = true
+    plateau.CanCollide     = false
+    plateau.Material       = Enum.Material.Metal
+    plateau.Color          = Color3.fromRGB(255, 215, 0)
+    plateau.TopSurface     = Enum.SurfaceType.Smooth
+    plateau.BottomSurface  = Enum.SurfaceType.Smooth
+    plateau.Parent         = casinoFolder
+
+    local bb               = Instance.new("BillboardGui")
+    bb.Size                = UDim2.new(0, 44, 0, 26)
+    bb.StudsOffset         = Vector3.new(0, 3, 0)
+    bb.Adornee             = plateau
+    bb.AlwaysOnTop         = false
+    bb.MaxDistance         = 28
+    bb.Parent              = casinoFolder
+
+    local txt                      = Instance.new("TextLabel")
+    txt.Size                       = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency     = 1
+    txt.Text                       = tostring(i)
+    txt.TextColor3                 = Color3.fromRGB(255, 255, 255)
+    txt.Font                       = Enum.Font.GothamBlack
+    txt.TextScaled                 = true
+    txt.TextStrokeTransparency     = 0.4
+    txt.TextStrokeColor3           = Color3.new(0, 0, 0)
+    txt.Parent                     = bb
+end
+
+-- ── Bouton "Rentrer à la Base" ────────────────────────────────────────────────
+local RENTRER_X = MACHINE_X - 7
+local RENTRER_Z = MACHINE_Z
+
+local rentrerPodium             = Instance.new("Part")
+rentrerPodium.Name              = "RentrerPodium"
+rentrerPodium.Size              = Vector3.new(5, 3, 5)
+rentrerPodium.CFrame            = CFrame.new(RENTRER_X, SLOT_FLOOR_Y + 1.5, RENTRER_Z)
+rentrerPodium.Anchored          = true
+rentrerPodium.CanCollide        = true
+rentrerPodium.Material          = Enum.Material.SmoothPlastic
+rentrerPodium.Color             = Color3.fromRGB(20, 20, 25)
+rentrerPodium.TopSurface        = Enum.SurfaceType.Smooth
+rentrerPodium.BottomSurface     = Enum.SurfaceType.Smooth
+rentrerPodium.Parent            = casinoFolder
+
+local rentrerBtn                = Instance.new("Part")
+rentrerBtn.Name                 = "RentrerBtn"
+rentrerBtn.Size                 = Vector3.new(4.5, 0.8, 4.5)
+rentrerBtn.CFrame               = CFrame.new(RENTRER_X, SLOT_FLOOR_Y + 3.4, RENTRER_Z)
+rentrerBtn.Anchored             = true
+rentrerBtn.CanCollide           = false
+rentrerBtn.Material             = Enum.Material.Neon
+rentrerBtn.Color                = Color3.fromRGB(0, 220, 80)
+rentrerBtn.TopSurface           = Enum.SurfaceType.Smooth
+rentrerBtn.BottomSurface        = Enum.SurfaceType.Smooth
+rentrerBtn.Parent               = casinoFolder
+
+local btnGui                = Instance.new("SurfaceGui")
+btnGui.Face                 = Enum.NormalId.Top
+btnGui.CanvasSize           = Vector2.new(280, 100)
+btnGui.SizingMode           = Enum.SurfaceGuiSizingMode.FixedSize
+btnGui.LightInfluence       = 0
+btnGui.Parent               = rentrerBtn
+
+local btnLbl                    = Instance.new("TextLabel")
+btnLbl.Size                     = UDim2.new(1, 0, 1, 0)
+btnLbl.BackgroundTransparency   = 1
+btnLbl.Text                     = "RENTRER\nÀ LA BASE"
+btnLbl.TextColor3               = Color3.fromRGB(0, 0, 0)
+btnLbl.Font                     = Enum.Font.GothamBlack
+btnLbl.TextScaled               = true
+btnLbl.Parent                   = btnGui
+
+local rentrerPrompt                   = Instance.new("ProximityPrompt")
+rentrerPrompt.ActionText              = "Rentrer à la Base"
+rentrerPrompt.ObjectText              = "Transférer mes Brainrots"
+rentrerPrompt.MaxActivationDistance   = 14
+rentrerPrompt.HoldDuration            = 0.5
+rentrerPrompt.RequiresLineOfSight     = false
+rentrerPrompt.Enabled                 = true
+rentrerPrompt.Parent                  = rentrerBtn
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- DONNÉES PAR JOUEUR — file d'attente machine
+-- ══════════════════════════════════════════════════════════════════════════════
+type PendingEntry = { item: {itemId: string, name: string}, rarity: string }
+local pendingItems: {[number]: {PendingEntry}} = {}
+
+-- Table de correspondance slotIndex → clone dans miniClonesFolder
+-- (référence uniquement ; la vérité physique reste dans miniClonesFolder)
+local machineClones: {[number]: Instance} = {}
+
+-- ── Nettoyage sécurisé ────────────────────────────────────────────────────────
+-- SEULE fonction autorisée à détruire des objets liés à la machine.
+-- Elle ne touche QUE miniClonesFolder — jamais casinoFolder lui-même.
+local function clearMachineClones()
+    miniClonesFolder:ClearAllChildren()   -- supprime tous les mini-clones
+    table.clear(machineClones)            -- réinitialise la table de références
+end
+
+-- ── Placement d'un mini-clone sur un socle ────────────────────────────────────
+-- Le clone est parenté dans miniClonesFolder, PAS dans casinoFolder.
+local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance?
+    local modelsFolder = ReplicatedStorage:FindFirstChild("BrainrotModels")
+    if not modelsFolder then return nil end
+
+    local template = modelsFolder:FindFirstChild(itemName)
+    if not template or not template:IsA("Model") then return nil end
+
+    local clone = (template :: Model):Clone() :: Model
+    pcall(function() clone:ScaleTo(clone:GetScale() * 0.45) end)
+
+    for _, p in ipairs(clone:GetDescendants()) do
+        if p:IsA("BasePart") then
+            local bp      = p :: BasePart
+            bp.CanCollide = false
+            bp.CanTouch   = false
+            bp.CanQuery   = false
+            bp.Massless   = true
+            bp.Anchored   = true
+            bp.CastShadow = false
+        end
+    end
+
+    -- ▶ Parent = miniClonesFolder  (jamais casinoFolder ni ses enfants directs)
+    clone.Parent = miniClonesFolder
+    clone:PivotTo(CFrame.new(SLOT_WORLD_POS[slotIdx]))
+    return clone
+end
+
+-- Reconstruit les clones depuis la file d'attente de l'userId.
+local function refreshMachineClones(userId: number)
+    clearMachineClones()
+    local items = pendingItems[userId] or {}
+    for i, entry in ipairs(items) do
+        machineClones[i] = spawnMiniCloneAtSlot(i, entry.item.name) :: Instance
+    end
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- LOGIQUE DE SPIN
 -- ══════════════════════════════════════════════════════════════════════════════
 local wheelLocked: boolean              = false
 local spinCooldowns: {[number]: number} = {}
 
+local ORIGINAL_CFRAME = CFrame.new(WHEEL_CENTER) * CFrame.Angles(0, math.rad(180), 0)
+
 local function getCoins(player: Player): number
     local ls    = player:FindFirstChild("leaderstats")
     local coins = ls and ls:FindFirstChild("Brainrot Coins")
-    return coins and coins.Value or 0
+    return coins and (coins :: IntValue).Value or 0
 end
 
--- ── Fonction commune de tirage ──────────────────────────────────────────────
 local function ActionSpin(player: Player)
     if wheelLocked then return end
 
+    -- 1. Capacité machine (par joueur, AVANT déduction)
+    local userPending = pendingItems[player.UserId] or {}
+    if #userPending >= MAX_SLOTS then
+        SpinResult:FireClient(player, { success = false, reason = "machine_full" })
+        return
+    end
+
+    -- 2. Anti-spam
     local now = tick()
     if spinCooldowns[player.UserId] and (now - spinCooldowns[player.UserId]) < SPIN_DURATION + 1 then
         return
     end
 
+    -- 3. Coins
     if getCoins(player) < SPIN_COST then
         SpinResult:FireClient(player, { success = false, reason = "coins" })
         return
@@ -343,55 +529,55 @@ local function ActionSpin(player: Player)
     local data = DataManager.GetData(player)
     if not data then return end
 
+    -- 4. Déduction + verrou
     DataManager.SpendGold(player, SPIN_COST)
     spinCooldowns[player.UserId] = now
     wheelLocked = true
 
-    -- Tirage pondéré
-    -- On choisit D'ABORD le segment (ce qui s'affiche sur la machine),
-    -- puis on dérive l'item DEPUIS ce segment. Garantit que popup = case arrêtée.
+    -- 5. Tirage
     local winRarity    = pickRarity()
     local segsOfRarity = SEGS_BY_RARITY[winRarity]
     local winSegIdx    = segsOfRarity[math.random(1, #segsOfRarity)]
-    local winItem      = SEGMENTS[winSegIdx].item   -- dérivé du segment ✓
+    local winItem      = SEGMENTS[winSegIdx].item
 
-    -- Calcul de l'angle pour la logique pure (non utilisé en 3D mais transmis au besoin)
-    local winAngle = (360 - ((winSegIdx - 1) * SEG_ANGLE)) % 360
+    -- 6. Ajout dans la file d'attente + clone sur socle
+    table.insert(userPending, { item = winItem, rarity = winRarity })
+    pendingItems[player.UserId] = userPending
 
-    -- Inventaire + galerie
-    DataManager.AddItem(player, { Id = winItem.itemId, Name = winItem.name, Rarity = winRarity })
-    if _G.BrainrotGallery_Refresh then
-        task.spawn(_G.BrainrotGallery_Refresh, player)
-    end
+    refreshMachineClones(player.UserId)
 
-    -- VFX + badge si LÉGENDAIRE
-    if winRarity == "LEGENDARY" then
+    MachineUpdate:FireClient(player, { count = #userPending, max = MAX_SLOTS })
+
+    -- Badge légendaire
+    if winRarity == "LEGENDARY" or winRarity == "ULTRA_LEGENDARY" then
         local ldEvent = Events:FindFirstChild("LegendaryDrop")
-        if ldEvent then
-            ldEvent:FireAllClients(player, winItem.name)
-        end
+        if ldEvent then ldEvent:FireAllClients(player, winItem.name) end
         if _G.CheckLegendaryBadge then
             task.spawn(_G.CheckLegendaryBadge, player, winItem.name)
         end
     end
-    print(string.format("[WheelSystem] %s → %s '%s' | seg%d",
-        player.Name, winRarity, winItem.name, winSegIdx))
 
-    local angleVal = Instance.new("NumberValue")
-    angleVal.Value = 0
-    local conn = RunService.Heartbeat:Connect(function()
+    print(string.format("[WheelSystem] %s → slot %d/%d : %s '%s' | seg%d",
+        player.Name, #userPending, MAX_SLOTS, winRarity, winItem.name, winSegIdx))
+
+    -- 7. Animation levier
+    local angleVal   = Instance.new("NumberValue")
+    angleVal.Value   = 0
+    local conn       = RunService.Heartbeat:Connect(function()
         updateLever(angleVal.Value)
     end)
 
-    -- Tween du levier vers le bas (ex: +60 degrés pour basculer en bas)
-    local tweenDown = TweenService:Create(angleVal, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Value = 60 })
-    local tweenUp   = TweenService:Create(angleVal, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Value = 0 })
+    local tweenDown = TweenService:Create(angleVal,
+        TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { Value = 60 })
+    local tweenUp   = TweenService:Create(angleVal,
+        TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Value = 0 })
 
     tweenDown.Completed:Connect(function()
         tickSound:Play()
         tweenUp:Play()
 
-        -- Envoi du résultat pour déclencher la machine à sous UI pendant que le levier remonte
         SpinResult:FireClient(player, {
             success    = true,
             segments   = SEGMENTS,
@@ -400,10 +586,9 @@ local function ActionSpin(player: Player)
             memeRarity = winRarity,
             imageId    = winItem.imageId,
             duration   = SPIN_DURATION,
-            rotations  = FULL_ROTATIONS
+            rotations  = FULL_ROTATIONS,
         })
 
-        -- Mise à jour inventaire client APRÈS la fin de l'animation (anti-spoiler)
         task.delay(SPIN_DURATION + 1.5, function()
             local updated = DataManager.GetData(player)
             if updated then UpdateClientData:FireClient(player, updated) end
@@ -413,8 +598,6 @@ local function ActionSpin(player: Player)
     tweenUp.Completed:Connect(function()
         conn:Disconnect()
         angleVal:Destroy()
-        
-        -- Déverrouillage après la durée de la spin 2D
         task.delay(SPIN_DURATION - 0.7, function()
             wheelLocked = false
         end)
@@ -423,13 +606,83 @@ local function ActionSpin(player: Player)
     tweenDown:Play()
 end
 
--- Connexions
 clickDetector.MouseClick:Connect(ActionSpin)
 screenClickDetector.MouseClick:Connect(ActionSpin)
 RequestSpin.OnServerEvent:Connect(ActionSpin)
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- BOUTON "RENTRER" — transfert vers la galerie du joueur
+-- Nettoyage = MiniClones:ClearAllChildren() UNIQUEMENT.
+-- CasinoMachine n'est jamais touché.
+-- ══════════════════════════════════════════════════════════════════════════════
+rentrerPrompt.Triggered:Connect(function(triggerPlayer: Player)
+    local userId  = triggerPlayer.UserId
+    local pending = pendingItems[userId] or {}
+
+    if #pending == 0 then
+        MachineUpdate:FireClient(triggerPlayer, { count = 0, max = MAX_SLOTS })
+        return
+    end
+
+    rentrerPrompt.Enabled = false
+
+    local transferred = 0
+
+    for _, entry in ipairs(pending) do
+        local item   = entry.item
+        local rarity = entry.rarity
+
+        -- Sauvegarde inventaire
+        DataManager.AddItem(triggerPlayer, {
+            Id     = item.itemId,
+            Name   = item.name,
+            Rarity = rarity,
+        })
+
+        -- Placement galerie + VFX
+        if _G.BrainrotGallery_GetEmptyPedestalTops and _G.BrainrotGallery_ForcePlace then
+            local emptySlots = _G.BrainrotGallery_GetEmptyPedestalTops(triggerPlayer)
+            local firstIdx, firstTop = next(emptySlots)
+            if firstIdx then
+                _G.BrainrotGallery_ForcePlace(triggerPlayer, firstIdx, {
+                    Id     = item.itemId,
+                    Name   = item.name,
+                    Rarity = rarity,
+                })
+                SpawnFX.Play(firstTop, rarity, triggerPlayer)
+            end
+        end
+
+        transferred += 1
+        task.wait(0.35)
+    end
+
+    -- Nettoyage machine : UNIQUEMENT le sous-dossier MiniClones
+    pendingItems[userId] = {}
+    clearMachineClones()    -- → miniClonesFolder:ClearAllChildren()
+
+    MachineUpdate:FireClient(triggerPlayer, { count = 0, max = MAX_SLOTS })
+
+    local updated = DataManager.GetData(triggerPlayer)
+    if updated then UpdateClientData:FireClient(triggerPlayer, updated) end
+
+    print(string.format("[WheelSystem] %s → Rentrer : %d item(s) → galerie",
+        triggerPlayer.Name, transferred))
+
+    task.delay(1, function() rentrerPrompt.Enabled = true end)
+end)
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- DÉCONNEXION
+-- ══════════════════════════════════════════════════════════════════════════════
+Players.PlayerRemoving:Connect(function(player: Player)
+    pendingItems[player.UserId]  = nil
+    spinCooldowns[player.UserId] = nil
+end)
+
 print(string.format(
-    "[WheelSystem] v5 PIVOT pret | pos (0,18,-20) derriere fontaine | face +Z nord | phase1=%.1fs + phase2=%.1fs QuartOut | COMMON %d%% RARE %d%% EPIC %d%% LEG %d%%",
-    PHASE1_DURATION, PHASE2_DURATION,
-    RARITY_WEIGHTS[1].weight, RARITY_WEIGHTS[2].weight,
-    RARITY_WEIGHTS[3].weight, RARITY_WEIGHTS[4].weight))
+    "[WheelSystem] Pret | CasinoMachine generee | %d socles | MiniClones isole | COMMON %.1f%% RARE %.1f%% EPIC %.1f%% LEG %.1f%% ULTRA %.1f%%",
+    MAX_SLOTS,
+    RARITY_WEIGHTS[1].weight / 10, RARITY_WEIGHTS[2].weight / 10,
+    RARITY_WEIGHTS[3].weight / 10, RARITY_WEIGHTS[4].weight / 10,
+    RARITY_WEIGHTS[5].weight / 10))

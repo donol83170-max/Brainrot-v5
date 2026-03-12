@@ -39,7 +39,7 @@ local YIELD_EVERY = 500
 LegoBuilder.BASE_COLOR = Color3.fromRGB(75, 151, 74)
 
 -- Palette primaires saturées LEGO Classic
-LegoBuilder.PALETTE: {Color3} = {
+LegoBuilder.PALETTE = {
     Color3.fromRGB(196,  40,  28),  -- Bright Red
     Color3.fromRGB( 13, 105, 172),  -- Bright Blue
     Color3.fromRGB(245, 205,  48),  -- Bright Yellow
