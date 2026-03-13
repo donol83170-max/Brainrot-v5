@@ -185,6 +185,19 @@ task.spawn(function()
         task.wait(0.05)
     end
 
+    -- ── Sol jaune du biome Défis (derrière le mur bleu, X ≥ 58) ─────────────
+    -- Généré une seule fois, indépendamment des GrassBase (zone sans dalles).
+    -- AutoStud skip ces positions (continue si X≥58 et !isRoad) → zéro doublon.
+    -- Paramètres calés sur le mur backdrop : X 58→150, Z ±115, Y surface = 0.
+    task.spawn(function()
+        LegoRenderer.GenerateChallengeFloor(
+            Workspace,   -- parent
+            58.0, 150,   -- X : pied du mur bleu jusqu'au fond de la map
+            -115, 115,   -- Z : même étendue que le mur backdrop
+            0            -- groundY : surface du sol = Y 0
+        )
+    end)
+
     -- ── Boucle de maintien allégée ────────────────────────────────────────
     -- Itère sur le tableau fixe (pas de rescan).
     -- Ne charge que les dalles manquantes — hideChunk() supprimé.

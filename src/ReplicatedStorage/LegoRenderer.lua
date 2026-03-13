@@ -4,9 +4,11 @@
 -- Utilisé UNIQUEMENT côté client (LocalScript StudRenderer) — zéro réplication réseau.
 --
 -- API :
---   LegoRenderer.AutoStud(part, opts?)          → Folder
---   LegoRenderer.AddBorders(part, opts?)         → Folder
---   LegoRenderer.ProcessStructure(model, opts?)  → applique AutoStud sur tout le modèle
+--   LegoRenderer.AutoStud(part, opts?)                          → Folder
+--   LegoRenderer.GenerateChallengeFloor(parent, xMin, xMax,    → Folder
+--                                        zMin, zMax, groundY?)
+--   LegoRenderer.AddBorders(part, opts?)                        → Folder
+--   LegoRenderer.ProcessStructure(model, opts?)
 
 local LegoRenderer = {}
 
@@ -15,6 +17,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- ── Constantes ────────────────────────────────────────────────────────────────
 local BORDER_H    = 0.2
 local YIELD_EVERY = 15
+
+-- ── Seuil X du biome Défis ────────────────────────────────────────────────────
+-- Mur backdrop : MACHINE_X(40) + dos machine(3.36) + recul(15.3) ≈ 58.66
+-- On aligne la frontière au bord du mur pour une transition nette.
+local CHALLENGE_ZONE_X = 58.0
+
+-- ── Palettes par zone ─────────────────────────────────────────────────────────
+local COL_GRASS_LIGHT = Color3.fromRGB( 75, 151,  75)
+local COL_GRASS_DARK  = Color3.fromRGB( 39, 106,  39)
+local COL_ROAD_LIGHT  = Color3.fromRGB(130, 130, 130)
+local COL_ROAD_DARK   = Color3.fromRGB(105, 105, 105)
+local COL_CHALL_LIGHT = Color3.fromRGB(255, 235,   0)  -- Jaune vif
+local COL_CHALL_DARK  = Color3.fromRGB(200, 180,   0)  -- Jaune foncé
 
 -- ── MeshPart Carpet (lazy, mis en cache) ──────────────────────────────────────
 local _carpet: BasePart? = nil
@@ -56,18 +71,33 @@ local function isRoadZone(partName: string): boolean
         or string.find(nm, "STREET") ~= nil
 end
 
--- ── Applique couleur sur le clone et ses Textures enfants ─────────────────────
+-- Couleur d'une tuile selon sa position monde (checkerboard par zone).
+local function getTileColor(worldX: number, worldZ: number,
+                             bTileX: number, bTileZ: number,
+                             road: boolean): Color3
+    local gx  = math.floor(worldX / bTileX)
+    local gz  = math.floor(worldZ / bTileZ)
+    local odd = (gx + gz) % 2 == 1
+
+    if worldX >= CHALLENGE_ZONE_X then
+        return if odd then COL_CHALL_DARK  else COL_CHALL_LIGHT
+    elseif road then
+        return if odd then COL_ROAD_DARK   else COL_ROAD_LIGHT
+    else
+        return if odd then COL_GRASS_DARK  else COL_GRASS_LIGHT
+    end
+end
+
+-- ── Helpers partagés ──────────────────────────────────────────────────────────
 local function applyColor(clone: BasePart, tint: Color3)
     clone.Color = tint
     for _, child in ipairs(clone:GetChildren()) do
         if child:IsA("Texture") or child:IsA("Decal") then
-            local tex = child :: Texture
-            tex.Color3 = tint
+            (child :: Texture).Color3 = tint
         end
     end
 end
 
--- ── Propriétés physiques (sans toucher à l'apparence) ─────────────────────────
 local function applyPhysics(bp: BasePart)
     bp.Anchored      = true
     bp.CanCollide    = false
@@ -78,7 +108,7 @@ local function applyPhysics(bp: BasePart)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- AutoStud — usine de tuiles
+-- AutoStud — tuile une BasePart existante
 -- ══════════════════════════════════════════════════════════════════════════════
 type Opts = {
     material : Enum.Material?,
@@ -93,21 +123,13 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
     folder.Name     = "LegoTiles_" .. part.Name
     folder.Parent   = part.Parent
 
-    -- ── Récupération et dimensions du Carpet (MeshPart) ───────────────────────
     local blockTemplate = getCarpet()
     local bX = blockTemplate.Size.X
     local bY = blockTemplate.Size.Y
     local bZ = blockTemplate.Size.Z
 
-    -- ── Couleur unique selon zone ──────────────────────────────────────────────
-    local tint: Color3
-    if isRoadZone(part.Name) then
-        tint = Color3.fromRGB(130, 130, 130)  -- Gris route
-    else
-        tint = Color3.fromRGB(75, 151, 75)    -- Vert herbe
-    end
+    local isRoad = isRoadZone(part.Name)
 
-    -- ── Dimensions de la face et offset local ─────────────────────────────────
     local cf  = part.CFrame
     local sz  = part.Size
 
@@ -143,7 +165,6 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
     local startA = -(nX * bX) / 2 + bX / 2
     local startB = -(nZ * bZ) / 2 + bZ / 2
 
-    -- ── Boucle principale ─────────────────────────────────────────────────────
     local count = 0
 
     for ix = 0, nX - 1 do
@@ -160,11 +181,20 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
                 brickCF = cf * CFrame.new(offX, db, da + offZ)
             end
 
+            local wx = brickCF.Position.X
+
+            -- ── ANTI Z-FIGHTING : skip zone Défis pour les tuiles non-route ──
+            -- GenerateChallengeFloor gère exclusivement ce territoire.
+            -- Cela empêche toute superposition si une dalle GrassBase dépasse X=58.
+            if not isRoad and wx >= CHALLENGE_ZONE_X then
+                continue
+            end
+
+            local tint  = getTileColor(wx, brickCF.Position.Z, bX, bZ, isRoad)
             local clone = blockTemplate:Clone() :: BasePart
 
             applyPhysics(clone)
             applyColor(clone, tint)
-
             clone.Parent = folder
             clone.CFrame = brickCF
 
@@ -175,6 +205,67 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
 
     print(string.format("[LegoRenderer] '%s' %s → %d×%d = %d tuiles",
         part.Name, face, nX, nZ, count))
+
+    return folder
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- GenerateChallengeFloor
+-- Pose les tuiles jaunes en coordonnées monde directement.
+-- Indépendant des BaseParts GrassBase — garanti sans doublons ni Z-fighting.
+--
+-- Paramètres :
+--   parent   : Instance — dossier parent (ex. Workspace)
+--   xMin/xMax: bornes X en studs monde (ex. 58, 150)
+--   zMin/zMax: bornes Z en studs monde (ex. -115, 115)
+--   groundY  : hauteur du sol (Y de la SURFACE du sol, pas du centre). Défaut 0.
+-- ══════════════════════════════════════════════════════════════════════════════
+function LegoRenderer.GenerateChallengeFloor(
+    parent   : Instance,
+    xMin     : number,
+    xMax     : number,
+    zMin     : number,
+    zMax     : number,
+    groundY  : number?
+): Folder
+    local surfY = groundY or 0  -- Y de la surface (sommet des tuiles)
+
+    local blockTemplate = getCarpet()
+    local bX = blockTemplate.Size.X
+    local bY = blockTemplate.Size.Y
+    local bZ = blockTemplate.Size.Z
+
+    -- Centre Y du tile : sa face supérieure doit être à surfY.
+    local tileCenterY = surfY - bY / 2
+
+    local folder      = Instance.new("Folder")
+    folder.Name       = "ChallengeTiles"
+    folder.Parent     = parent
+
+    local nX = math.ceil((xMax - xMin) / bX)
+    local nZ = math.ceil((zMax - zMin) / bZ)
+
+    local count = 0
+    for ix = 0, nX - 1 do
+        for iz = 0, nZ - 1 do
+            local wx = xMin + (ix + 0.5) * bX
+            local wz = zMin + (iz + 0.5) * bZ
+
+            local tint  = getTileColor(wx, wz, bX, bZ, false)
+            local clone = blockTemplate:Clone() :: BasePart
+
+            applyPhysics(clone)
+            applyColor(clone, tint)
+            clone.CFrame  = CFrame.new(wx, tileCenterY, wz)
+            clone.Parent  = folder
+
+            count += 1
+            if count % YIELD_EVERY == 0 then task.wait() end
+        end
+    end
+
+    print(string.format("[LegoRenderer] ChallengeTiles %d×%d = %d tuiles jaunes (X %.0f→%.0f)",
+        nX, nZ, count, xMin, xMax))
 
     return folder
 end
