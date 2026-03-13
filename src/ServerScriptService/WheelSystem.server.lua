@@ -451,6 +451,9 @@ local function clearMachineClones()
     table.clear(machineClones)            -- réinitialise la table de références
 end
 
+-- Pré-déclaration pour permettre la référence mutuelle avec attachSlotPrompts.
+local refreshMachineClones: (userId: number) -> ()
+
 -- ── Placement d'un mini-clone sur un socle ────────────────────────────────────
 -- Le clone est parenté dans miniClonesFolder, PAS dans casinoFolder.
 local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance?
@@ -481,12 +484,103 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
     return clone
 end
 
+-- ── Prompts d'interaction sur chaque mini-clone ──────────────────────────────
+-- Deux ProximityPrompts attachés au PrimaryPart du clone :
+--   E (Porter)          → CarryManager + retrait du slot
+--   F (Envoyer à Base)  → DataManager + galerie + retrait du slot
+-- Les prompts meurent avec le clone lors du clearMachineClones().
+local function attachSlotPrompts(slotIdx: number, clone: Model, userId: number, entry: PendingEntry)
+    local anchor: BasePart? = clone.PrimaryPart
+        or clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+    if not anchor then return end
+
+    local itemName = entry.item.name
+    local itemId   = entry.item.itemId
+    local rarity   = entry.rarity
+
+    -- ── Prompt "Porter" (E) ───────────────────────────────────────────────────
+    local ppCarry                    = Instance.new("ProximityPrompt")
+    ppCarry.ActionText               = "Porter"
+    ppCarry.ObjectText               = itemName
+    ppCarry.KeyboardKeyCode          = Enum.KeyCode.E
+    ppCarry.HoldDuration             = 0.5
+    ppCarry.MaxActivationDistance    = 12
+    ppCarry.RequiresLineOfSight      = false
+    ppCarry.Parent                   = anchor
+
+    ppCarry.Triggered:Connect(function(triggerPlayer: Player)
+        if triggerPlayer.UserId ~= userId then return end
+        local userPending = pendingItems[userId]
+        if not userPending or not userPending[slotIdx] then return end
+
+        table.remove(userPending, slotIdx)
+        refreshMachineClones(userId)
+        MachineUpdate:FireClient(triggerPlayer, { count = #userPending, max = MAX_SLOTS })
+
+        if _G.CarryManager_StartCarry then
+            _G.CarryManager_StartCarry(triggerPlayer, entry.item, rarity)
+        end
+
+        print(string.format("[WheelSystem] %s → Porter '%s' (%s) depuis slot %d",
+            triggerPlayer.Name, itemName, rarity, slotIdx))
+    end)
+
+    -- ── Prompt "Envoyer à la Base" (F) ───────────────────────────────────────
+    local ppSend                     = Instance.new("ProximityPrompt")
+    ppSend.ActionText                = "Envoyer à la Base"
+    ppSend.ObjectText                = itemName
+    ppSend.KeyboardKeyCode           = Enum.KeyCode.F
+    ppSend.HoldDuration              = 0.5
+    ppSend.MaxActivationDistance     = 12
+    ppSend.RequiresLineOfSight       = false
+    ppSend.UIOffset                  = Vector2.new(0, 60)
+    ppSend.Parent                    = anchor
+
+    ppSend.Triggered:Connect(function(triggerPlayer: Player)
+        if triggerPlayer.UserId ~= userId then return end
+        local userPending = pendingItems[userId]
+        if not userPending or not userPending[slotIdx] then return end
+
+        table.remove(userPending, slotIdx)
+        refreshMachineClones(userId)
+        MachineUpdate:FireClient(triggerPlayer, { count = #userPending, max = MAX_SLOTS })
+
+        -- Sauvegarde inventaire
+        DataManager.AddItem(triggerPlayer, { Id = itemId, Name = itemName, Rarity = rarity })
+
+        -- Placement galerie + VFX
+        if _G.BrainrotGallery_GetEmptyPedestalTops and _G.BrainrotGallery_ForcePlace then
+            local emptySlots = _G.BrainrotGallery_GetEmptyPedestalTops(triggerPlayer) :: {[number]: BasePart}
+            local firstIdx, firstTop = next(emptySlots)
+            if firstIdx then
+                _G.BrainrotGallery_ForcePlace(triggerPlayer, firstIdx, {
+                    Id     = itemId,
+                    Name   = itemName,
+                    Rarity = rarity,
+                })
+                SpawnFX.Play(firstTop, rarity, triggerPlayer)
+            end
+        end
+
+        -- Mise à jour client
+        local updated = DataManager.GetData(triggerPlayer)
+        if updated then UpdateClientData:FireClient(triggerPlayer, updated) end
+
+        print(string.format("[WheelSystem] %s → Envoyé à la Base '%s' (%s) depuis slot %d",
+            triggerPlayer.Name, itemName, rarity, slotIdx))
+    end)
+end
+
 -- Reconstruit les clones depuis la file d'attente de l'userId.
-local function refreshMachineClones(userId: number)
+refreshMachineClones = function(userId: number)
     clearMachineClones()
     local items = pendingItems[userId] or {}
     for i, entry in ipairs(items) do
-        machineClones[i] = spawnMiniCloneAtSlot(i, entry.item.name) :: Instance
+        local clone = spawnMiniCloneAtSlot(i, entry.item.name)
+        if clone then
+            machineClones[i] = clone :: Instance
+            attachSlotPrompts(i, clone :: Model, userId, entry)
+        end
     end
 end
 
