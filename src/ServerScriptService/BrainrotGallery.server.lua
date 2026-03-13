@@ -891,59 +891,85 @@ local RARITY_POWER: {[string]: number} = {
     ULTRA           = 5_000,
 }
 
--- applyAura — auras de rareté pour la galerie (ParticleEmitter + PointLight)
--- Fonctionne sur Model et BasePart.
+-- applyAura — auras de rareté (ParticleEmitter + PointLight)
+-- Crée une Part invisible centrée sur le modèle comme support d'effets.
+-- Parentée dans le clone → suit automatiquement les PivotTo (idle spin compris).
 local function applyAura(clone: Instance, rarity: string)
-    local anchor: BasePart?
-    if clone:IsA("BasePart") then
-        anchor = clone :: BasePart
-    elseif clone:IsA("Model") then
-        anchor = (clone :: Model).PrimaryPart
-            or (clone :: Model):FindFirstChildWhichIsA("BasePart", true) :: BasePart?
-    else
-        anchor = clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+    if rarity ~= "EPIC" and rarity ~= "MYTHIC"
+        and rarity ~= "LEGENDARY" and rarity ~= "ULTRA_LEGENDARY"
+        and rarity ~= "ULTRA" then
+        return
     end
-    if not anchor then return end
+
+    -- Pivot du clone pour centrer l'AuraAnchor
+    local pivotCF: CFrame
+    if clone:IsA("Model") then
+        pivotCF = (clone :: Model):GetPivot()
+    elseif clone:IsA("BasePart") then
+        pivotCF = (clone :: BasePart).CFrame
+    else
+        local bp = clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+        if not bp then return end
+        pivotCF = bp.CFrame
+    end
+
+    -- Part invisible ancrée au centre du clone
+    local anchor          = Instance.new("Part")
+    anchor.Name           = "AuraAnchor"
+    anchor.Size           = Vector3.new(0.1, 0.1, 0.1)
+    anchor.Anchored       = true
+    anchor.CanCollide     = false
+    anchor.CanTouch       = false
+    anchor.CanQuery       = false
+    anchor.Massless       = true
+    anchor.CastShadow     = false
+    anchor.Transparency   = 1
+    anchor.CFrame         = pivotCF
+    anchor.Parent         = clone  -- suit les PivotTo du modèle
 
     if rarity == "EPIC" or rarity == "MYTHIC" then
         local pt          = Instance.new("ParticleEmitter")
-        pt.Color          = ColorSequence.new(Color3.fromRGB(200, 0, 255))
+        pt.Color          = ColorSequence.new(Color3.fromRGB(170, 0, 255))
         pt.LightEmission  = 1
+        pt.Texture        = "rbxassetid://242043131"
         pt.Size           = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(0, 2),
             NumberSequenceKeypoint.new(1, 0),
         })
-        pt.Speed          = NumberRange.new(3, 6)
-        pt.Lifetime       = NumberRange.new(1, 2)
-        pt.Rate           = 20
-        pt.VelocitySpread = 360
+        pt.Speed          = NumberRange.new(0.5)
+        pt.Lifetime       = NumberRange.new(2, 3)
+        pt.Rate           = 25
+        pt.LockedToPart   = true
+        pt.VelocitySpread = 180
         pt.Parent         = anchor
 
         local light       = Instance.new("PointLight")
-        light.Color       = Color3.fromRGB(180, 0, 255)
-        light.Brightness  = 3
-        light.Range       = 12
+        light.Color       = Color3.fromRGB(170, 0, 255)
+        light.Brightness  = 4
+        light.Range       = 14
         light.Parent      = anchor
 
     elseif rarity == "LEGENDARY" or rarity == "ULTRA_LEGENDARY"
         or rarity == "ULTRA" then
         local pt          = Instance.new("ParticleEmitter")
-        pt.Color          = ColorSequence.new(Color3.fromRGB(255, 215, 0))
+        pt.Color          = ColorSequence.new(Color3.fromRGB(255, 200, 0))
         pt.LightEmission  = 1
+        pt.Texture        = "rbxassetid://242043131"
         pt.Size           = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.6),
+            NumberSequenceKeypoint.new(0, 2),
             NumberSequenceKeypoint.new(1, 0),
         })
-        pt.Speed          = NumberRange.new(4, 8)
-        pt.Lifetime       = NumberRange.new(1.5, 3)
-        pt.Rate           = 35
-        pt.VelocitySpread = 360
+        pt.Speed          = NumberRange.new(0.5)
+        pt.Lifetime       = NumberRange.new(2, 4)
+        pt.Rate           = 40
+        pt.LockedToPart   = true
+        pt.VelocitySpread = 180
         pt.Parent         = anchor
 
         local light       = Instance.new("PointLight")
         light.Color       = Color3.fromRGB(255, 200, 0)
-        light.Brightness  = 5
-        light.Range       = 16
+        light.Brightness  = 6
+        light.Range       = 18
         light.Parent      = anchor
     end
 end
