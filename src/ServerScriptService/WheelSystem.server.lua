@@ -461,14 +461,6 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
     if not template or not template:IsA("Model") then return nil end
 
     local clone = (template :: Model):Clone() :: Model
-    pcall(function()
-        local _, size     = clone:GetBoundingBox()
-        local maxDim      = math.max(size.X, size.Y, size.Z)
-        local TARGET_SIZE = 12
-        if maxDim > 0 then
-            clone:ScaleTo(clone:GetScale() * (TARGET_SIZE / maxDim))
-        end
-    end)
 
     for _, p in ipairs(clone:GetDescendants()) do
         if p:IsA("BasePart") then
@@ -482,10 +474,26 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
         end
     end
 
-    -- ▶ Parent = miniClonesFolder  (jamais casinoFolder ni ses enfants directs)
+    -- ▶ Parent EN PREMIER — GetBoundingBox exige que le modèle soit dans le DataModel
     clone.Parent = miniClonesFolder
-    -- 180° : modèles face au joueur (côté écran de la machine = -X)
-    clone:PivotTo(CFrame.new(SLOT_WORLD_POS[slotIdx]) * CFrame.Angles(0, math.rad(180), 0))
+
+    -- ── Scale proportionnel (12 studs max) ───────────────────────────────────
+    pcall(function()
+        local _, size = clone:GetBoundingBox()
+        local maxDim  = math.max(size.X, size.Y, size.Z)
+        if maxDim > 0 then
+            clone:ScaleTo(clone:GetScale() * (12 / maxDim))
+        end
+    end)
+
+    -- ── Orientation : face vers l'avant de la machine (côté écran = -X) ──────
+    -- CFrame.new(pos, lookAt) : le "devant" (-Z local) pointe vers lookAt.
+    -- Correction +90° sur Y si les modèles arrivent de profil — ajuste si besoin.
+    local spawnPos  = SLOT_WORLD_POS[slotIdx]
+    local lookAtPos = Vector3.new(spawnPos.X - 10, spawnPos.Y, spawnPos.Z)
+    clone:PivotTo(CFrame.new(spawnPos, lookAtPos))
+    clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, math.rad(90), 0))
+
     return clone
 end
 
@@ -545,6 +553,13 @@ local function attachSlotPrompts(slotIdx: number, clone: Model, userId: number, 
         if triggerPlayer.UserId ~= userId then return end
         local userPending = pendingItems[userId]
         if not userPending or not userPending[slotIdx] then return end
+
+        -- Destruction immédiate et explicite du clone de ce slot
+        local specificClone = machineClones[slotIdx]
+        if specificClone and specificClone.Parent then
+            specificClone:Destroy()
+            machineClones[slotIdx] = nil :: any
+        end
 
         table.remove(userPending, slotIdx)
         refreshMachineClones(userId)
