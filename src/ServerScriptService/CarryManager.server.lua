@@ -4,7 +4,7 @@
 --
 -- Flux :
 --   1. WheelSystem appelle _G.CarryManager_StartCarry(player, item, rarity)
---   2. Un clone miniature est soudé au-dessus de la tête du joueur (WeldConstraint).
+--   2. Un clone à taille native (1:1) est soudé au-dessus de la tête du joueur.
 --   3. Des ProximityPrompts apparaissent sur les socles vides de la galerie du joueur.
 --   4. Le joueur active un prompt → dépôt : DataManager + ForcePlace + SpawnFX.
 
@@ -20,48 +20,90 @@ local Events           = ReplicatedStorage:WaitForChild("Events")
 local CarryUpdateEvent = Events:WaitForChild("CarryUpdate")       :: RemoteEvent
 local UpdateClientData = Events:WaitForChild("UpdateClientData")  :: RemoteEvent
 
--- ⚠️  Remplace cet ID par ton animation "bras levés" uploadée sur Roblox Studio.
---     Exemple de workflow : importe une animation R15 depuis Moon Animator,
---     publie-la et colle l'ID ici.
-local CARRY_ANIM_ID = "rbxassetid://507770453"
+-- Animation "Tool Hold" standard Roblox (bras levé droit).
+-- Remplace par ton propre ID si tu veux une animation deux bras levés.
+local CARRY_ANIM_ID = "rbxassetid://631599559"
 
 -- ── État par joueur ───────────────────────────────────────────────────────────
+type MotorEntry = { motor: Motor6D, origC0: CFrame }
+
 type CarryState = {
     item      : { itemId: string, name: string },
     rarity    : string,
     clone     : Model?,
     prompts   : {ProximityPrompt},
     animTrack : AnimationTrack?,
+    motors    : {MotorEntry}?,   -- fallback Motor6D si l'animation échoue
 }
 local carried: {[number]: CarryState} = {}
 
+-- ── Fallback Motor6D : lève les épaules à 90° ─────────────────────────────────
+local function applyMotorRaise(char: Model): {MotorEntry}
+    local motors: {MotorEntry} = {}
+
+    local function tryRaise(containerName: string, motorName: string, rot: CFrame)
+        local container = char:FindFirstChild(containerName)
+        if not container then return end
+        local m = container:FindFirstChild(motorName)
+        if not m or not m:IsA("Motor6D") then return end
+        local motor = m :: Motor6D
+        table.insert(motors, { motor = motor, origC0 = motor.C0 })
+        motor.C0 = motor.C0 * rot
+    end
+
+    local raiseZ = CFrame.Angles(0, 0, math.rad(-90))   -- R15 (bras latéral → haut)
+    local raiseX = CFrame.Angles(math.rad(-90), 0, 0)   -- R6  (bras avant → haut)
+
+    -- R15
+    tryRaise("UpperTorso", "RightShoulder", raiseZ)
+    tryRaise("UpperTorso", "LeftShoulder",  CFrame.Angles(0, 0, math.rad(90)))
+    -- R6
+    tryRaise("Torso", "Right Shoulder", raiseX)
+    tryRaise("Torso", "Left Shoulder",  raiseX)
+
+    return motors
+end
+
+local function restoreMotors(motors: {MotorEntry}?)
+    if not motors then return end
+    for _, entry in ipairs(motors) do
+        pcall(function() entry.motor.C0 = entry.origC0 end)
+    end
+end
+
 -- ── Animation de portage ──────────────────────────────────────────────────────
-local function startCarryAnim(player: Player): AnimationTrack?
+-- Retourne (animTrack, motors) : l'un des deux est non-nil selon ce qui marche.
+local function startCarryAnim(player: Player): (AnimationTrack?, {MotorEntry}?)
     local char = player.Character
-    if not char then return nil end
+    if not char then return nil, nil end
 
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return nil end
+    local hum      = char:FindFirstChildOfClass("Humanoid")
+    local animator = hum and hum:FindFirstChildOfClass("Animator")
 
-    local animator = hum:FindFirstChildOfClass("Animator")
-    if not animator then return nil end
+    if animator then
+        local ok, result = pcall(function(): AnimationTrack
+            local anim       = Instance.new("Animation")
+            anim.AnimationId = CARRY_ANIM_ID
+            local track      = (animator :: Animator):LoadAnimation(anim)
+            track.Priority   = Enum.AnimationPriority.Action
+            track.Looped     = true
+            track:Play(0.3)
+            return track
+        end)
+        if ok and result ~= nil then
+            return result :: AnimationTrack, nil
+        end
+        warn("[CarryManager] Animation " .. CARRY_ANIM_ID .. " échouée — bascule Motor6D")
+    end
 
-    local ok, result = pcall(function(): AnimationTrack
-        local anim        = Instance.new("Animation")
-        anim.AnimationId  = CARRY_ANIM_ID
-        local track       = animator:LoadAnimation(anim)
-        track.Priority    = Enum.AnimationPriority.Action
-        track.Looped      = true
-        track:Play(0.3)   -- fondu d'entrée 0.3 s
-        return track
-    end)
-
-    return if ok then result :: AnimationTrack else nil
+    -- Fallback : Motor6D direct
+    local motors = applyMotorRaise(char)
+    return nil, if #motors > 0 then motors else nil
 end
 
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
--- Crée un clone miniature de l'item et le soude au-dessus de la tête du joueur.
+-- Clone à taille native (1:1) — PAS de normalisation 12-studs (réservée aux socles).
 local function attachCarryClone(player: Player, itemName: string): Model?
     local modelsFolder = ReplicatedStorage:FindFirstChild("BrainrotModels")
     if not modelsFolder then return nil end
@@ -69,12 +111,12 @@ local function attachCarryClone(player: Player, itemName: string): Model?
     local template = modelsFolder:FindFirstChild(itemName)
     if not template or not template:IsA("Model") then return nil end
 
-    local clone = template:Clone() :: Model
+    local clone = (template :: Model):Clone() :: Model
 
-    -- Réduction à 35 % de la taille originale
-    pcall(function() clone:ScaleTo(clone:GetScale() * 0.35) end)
+    -- Taille native 1:1 — aucune normalisation ici
+    pcall(function() clone:ScaleTo(1) end)
 
-    -- Désactiver collisions/queries sur toutes les parts (ghost)
+    -- Désactiver collisions/queries (ghost)
     for _, p in ipairs(clone:GetDescendants()) do
         if p:IsA("BasePart") then
             local bp = p :: BasePart
@@ -93,7 +135,8 @@ local function attachCarryClone(player: Player, itemName: string): Model?
     local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
     if not hrp then clone:Destroy() ; return nil end
 
-    local primaryPart = clone.PrimaryPart or clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+    local primaryPart = clone.PrimaryPart
+        or clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
     if not primaryPart then clone:Destroy() ; return nil end
 
     -- Positionner le clone AVANT le weld (le WeldConstraint fige la transformation)
@@ -146,16 +189,19 @@ local function createPrompts(
     return prompts
 end
 
--- ── Arrêt du carry (supprime clone + prompts + animation) ─────────────────────
+-- ── Arrêt du carry (supprime clone + prompts + animation + Motor6D) ───────────
 local function stopCarry(player: Player)
     local uid   = player.UserId
     local state = carried[uid]
     if not state then return end
 
-    -- Arrêt de l'animation bras levés (fondu de sortie 0.3 s)
+    -- Arrêt animation bras levés (fondu 0.3 s)
     if state.animTrack then
         pcall(function() (state.animTrack :: AnimationTrack):Stop(0.3) end)
     end
+
+    -- Restauration Motor6D si fallback actif
+    restoreMotors(state.motors)
 
     if state.clone then
         state.clone:Destroy()
@@ -177,18 +223,18 @@ local function doPlace(player: Player, slotIndex: number, topPart: BasePart)
     local item   = state.item
     local rarity = state.rarity
 
-    -- 1. Retrait du carry (clone + prompts) avant le placement visuel
+    -- 1. Retrait du carry (clone + prompts + anim) avant le placement visuel
     stopCarry(player)
 
     -- 2. Sauvegarde en inventaire
     DataManager.AddItem(player, { Id = item.itemId, Name = item.name, Rarity = rarity })
 
-    -- 3. Placement visuel sur le socle (définit aussi l'Attribute PPS)
+    -- 3. Placement visuel sur le socle (définit aussi l'Attribute PPS + Power)
     if _G.BrainrotGallery_ForcePlace then
         _G.BrainrotGallery_ForcePlace(player, slotIndex, { Id = item.itemId, Name = item.name, Rarity = rarity })
     end
 
-    -- 4. Apothéose : effets VFX sur le socle + camera shake pour le joueur
+    -- 4. VFX sur le socle
     SpawnFX.Play(topPart, rarity, player)
 
     -- 5. Mise à jour du client (inventaire + coins)
@@ -200,7 +246,6 @@ local function doPlace(player: Player, slotIndex: number, topPart: BasePart)
 end
 
 -- ── Démarrage du carry ────────────────────────────────────────────────────────
--- Appelé par WheelSystem juste après la fin du spin.
 _G.CarryManager_StartCarry = function(
     player : Player,
     item   : { itemId: string, name: string },
@@ -211,13 +256,13 @@ _G.CarryManager_StartCarry = function(
     -- Remplace un éventuel carry précédent proprement
     if carried[uid] then stopCarry(player) end
 
-    -- Clone visuel soudé au joueur
+    -- Clone visuel soudé au joueur (taille 1:1)
     local clone = attachCarryClone(player, item.name)
 
-    -- Animation bras levés (démarre immédiatement)
-    local animTrack = startCarryAnim(player)
+    -- Animation bras levés (ou fallback Motor6D)
+    local animTrack, motors = startCarryAnim(player)
 
-    -- Création des prompts (ferme sur player/item/rarity pour doPlace)
+    -- Prompts sur les socles vides
     local prompts = createPrompts(player, item, rarity, function(slotIndex, topPart)
         doPlace(player, slotIndex, topPart)
     end)
@@ -228,6 +273,7 @@ _G.CarryManager_StartCarry = function(
         clone     = clone,
         prompts   = prompts,
         animTrack = animTrack,
+        motors    = motors,
     }
 
     -- Informe le client (affiche le HUD de transport)

@@ -941,6 +941,7 @@ local function applyAura(clone: Instance, rarity: string)
         pt.Rate           = 25
         pt.LockedToPart   = true
         pt.VelocitySpread = 180
+        pt.Enabled        = true
         pt.Parent         = anchor
 
         local light       = Instance.new("PointLight")
@@ -964,6 +965,7 @@ local function applyAura(clone: Instance, rarity: string)
         pt.Rate           = 40
         pt.LockedToPart   = true
         pt.VelocitySpread = 180
+        pt.Enabled        = true
         pt.Parent         = anchor
 
         local light       = Instance.new("PointLight")
