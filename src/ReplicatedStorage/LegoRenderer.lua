@@ -1,6 +1,6 @@
 --!strict
 -- LegoRenderer.lua  (ModuleScript — ReplicatedStorage)
--- Tile le sol en clonant GreenBlock ou GreyBlock depuis ReplicatedStorage.Blocks.
+-- Tile le sol en clonant FloorBlock depuis ReplicatedStorage.Blocks.
 -- Utilisé UNIQUEMENT côté client (LocalScript StudRenderer) — zéro réplication réseau.
 --
 -- API :
@@ -16,18 +16,43 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BORDER_H    = 0.2   -- hauteur des lisses de bordure
 local YIELD_EVERY = 15    -- nombre de clones avant un task.wait() (respiration CPU)
 
--- ── Dossier Blocks (lazy, mis en cache) ───────────────────────────────────────
-local _blocksFolder: Folder? = nil
+-- ── Modèle unique FloorBlock (lazy, mis en cache) ─────────────────────────────
+local _floorBlock: Model? = nil
 
-local function getBlocksFolder(): Folder?
-    if _blocksFolder then return _blocksFolder end
-    local f = ReplicatedStorage:WaitForChild("Blocks", 10)
-    if f and f:IsA("Folder") then
-        _blocksFolder = f :: Folder
+-- Crée un Model procédural de secours (Part 32×1×32) quand Rojo a supprimé Blocks/
+local function makeFallbackModel(): Model
+    local m   = Instance.new("Model")
+    m.Name    = "FloorBlock_Fallback"
+    local p   = Instance.new("Part")
+    p.Name    = "FloorBlock"
+    p.Size    = Vector3.new(4, 0.4, 4)   -- taille raisonnable pour le tiling
+    p.Anchored      = true
+    p.CanCollide    = false
+    p.Material      = Enum.Material.SmoothPlastic
+    p.TopSurface    = Enum.SurfaceType.Smooth
+    p.BottomSurface = Enum.SurfaceType.Smooth
+    p.CastShadow    = false
+    p.Parent        = m
+    m.PrimaryPart   = p
+    return m
+end
+
+local function getFloorBlock(): Model
+    if _floorBlock then return _floorBlock end
+
+    -- Tentative 1 : chercher dans ReplicatedStorage.Blocks (sans bloquer longtemps)
+    local blocks = ReplicatedStorage:FindFirstChild("Blocks")
+    local t = blocks and blocks:FindFirstChild("FloorBlock")
+
+    if t and t:IsA("Model") then
+        _floorBlock = t :: Model
     else
-        warn("[LegoRenderer] ReplicatedStorage.Blocks introuvable après 10s")
+        -- Fallback procédural : Rojo a supprimé le dossier ou le réseau n'a pas répliqué
+        warn("[LegoRenderer] Blocks.FloorBlock absent — génération d'un bloc de secours procédural")
+        _floorBlock = makeFallbackModel()
     end
-    return _blocksFolder
+
+    return _floorBlock :: Model
 end
 
 -- ── Détection de zone ─────────────────────────────────────────────────────────
@@ -38,55 +63,25 @@ local function isRoadZone(partName: string): boolean
         or string.find(nm, "STREET") ~= nil
 end
 
--- ── Sélection du bon modèle selon la zone ────────────────────────────────────
---   Route / Avenue → GreyBlock
---   Herbe / Autre  → GreenBlock
-local function pickBlockTemplate(partName: string): Model?
-    local blocks = getBlocksFolder()
-    if not blocks then return nil end
 
-    local blockName = if isRoadZone(partName) then "GreyBlock" else "GreenBlock"
-    local t = blocks:FindFirstChild(blockName)
-
-    if not t or not t:IsA("Model") then
-        warn(string.format("[LegoRenderer] Blocks.%s introuvable", blockName))
-        return nil
-    end
-    return t :: Model
-end
-
--- ── Palette herbe (camaïeu de verts LEGO) ────────────────────────────────────
-local GRASS_PALETTE = {
-    Color3.fromRGB( 75, 151,  74),  -- Bright Green   (base)
-    Color3.fromRGB( 39, 125,  34),  -- Dark Green
-    Color3.fromRGB( 58, 125,  21),  -- Olive Green
-    Color3.fromRGB( 83, 166,  48),  -- Medium Green
-    Color3.fromRGB( 48, 108,  48),  -- Sea Green
-    Color3.fromRGB(106, 174,  75),  -- Light Green
-    Color3.fromRGB( 62, 143,  52),  -- Forest Green
-}
-
--- ── Applique les propriétés physiques optimisées sur un BasePart ──────────────
-local function applyProps(bp: BasePart, tintColor: Color3?)
+-- ── Applique les propriétés physiques optimisées + couleur sur un BasePart ────
+local function applyProps(bp: BasePart, tintColor: Color3)
     bp.Anchored      = true
     bp.CanCollide    = false
     bp.CanTouch      = false
     bp.CanQuery      = false
     bp.Massless      = true
     bp.CastShadow    = false
-    if tintColor then
-        bp.Color = tintColor
-    end
+    bp.Color         = tintColor
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AutoStud — usine de tuiles
 --
--- 1. Choisit GreenBlock ou GreyBlock selon isRoadZone(part.Name).
--- 2. Lit les dimensions réelles du bloc via :GetExtentsSize().
--- 3. Calcule nX / nZ (math.ceil → couverture totale, zéro fente).
+-- 1. Clone FloorBlock (modèle unique pré-construit, déjà à la bonne taille).
+-- 2. Lit les dimensions via :GetExtentsSize() — aucun ScaleTo nécessaire.
+-- 3. Coloration dynamique : GRASS_PALETTE (herbe) ou ROAD_PALETTE (avenue).
 -- 4. Boucle ix/iz → clone:PivotTo(cf * CFrame.new(dx, dy, dz)).
---    La multiplication par cf hérite automatiquement la rotation de la Part.
 -- ══════════════════════════════════════════════════════════════════════════════
 type Opts = {
     material : Enum.Material?,
@@ -101,26 +96,18 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
     folder.Name     = "LegoTiles_" .. part.Name
     folder.Parent   = part.Parent
 
-    -- ── Choix du template ─────────────────────────────────────────────────────
-    local blockTemplate = pickBlockTemplate(part.Name)
-    if not blockTemplate then
-        warn(string.format("[LegoRenderer] '%s' : bloc absent — ignoré", part.Name))
-        return folder
-    end
+    -- ── Récupération du FloorBlock ─────────────────────────────────────────────
+    local blockTemplate = getFloorBlock()  -- toujours non-nil (fallback procédural si besoin)
 
-    -- ── Dimensions du bloc (GetExtentsSize = boîte englobante du Model) ───────
+    -- ── Dimensions réelles du bloc (modèle déjà à la bonne taille) ───────────
     local brickSize = blockTemplate:GetExtentsSize()
     local bX = brickSize.X
     local bY = brickSize.Y
     local bZ = brickSize.Z
 
     -- ── Dimensions de la face et offset local ─────────────────────────────────
-    --
-    -- surfW / surfL : largeur et longueur de la face à couvrir.
-    -- offX/Y/Z      : décalage LOCAL depuis le centre de la Part jusqu'au centre
-    --                 de la première couche de briques (demi-épaisseur Part +
-    --                 demi-hauteur brique, dans la direction de la normale).
-    --
+    -- offY = sz.Y/2 + bY/2 - EPS : bloc posé sur la surface, légèrement rentré
+    -- pour éviter le Z-fighting avec la plaque invisible.
     local cf  = part.CFrame
     local sz  = part.Size
 
@@ -130,36 +117,40 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
     local offY = 0
     local offZ = 0
 
+    -- Affleurement exact : sommet du bloc = sommet de la plaque source invisible.
+    -- offY = sz.Y/2 - bY/2 → centre du bloc est à une demi-hauteur de brique
+    -- sous la surface supérieure de la plaque → le dessus affleure parfaitement.
     if face == "Top" then
         surfW, surfL = sz.X, sz.Z
-        offY = sz.Y / 2 + bY / 2
+        offY =  sz.Y / 2 - bY / 2
     elseif face == "Bottom" then
         surfW, surfL = sz.X, sz.Z
-        offY = -(sz.Y / 2 + bY / 2)
+        offY = -(sz.Y / 2 - bY / 2)
     elseif face == "Front" then
         surfW, surfL = sz.X, sz.Y
-        offZ = -(sz.Z / 2 + bZ / 2)
+        offZ = -(sz.Z / 2 - bZ / 2)
     elseif face == "Back" then
         surfW, surfL = sz.X, sz.Y
-        offZ = sz.Z / 2 + bZ / 2
+        offZ =  sz.Z / 2 - bZ / 2
     elseif face == "Right" then
         surfW, surfL = sz.Z, sz.Y
-        offX = sz.X / 2 + bX / 2
+        offX =  sz.X / 2 - bX / 2
     else  -- "Left"
         surfW, surfL = sz.Z, sz.Y
-        offX = -(sz.X / 2 + bX / 2)
+        offX = -(sz.X / 2 - bX / 2)
     end
 
-    -- ── Nombre de tuiles (ceil → couverture garantie, zéro fente aux bords) ───
-    local nX = math.max(1, math.ceil(surfW / bX))
-    local nZ = math.max(1, math.ceil(surfL / bZ))
+    -- ── Nombre de tuiles (+1 de débordement → couverture garantie jusqu'aux bords) ─
+    -- Le +1 sur chaque axe ajoute une rangée/colonne supplémentaire qui dépasse
+    -- légèrement la plaque source. Jamais de marges vides, quel que soit le FloorBlock.
+    local nX = math.max(1, math.ceil(surfW / bX)) + 1
+    local nZ = math.max(1, math.ceil(surfL / bZ)) + 1
 
-    -- Coin de départ centré sur la surface
+    -- Coin de départ centré sur la surface (inchangé : le débordement est symétrique)
     local startA = -(nX * bX) / 2 + bX / 2
     local startB = -(nZ * bZ) / 2 + bZ / 2
 
-    -- ── Color Jittering (herbe uniquement) ───────────────────────────────────
-    local useGrassPalette = not isRoadZone(part.Name)
+    local isGrass = not isRoadZone(part.Name)
 
     -- ── Boucle principale ─────────────────────────────────────────────────────
     local count = 0
@@ -172,24 +163,35 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
             -- CFrame LOCAL → monde (hérite la rotation de la Part)
             local brickCF: CFrame
             if face == "Top" or face == "Bottom" then
-                -- Axe 1 = X local, Axe 2 = Z local
                 brickCF = cf * CFrame.new(da + offX, offY, db + offZ)
             elseif face == "Front" or face == "Back" then
-                -- Axe 1 = X local, Axe 2 = Y local (hauteur du mur)
                 brickCF = cf * CFrame.new(da + offX, db, offZ)
             else  -- Right / Left
-                -- Axe 1 = Z local, Axe 2 = Y local
                 brickCF = cf * CFrame.new(offX, db, da + offZ)
             end
 
-            -- Couleur aléatoire de la palette herbe (ou nil pour les routes)
-            local tint: Color3? = if useGrassPalette
-                then GRASS_PALETTE[math.random(1, #GRASS_PALETTE)]
-                else nil
+            local gridX = math.floor(brickCF.Position.X / bX)
+            local gridZ = math.floor(brickCF.Position.Z / bZ)
+            local isDark = (gridX + gridZ) % 2 == 0
+
+            local tint: Color3
+            if isGrass then
+                if isDark then
+                    tint = Color3.fromRGB(39, 106, 39)   -- Vert Foncé
+                else
+                    tint = Color3.fromRGB(75, 151, 75)   -- Vert Clair
+                end
+            else
+                if isDark then
+                    tint = Color3.fromRGB(105, 105, 105) -- Gris Foncé
+                else
+                    tint = Color3.fromRGB(130, 130, 130) -- Gris Clair
+                end
+            end
 
             local clone = blockTemplate:Clone()
 
-            -- Applique les optimisations physiques (+ teinte) sur tous les BaseParts
+            -- Applique couleur + propriétés anti-lag (taille du clone inchangée)
             for _, p in ipairs(clone:GetDescendants()) do
                 if p:IsA("BasePart") then applyProps(p :: BasePart, tint) end
             end
@@ -203,10 +205,8 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
         end
     end
 
-    print(string.format("[LegoRenderer] '%s' %s (%s) → %d×%d = %d blocs",
-        part.Name, face,
-        if isRoadZone(part.Name) then "GreyBlock" else "GreenBlock",
-        nX, nZ, count))
+    print(string.format("[LegoRenderer] '%s' %s → %d×%d = %d blocs",
+        part.Name, face, nX, nZ, count))
 
     return folder
 end
