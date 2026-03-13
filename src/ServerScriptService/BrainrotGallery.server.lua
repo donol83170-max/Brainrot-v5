@@ -167,7 +167,7 @@ local BrainrotOffsets: {[string]: {scale: number, offset: CFrame}} = {
 -- DIMENSIONS DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
 local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
-local PLACE_GAP   = 40         -- Espacement Z entre les socles (×2.5 pour modèles scale 2)
+local PLACE_GAP   = 28         -- Espacement Z entre les socles (-30 % pour galerie plus compacte)
 local SIDE_DIST   = 16         -- Distance X du centre au socle
 local CORRIDOR_W  = 44         -- Largeur du couloir (X)
 local WALL_H      = 20         -- Hauteur des murs
@@ -891,9 +891,8 @@ local RARITY_POWER: {[string]: number} = {
     ULTRA           = 5_000,
 }
 
--- applyAura — auras de rareté (ParticleEmitter + PointLight)
--- Crée une Part invisible centrée sur le modèle comme support d'effets.
--- Parentée dans le clone → suit automatiquement les PivotTo (idle spin compris).
+-- applyAura — aura style "KI de Sangoku" (flammes verticales qui montent).
+-- AuraAnchor invisible parentée dans le clone → suit les PivotTo (idle spin).
 local function applyAura(clone: Instance, rarity: string)
     if rarity ~= "EPIC" and rarity ~= "MYTHIC"
         and rarity ~= "LEGENDARY" and rarity ~= "ULTRA_LEGENDARY"
@@ -913,7 +912,7 @@ local function applyAura(clone: Instance, rarity: string)
         pivotCF = bp.CFrame
     end
 
-    -- Part invisible ancrée au centre du clone
+    -- Part invisible au centre géométrique du clone
     local anchor          = Instance.new("Part")
     anchor.Name           = "AuraAnchor"
     anchor.Size           = Vector3.new(0.1, 0.1, 0.1)
@@ -925,55 +924,59 @@ local function applyAura(clone: Instance, rarity: string)
     anchor.CastShadow     = false
     anchor.Transparency   = 1
     anchor.CFrame         = pivotCF
-    anchor.Parent         = clone  -- suit les PivotTo du modèle
+    anchor.Parent         = clone
+
+    local col: Color3
+    local rate: number
+    local lightBrightness: number
+    local lightRange: number
 
     if rarity == "EPIC" or rarity == "MYTHIC" then
-        local pt          = Instance.new("ParticleEmitter")
-        pt.Color          = ColorSequence.new(Color3.fromRGB(170, 0, 255))
-        pt.LightEmission  = 1
-        pt.Texture        = "rbxassetid://242043131"
-        pt.Size           = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 2),
-            NumberSequenceKeypoint.new(1, 0),
-        })
-        pt.Speed          = NumberRange.new(0.5)
-        pt.Lifetime       = NumberRange.new(2, 3)
-        pt.Rate           = 25
-        pt.LockedToPart   = true
-        pt.VelocitySpread = 180
-        pt.Enabled        = true
-        pt.Parent         = anchor
-
-        local light       = Instance.new("PointLight")
-        light.Color       = Color3.fromRGB(170, 0, 255)
-        light.Brightness  = 4
-        light.Range       = 14
-        light.Parent      = anchor
-
-    elseif rarity == "LEGENDARY" or rarity == "ULTRA_LEGENDARY"
-        or rarity == "ULTRA" then
-        local pt          = Instance.new("ParticleEmitter")
-        pt.Color          = ColorSequence.new(Color3.fromRGB(255, 200, 0))
-        pt.LightEmission  = 1
-        pt.Texture        = "rbxassetid://242043131"
-        pt.Size           = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 2),
-            NumberSequenceKeypoint.new(1, 0),
-        })
-        pt.Speed          = NumberRange.new(0.5)
-        pt.Lifetime       = NumberRange.new(2, 4)
-        pt.Rate           = 40
-        pt.LockedToPart   = true
-        pt.VelocitySpread = 180
-        pt.Enabled        = true
-        pt.Parent         = anchor
-
-        local light       = Instance.new("PointLight")
-        light.Color       = Color3.fromRGB(255, 200, 0)
-        light.Brightness  = 6
-        light.Range       = 18
-        light.Parent      = anchor
+        col             = Color3.fromRGB(170, 0, 255)
+        rate            = 35
+        lightBrightness = 5
+        lightRange      = 16
+    else  -- LEGENDARY / ULTRA_LEGENDARY / ULTRA
+        col             = Color3.fromRGB(255, 200, 0)
+        rate            = 55
+        lightBrightness = 8
+        lightRange      = 22
     end
+
+    -- ── ParticleEmitter KI (flammes verticales) ──────────────────────────────
+    local pt          = Instance.new("ParticleEmitter")
+    pt.Texture        = "rbxassetid://299324419"   -- flamme / trait vertical
+    pt.Color          = ColorSequence.new(col)
+    pt.LightEmission  = 1
+    pt.LightInfluence = 0
+    pt.ZOffset        = 1
+    pt.Size           = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.5),
+        NumberSequenceKeypoint.new(0.4, 2.5),
+        NumberSequenceKeypoint.new(1, 0),
+    })
+    pt.Transparency   = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.1),
+        NumberSequenceKeypoint.new(0.6, 0.3),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    pt.Speed          = NumberRange.new(5, 10)
+    pt.Acceleration   = Vector3.new(0, 20, 0)   -- monte rapidement
+    pt.Lifetime       = NumberRange.new(0.6, 1.2)
+    pt.Rate           = rate
+    pt.VelocitySpread = 360                     -- entoure le modèle
+    pt.RotSpeed       = NumberRange.new(-90, 90)
+    pt.Rotation       = NumberRange.new(0, 360)
+    pt.LockedToPart   = true
+    pt.Enabled        = true
+    pt.Parent         = anchor
+
+    -- ── Lumière pulsée ───────────────────────────────────────────────────────
+    local light       = Instance.new("PointLight")
+    light.Color       = col
+    light.Brightness  = lightBrightness
+    light.Range       = lightRange
+    light.Parent      = anchor
 end
 
 local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)

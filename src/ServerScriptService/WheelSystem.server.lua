@@ -380,6 +380,74 @@ for i, dz in ipairs(SLOT_OFFSETS_Z) do
     txt.Parent                     = bb
 end
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- MUR BACKDROP (derrière la machine, style Carpet en damier bleu)
+-- ══════════════════════════════════════════════════════════════════════════════
+do
+    -- La face "écran" de la machine est sur -X → le dos est sur +X.
+    -- Le mur est positionné juste derrière le dos de la machine.
+    local WALL_X     = MACHINE_X + 3.2 * SCALE + 0.3  -- derrière le dos de la machine
+    local WALL_Z_MIN = MACHINE_Z - 52                  -- couvre tous les slots (±43)
+    local WALL_Z_MAX = MACHINE_Z + 52
+    local WALL_Y_MIN = 0
+    local WALL_Y_MAX = 26                              -- hauteur imposante
+
+    local COL_BLUE_LIGHT = Color3.fromRGB(0, 162, 255)
+    local COL_BLUE_DARK  = Color3.fromRGB(0,  85, 255)
+
+    -- Carpet MeshPart (4 × 0.4 × 4) dans ReplicatedStorage.Blocks
+    local blocks          = ReplicatedStorage:FindFirstChild("Blocks")
+    local carpetTemplate  = blocks and blocks:FindFirstChild("Carpet") :: BasePart?
+
+    if carpetTemplate and carpetTemplate:IsA("BasePart") then
+        local tX = carpetTemplate.Size.X  -- 4
+        local tY = carpetTemplate.Size.Y  -- 0.4 (épaisseur → devient la profondeur du mur)
+        local tZ = carpetTemplate.Size.Z  -- 4
+
+        -- Rotation 90° autour de Z : l'épaisseur (Y) devient la dimension X (profondeur du mur)
+        --   résultat en world space : tY studs en X, tX studs en Y, tZ studs en Z
+        local wallRot = CFrame.Angles(0, 0, math.rad(90))
+
+        local wallFolder      = Instance.new("Folder")
+        wallFolder.Name       = "CasinoBackdrop"
+        wallFolder.Parent     = casinoFolder
+
+        -- Tiles en Y (hauteur) × Z (largeur)
+        local nZ = math.ceil((WALL_Z_MAX - WALL_Z_MIN) / tZ)
+        local nY = math.ceil((WALL_Y_MAX - WALL_Y_MIN) / tX)   -- après rotation, tX = hauteur tuile
+
+        for iy = 0, nY - 1 do
+            for iz = 0, nZ - 1 do
+                local tileZ = WALL_Z_MIN + (iz + 0.5) * tZ
+                local tileY = WALL_Y_MIN + tX / 2 + iy * tX  -- centré sur la case
+
+                local col = if (iy + iz) % 2 == 0 then COL_BLUE_LIGHT else COL_BLUE_DARK
+
+                local tile = carpetTemplate:Clone() :: BasePart
+                tile.Anchored      = true
+                tile.CanCollide    = false
+                tile.CanTouch      = false
+                tile.CanQuery      = false
+                tile.Massless      = true
+                tile.CastShadow    = false
+                tile.Color         = col
+                tile.CFrame        = CFrame.new(WALL_X, tileY, tileZ) * wallRot
+
+                -- Colorier aussi les Textures/Decals enfants
+                for _, ch in ipairs(tile:GetChildren()) do
+                    if ch:IsA("Texture") or ch:IsA("Decal") then
+                        (ch :: Texture).Color3 = col
+                    end
+                end
+
+                tile.Parent = wallFolder
+            end
+        end
+        print(string.format("[WheelSystem] Backdrop : %d×%d = %d tuiles Carpet", nY, nZ, nY * nZ))
+    else
+        warn("[WheelSystem] Backdrop : Blocks.Carpet introuvable — mur ignoré")
+    end
+end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DONNÉES PAR JOUEUR — file d'attente machine
@@ -400,14 +468,14 @@ local function clearMachineClones()
 end
 
 -- ── Auras de rareté ──────────────────────────────────────────────────────────
--- Crée une Part dédiée au centre du modèle pour accrocher les effets.
--- Parentée dans le Model → suit automatiquement les PivotTo (idle spin compris).
+-- Aura style "KI de Sangoku" — flammes qui montent du centre du modèle.
+-- AuraAnchor invisible parentée dans le Model → suit les PivotTo (idle spin compris).
 local function applyAura(clone: Model, rarity: string)
     if rarity ~= "EPIC" and rarity ~= "LEGENDARY" and rarity ~= "ULTRA_LEGENDARY" then
         return
     end
 
-    -- Part invisible ancrée au centre du modèle
+    -- Part invisible au centre géométrique du modèle
     local anchor          = Instance.new("Part")
     anchor.Name           = "AuraAnchor"
     anchor.Size           = Vector3.new(0.1, 0.1, 0.1)
@@ -419,54 +487,59 @@ local function applyAura(clone: Model, rarity: string)
     anchor.CastShadow     = false
     anchor.Transparency   = 1
     anchor.CFrame         = clone:GetPivot()
-    anchor.Parent         = clone  -- suit les PivotTo du modèle
+    anchor.Parent         = clone
+
+    local col: Color3
+    local rate: number
+    local lightBrightness: number
+    local lightRange: number
 
     if rarity == "EPIC" then
-        local pt               = Instance.new("ParticleEmitter")
-        pt.Color               = ColorSequence.new(Color3.fromRGB(170, 0, 255))
-        pt.LightEmission       = 1
-        pt.Texture             = "rbxassetid://242043131"
-        pt.Size                = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 2),
-            NumberSequenceKeypoint.new(1, 0),
-        })
-        pt.Speed               = NumberRange.new(0.5)
-        pt.Lifetime            = NumberRange.new(2, 3)
-        pt.Rate                = 25
-        pt.LockedToPart        = true
-        pt.VelocitySpread      = 180
-        pt.Enabled             = true
-        pt.Parent              = anchor
-
-        local light            = Instance.new("PointLight")
-        light.Color            = Color3.fromRGB(170, 0, 255)
-        light.Brightness       = 4
-        light.Range            = 14
-        light.Parent           = anchor
-
-    elseif rarity == "LEGENDARY" or rarity == "ULTRA_LEGENDARY" then
-        local pt               = Instance.new("ParticleEmitter")
-        pt.Color               = ColorSequence.new(Color3.fromRGB(255, 200, 0))
-        pt.LightEmission       = 1
-        pt.Texture             = "rbxassetid://242043131"
-        pt.Size                = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 2),
-            NumberSequenceKeypoint.new(1, 0),
-        })
-        pt.Speed               = NumberRange.new(0.5)
-        pt.Lifetime            = NumberRange.new(2, 4)
-        pt.Rate                = 40
-        pt.LockedToPart        = true
-        pt.VelocitySpread      = 180
-        pt.Enabled             = true
-        pt.Parent              = anchor
-
-        local light            = Instance.new("PointLight")
-        light.Color            = Color3.fromRGB(255, 200, 0)
-        light.Brightness       = 6
-        light.Range            = 18
-        light.Parent           = anchor
+        col             = Color3.fromRGB(170, 0, 255)
+        rate            = 35
+        lightBrightness = 5
+        lightRange      = 16
+    else  -- LEGENDARY / ULTRA_LEGENDARY
+        col             = Color3.fromRGB(255, 200, 0)
+        rate            = 55
+        lightBrightness = 8
+        lightRange      = 22
     end
+
+    -- ── ParticleEmitter KI (flammes verticales) ──────────────────────────────
+    local pt               = Instance.new("ParticleEmitter")
+    pt.Texture             = "rbxassetid://299324419"   -- flamme / trait vertical
+    pt.Color               = ColorSequence.new(col)
+    pt.LightEmission       = 1
+    pt.LightInfluence      = 0
+    pt.ZOffset             = 1
+    pt.Size                = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.5),
+        NumberSequenceKeypoint.new(0.4, 2.5),
+        NumberSequenceKeypoint.new(1, 0),
+    })
+    pt.Transparency        = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.1),
+        NumberSequenceKeypoint.new(0.6, 0.3),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    pt.Speed               = NumberRange.new(5, 10)
+    pt.Acceleration        = Vector3.new(0, 20, 0)   -- monte rapidement
+    pt.Lifetime            = NumberRange.new(0.6, 1.2)
+    pt.Rate                = rate
+    pt.VelocitySpread      = 360                     -- entoure le modèle
+    pt.RotSpeed            = NumberRange.new(-90, 90)
+    pt.Rotation            = NumberRange.new(0, 360)
+    pt.LockedToPart        = true
+    pt.Enabled             = true
+    pt.Parent              = anchor
+
+    -- ── Lumière pulsée ───────────────────────────────────────────────────────
+    local light            = Instance.new("PointLight")
+    light.Color            = col
+    light.Brightness       = lightBrightness
+    light.Range            = lightRange
+    light.Parent           = anchor
 end
 
 -- Pré-déclaration pour permettre la référence mutuelle avec attachSlotPrompts.
