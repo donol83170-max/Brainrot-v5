@@ -385,12 +385,14 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 do
     -- La face "écran" de la machine est sur -X → le dos est sur +X.
-    -- Le mur est positionné juste derrière le dos de la machine.
-    local WALL_X     = MACHINE_X + 3.2 * SCALE + 0.3  -- derrière le dos de la machine
-    local WALL_Z_MIN = MACHINE_Z - 52                  -- couvre tous les slots (±43)
-    local WALL_Z_MAX = MACHINE_Z + 52
-    local WALL_Y_MIN = 0
-    local WALL_Y_MAX = 26                              -- hauteur imposante
+    -- +15 studs de recul supplémentaires : les Brainrots de 12 studs tournent librement.
+    local WALL_X     = MACHINE_X + 3.2 * SCALE + 15.3   -- dos machine + 15 studs de clearance
+    -- Z étendu de ±52 à ±110 : bord de l'avenue jusqu'au bâtiment en face.
+    local WALL_Z_MIN = MACHINE_Z - 110
+    local WALL_Z_MAX = MACHINE_Z + 110
+    -- Y légèrement sous le sol pour supprimer tout scintillement (Z-fighting).
+    local WALL_Y_MIN = -0.2
+    local WALL_Y_MAX = 28                              -- hauteur imposante
 
     local COL_BLUE_LIGHT = Color3.fromRGB(0, 162, 255)
     local COL_BLUE_DARK  = Color3.fromRGB(0,  85, 255)
