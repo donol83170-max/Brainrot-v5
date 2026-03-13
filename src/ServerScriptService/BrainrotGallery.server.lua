@@ -1601,6 +1601,11 @@ _G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item
         end
     end
 
+    -- Hook QuestManager : incrémente le compteur de dépôts du joueur
+    if _G.QuestManager_OnDeposit then
+        _G.QuestManager_OnDeposit(player)
+    end
+
     print(string.format("[BrainrotGallery] %s dépôt '%s' (%s) → +%d Power",
         player.Name, item.Name, item.Rarity, powerGain))
 end
