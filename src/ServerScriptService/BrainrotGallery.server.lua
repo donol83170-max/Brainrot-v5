@@ -879,6 +879,18 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 local MAX_FIGURINE_DIM = 3.5   -- taille max sur n'importe quel axe (studs)
 
+-- ── Puissance fixe par rareté (accordée immédiatement au dépôt) ───────────────
+local RARITY_POWER: {[string]: number} = {
+    COMMON          = 10,
+    NORMAL          = 10,
+    RARE            = 50,
+    EPIC            = 200,
+    MYTHIC          = 200,
+    LEGENDARY       = 1_000,
+    ULTRA_LEGENDARY = 5_000,
+    ULTRA           = 5_000,
+}
+
 -- applyAura — auras de rareté pour la galerie (ParticleEmitter + PointLight)
 -- Fonctionne sur Model et BasePart.
 local function applyAura(clone: Instance, rarity: string)
@@ -1166,6 +1178,21 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         applyAura(clone, itemData.Rarity)
 
         state.displayParts[slotIndex] = clone
+
+        -- ── Idle spin : rotation continue sur l'axe Y (effet showroom) ────────
+        local spinRef = clone
+        task.spawn(function()
+            while spinRef and spinRef.Parent do
+                if spinRef:IsA("Model") then
+                    (spinRef :: Model):PivotTo((spinRef :: Model):GetPivot() * CFrame.Angles(0, math.rad(1), 0))
+                elseif spinRef:IsA("BasePart") then
+                    local bp = spinRef :: BasePart
+                    bp.CFrame = bp.CFrame * CFrame.Angles(0, math.rad(1), 0)
+                end
+                task.wait(0.03)
+            end
+        end)
+
         print(string.format("[BrainrotGallery] ✓ Asset '%s' (%s) posé sur slot %d",
             itemData.Name, clone.ClassName, slotIndex))
 
@@ -1529,4 +1556,20 @@ _G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item
         refs.nameLabel.Text        = item.Name
         refs.nameLabel.TextColor3  = RARITY_COLOR[item.Rarity] or COL_GOLD
     end
+
+    -- ── Puissance cumulative : +RARITY_POWER points à chaque dépôt ──────────
+    local powerGain = RARITY_POWER[string.upper(item.Rarity)] or RARITY_POWER["COMMON"]
+    DataManager.AddPower(player, powerGain)
+
+    -- Mise à jour immédiate du leaderstat ⚡ Power (sans attendre la boucle 1s)
+    local ls = player:FindFirstChild("leaderstats")
+    if ls then
+        local pv = ls:FindFirstChild("⚡ Power") :: NumberValue?
+        if pv then
+            pv.Value = DataManager.GetPowerTotal(player) or pv.Value
+        end
+    end
+
+    print(string.format("[BrainrotGallery] %s dépôt '%s' (%s) → +%d Power",
+        player.Name, item.Name, item.Rarity, powerGain))
 end

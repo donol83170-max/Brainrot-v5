@@ -486,13 +486,17 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
         end
     end)
 
-    -- ── Orientation : face vers l'avant de la machine (côté écran = -X) ──────
-    -- CFrame.new(pos, lookAt) : le "devant" (-Z local) pointe vers lookAt.
-    -- Correction +90° sur Y si les modèles arrivent de profil — ajuste si besoin.
-    local spawnPos  = SLOT_WORLD_POS[slotIdx]
-    local lookAtPos = Vector3.new(spawnPos.X - 10, spawnPos.Y, spawnPos.Z)
-    clone:PivotTo(CFrame.new(spawnPos, lookAtPos))
-    clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, math.rad(90), 0))
+    -- ── Orientation : copie la rotation de la machine (pas de LookAt) ──────────
+    local spawnPos = SLOT_WORLD_POS[slotIdx]
+    clone:PivotTo(CFrame.new(spawnPos) * machineBase.CFrame.Rotation)
+
+    -- ── Idle spin : rotation continue sur l'axe Y (effet showroom) ──────────
+    task.spawn(function()
+        while clone and clone.Parent do
+            clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, math.rad(1), 0))
+            task.wait(0.03)
+        end
+    end)
 
     return clone
 end

@@ -1,21 +1,20 @@
 --!strict
 -- EconomyManager.server.lua
 -- Leaderstats "Brainrot Coins" + "⚡ Power".
--- Le revenu passif est désormais basé sur la PowerPerSecond calculée par BrainrotGallery.
+-- Revenu passif : boucle 1s qui lit model:GetAttribute("PPS") sur les Brainrots posés.
 
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local Workspace           = game:GetService("Workspace")
 
 local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
 
-local INCOME_INTERVAL = 5   -- secondes entre chaque tick (gain = PPS * 5)
-
--- ── Références IntValue par userId ───────────────────────────────────────────
-local coinsValues: {[number]: IntValue} = {}
-local powerValues: {[number]: IntValue} = {}
--- Puissance par joueur (mise à jour par BrainrotGallery via _G.EconomyManager_SetPower)
-local playerPPS: {[number]: number} = {}
+-- ── Références NumberValue par userId ────────────────────────────────────────
+-- NumberValue (double 64 bits) : supporte jusqu'à ~9 quadrillions sans overflow.
+-- IntValue (32 bits) plafonnait à 2 147 483 647 (~2.1 milliards).
+local coinsValues: {[number]: NumberValue} = {}
+local powerValues: {[number]: NumberValue} = {}
 
 -- ── Création des leaderstats ─────────────────────────────────────────────────
 local function createLeaderstats(player: Player)
@@ -23,19 +22,36 @@ local function createLeaderstats(player: Player)
     leaderstats.Name   = "leaderstats"
     leaderstats.Parent = player
 
-    local coins = Instance.new("IntValue")
+    local coins = Instance.new("NumberValue")
     coins.Name   = "Brainrot Coins"
     coins.Value  = 0
     coins.Parent = leaderstats
 
-    local power = Instance.new("IntValue")
+    local power = Instance.new("NumberValue")
     power.Name   = "⚡ Power"
     power.Value  = 0
     power.Parent = leaderstats
 
     coinsValues[player.UserId] = coins
     powerValues[player.UserId] = power
-    playerPPS[player.UserId]   = 0
+end
+
+-- ── Lecture PPS depuis les modèles posés dans la galerie du joueur ────────────
+-- La galerie est un Folder nommé "BrainrotGallery_{userId}" dans Workspace.Map.
+-- Seuls les enfants directs avec l'Attribute "PPS" sont comptabilisés.
+local function getPlayerPPS(player: Player): number
+    local mapFolder = Workspace:FindFirstChild("Map")
+    if not mapFolder then return 0 end
+
+    local galleryFolder = mapFolder:FindFirstChild("BrainrotGallery_" .. player.UserId)
+    if not galleryFolder then return 0 end
+
+    local total = 0
+    for _, child in ipairs(galleryFolder:GetChildren()) do
+        -- Seuls les modèles Brainrot portent l'Attribute PPS (pas les murs/sols)
+        total += (child:GetAttribute("PPS") or 0)
+    end
+    return total
 end
 
 -- ── Synchronise les Coins depuis le cache DataManager ───────────────────────
@@ -48,16 +64,9 @@ local function syncCoins(player: Player)
     end
 end
 
--- ── API publique : BrainrotGallery met à jour la puissance du joueur ─────────
--- Appelé à chaque refreshGallery (ex : après un spin, à l'arrivée).
--- Met à jour le taux de génération (utilisé pour le revenu passif en Coins).
--- NE modifie PAS le leaderstat ⚡ Power — celui-ci est réservé au total récolté.
-_G.EconomyManager_SetPower = function(player: Player, pps: number)
-    local uid = player.UserId
-    playerPPS[uid] = pps
-    print(string.format("[EconomyManager] PPS %s → %d⚡/s (Coins: +%d/%ds)",
-        player.Name, pps, pps * INCOME_INTERVAL, INCOME_INTERVAL))
-end
+-- ── Stub no-op pour rétro-compat (BrainrotGallery appelle encore _G.EconomyManager_SetPower) ─
+-- La vraie récolte est désormais faite par la boucle 1s via les Attributes PPS.
+_G.EconomyManager_SetPower = function(_player: Player, _pps: number) end
 
 -- ── Connexion joueur ─────────────────────────────────────────────────────────
 local Events           = ReplicatedStorage:WaitForChild("Events")
@@ -84,7 +93,6 @@ end
 local function onPlayerRemoving(player: Player)
     coinsValues[player.UserId] = nil
     powerValues[player.UserId] = nil
-    playerPPS[player.UserId]   = nil
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
@@ -93,37 +101,42 @@ for _, p in ipairs(Players:GetPlayers()) do
     task.spawn(onPlayerAdded, p)
 end
 
--- ── Revenu passif : toutes les INCOME_INTERVAL secondes ─────────────────────
--- Gain = playerPPS * INCOME_INTERVAL  (0 Power = 0 gain, pas de cadeau gratuit)
+-- ── Boucle de récolte : toutes les secondes ──────────────────────────────────
+-- Pour chaque joueur : lit model:GetAttribute("PPS") sur les Brainrots posés
+-- dans sa galerie → ajoute le total aux Coins + met à jour le leaderstat Power.
 task.spawn(function()
     while true do
-        task.wait(INCOME_INTERVAL)
+        task.wait(1)
         for _, player in ipairs(Players:GetPlayers()) do
-            local pps  = playerPPS[player.UserId] or 0
-            local gain = pps * INCOME_INTERVAL
-            if gain > 0 then
-                DataManager.AddGold(player, gain)
+            local pps = getPlayerPPS(player)
+            if pps > 0 then
+                -- +1s de revenu en Coins
+                DataManager.AddGold(player, pps)
                 syncCoins(player)
-                local updated = DataManager.GetData(player)
-                if updated then
-                    UpdateClientData:FireClient(player, updated)
-                end
-                print(string.format("[EconomyManager] +%d Coins → %s  (%d⚡/s × %ds)",
-                    gain, player.Name, pps, INCOME_INTERVAL))
+
+                -- Leaderstat ⚡ Power = puissance totale cumulée (persistante)
+                local pv = powerValues[player.UserId]
+                if pv then pv.Value = DataManager.GetPowerTotal(player) or pv.Value end
+
+                -- Pousse la mise à jour client toutes les 5s pour ne pas spammer
+                -- (le tick de 1s est local — pas besoin de FireClient à chaque fois)
             end
         end
     end
 end)
 
--- ── Sync leaderstats rapide (reflète les dépenses de spin) ──────────────────
+-- ── Sync client & leaderstats toutes les 5s ──────────────────────────────────
 task.spawn(function()
     while true do
         task.wait(5)
         for _, player in ipairs(Players:GetPlayers()) do
             syncCoins(player)
+            local updated = DataManager.GetData(player)
+            if updated then
+                UpdateClientData:FireClient(player, updated)
+            end
         end
     end
 end)
 
-print(string.format("[EconomyManager] Pret — revenu: Power x %ds, interval: %ds",
-    INCOME_INTERVAL, INCOME_INTERVAL))
+print("[EconomyManager] Pret — récolte PPS par Attributes, tick 1s")
