@@ -5,6 +5,11 @@ print("-----------------------------------------")
 print("🔥 [Init] SERVEUR EN COURS D'EXECUTION")
 print("-----------------------------------------")
 
+-- Supprime la Baseplate par défaut de Roblox (remplacée par le sol Carpet)
+local Workspace = game:GetService("Workspace")
+local bp = Workspace:FindFirstChild("Baseplate")
+if bp then bp:Destroy() end
+
 -- Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -20,6 +25,16 @@ local function onPlayerAdded(player)
     -- Vitesse : spawn à 16, crescendo sur 3s jusqu'à +80% du défaut (28.8)
     player.CharacterAdded:Connect(function(character)
         local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+
+        -- ── Fix spawn Y : évite que le joueur apparaisse dans le sol LEGO ──────
+        -- Le CollisionFloor a sa top surface à Y ≈ 0.9.
+        -- On téléporte le HRP à Y=6 (au-dessus du sol) pour laisser la physique
+        -- replacer le personnage proprement, sans qu'il reste coincé dans les dalles.
+        task.spawn(function()
+            local hrp = character:WaitForChild("HumanoidRootPart") :: BasePart
+            hrp.CFrame = CFrame.new(hrp.Position.X, 6, hrp.Position.Z)
+        end)
+
         local START_SPEED  = 32
         local TARGET_SPEED = 48
         local DURATION     = 3      -- secondes
