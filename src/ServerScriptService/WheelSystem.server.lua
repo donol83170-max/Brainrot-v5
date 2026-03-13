@@ -318,7 +318,7 @@ tickSound.Parent        = machineBase
 -- ══════════════════════════════════════════════════════════════════════════════
 local MAX_SLOTS      = 6
 local SLOT_FLOOR_Y   = 0
-local SLOT_OFFSETS_Z: {number} = { -7, -12, -17, 7, 12, 17 }
+local SLOT_OFFSETS_Z: {number} = { -18, -30, -43, 18, 30, 43 }
 
 local PEDESTAL_H     = 3
 local PEDESTAL_TOP_H = 0.5
@@ -380,58 +380,6 @@ for i, dz in ipairs(SLOT_OFFSETS_Z) do
     txt.Parent                     = bb
 end
 
--- ── Bouton "Rentrer à la Base" ────────────────────────────────────────────────
-local RENTRER_X = MACHINE_X - 7
-local RENTRER_Z = MACHINE_Z
-
-local rentrerPodium             = Instance.new("Part")
-rentrerPodium.Name              = "RentrerPodium"
-rentrerPodium.Size              = Vector3.new(5, 3, 5)
-rentrerPodium.CFrame            = CFrame.new(RENTRER_X, SLOT_FLOOR_Y + 1.5, RENTRER_Z)
-rentrerPodium.Anchored          = true
-rentrerPodium.CanCollide        = true
-rentrerPodium.Material          = Enum.Material.SmoothPlastic
-rentrerPodium.Color             = Color3.fromRGB(20, 20, 25)
-rentrerPodium.TopSurface        = Enum.SurfaceType.Smooth
-rentrerPodium.BottomSurface     = Enum.SurfaceType.Smooth
-rentrerPodium.Parent            = casinoFolder
-
-local rentrerBtn                = Instance.new("Part")
-rentrerBtn.Name                 = "RentrerBtn"
-rentrerBtn.Size                 = Vector3.new(4.5, 0.8, 4.5)
-rentrerBtn.CFrame               = CFrame.new(RENTRER_X, SLOT_FLOOR_Y + 3.4, RENTRER_Z)
-rentrerBtn.Anchored             = true
-rentrerBtn.CanCollide           = false
-rentrerBtn.Material             = Enum.Material.Neon
-rentrerBtn.Color                = Color3.fromRGB(0, 220, 80)
-rentrerBtn.TopSurface           = Enum.SurfaceType.Smooth
-rentrerBtn.BottomSurface        = Enum.SurfaceType.Smooth
-rentrerBtn.Parent               = casinoFolder
-
-local btnGui                = Instance.new("SurfaceGui")
-btnGui.Face                 = Enum.NormalId.Top
-btnGui.CanvasSize           = Vector2.new(280, 100)
-btnGui.SizingMode           = Enum.SurfaceGuiSizingMode.FixedSize
-btnGui.LightInfluence       = 0
-btnGui.Parent               = rentrerBtn
-
-local btnLbl                    = Instance.new("TextLabel")
-btnLbl.Size                     = UDim2.new(1, 0, 1, 0)
-btnLbl.BackgroundTransparency   = 1
-btnLbl.Text                     = "RENTRER\nÀ LA BASE"
-btnLbl.TextColor3               = Color3.fromRGB(0, 0, 0)
-btnLbl.Font                     = Enum.Font.GothamBlack
-btnLbl.TextScaled               = true
-btnLbl.Parent                   = btnGui
-
-local rentrerPrompt                   = Instance.new("ProximityPrompt")
-rentrerPrompt.ActionText              = "Rentrer à la Base"
-rentrerPrompt.ObjectText              = "Transférer mes Brainrots"
-rentrerPrompt.MaxActivationDistance   = 14
-rentrerPrompt.HoldDuration            = 0.5
-rentrerPrompt.RequiresLineOfSight     = false
-rentrerPrompt.Enabled                 = true
-rentrerPrompt.Parent                  = rentrerBtn
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DONNÉES PAR JOUEUR — file d'attente machine
@@ -451,6 +399,55 @@ local function clearMachineClones()
     table.clear(machineClones)            -- réinitialise la table de références
 end
 
+-- ── Auras de rareté ──────────────────────────────────────────────────────────
+-- Attache ParticleEmitter + PointLight sur le PrimaryPart selon la rareté.
+local function applyAura(clone: Model, rarity: string)
+    local anchor: BasePart? = clone.PrimaryPart
+        or clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+    if not anchor then return end
+
+    if rarity == "EPIC" then
+        local pt               = Instance.new("ParticleEmitter")
+        pt.Color               = ColorSequence.new(Color3.fromRGB(200, 0, 255))
+        pt.LightEmission       = 1
+        pt.Size                = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pt.Speed               = NumberRange.new(3, 6)
+        pt.Lifetime            = NumberRange.new(1, 2)
+        pt.Rate                = 20
+        pt.VelocitySpread      = 360
+        pt.Parent              = anchor
+
+        local light            = Instance.new("PointLight")
+        light.Color            = Color3.fromRGB(180, 0, 255)
+        light.Brightness       = 3
+        light.Range            = 12
+        light.Parent           = anchor
+
+    elseif rarity == "LEGENDARY" or rarity == "ULTRA_LEGENDARY" then
+        local pt               = Instance.new("ParticleEmitter")
+        pt.Color               = ColorSequence.new(Color3.fromRGB(255, 215, 0))
+        pt.LightEmission       = 1
+        pt.Size                = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.6),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pt.Speed               = NumberRange.new(4, 8)
+        pt.Lifetime            = NumberRange.new(1.5, 3)
+        pt.Rate                = 35
+        pt.VelocitySpread      = 360
+        pt.Parent              = anchor
+
+        local light            = Instance.new("PointLight")
+        light.Color            = Color3.fromRGB(255, 200, 0)
+        light.Brightness       = 5
+        light.Range            = 16
+        light.Parent           = anchor
+    end
+end
+
 -- Pré-déclaration pour permettre la référence mutuelle avec attachSlotPrompts.
 local refreshMachineClones: (userId: number) -> ()
 
@@ -464,7 +461,14 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
     if not template or not template:IsA("Model") then return nil end
 
     local clone = (template :: Model):Clone() :: Model
-    pcall(function() clone:ScaleTo(clone:GetScale() * 0.45) end)
+    pcall(function()
+        local _, size     = clone:GetBoundingBox()
+        local maxDim      = math.max(size.X, size.Y, size.Z)
+        local TARGET_SIZE = 12
+        if maxDim > 0 then
+            clone:ScaleTo(clone:GetScale() * (TARGET_SIZE / maxDim))
+        end
+    end)
 
     for _, p in ipairs(clone:GetDescendants()) do
         if p:IsA("BasePart") then
@@ -480,7 +484,8 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
 
     -- ▶ Parent = miniClonesFolder  (jamais casinoFolder ni ses enfants directs)
     clone.Parent = miniClonesFolder
-    clone:PivotTo(CFrame.new(SLOT_WORLD_POS[slotIdx]))
+    -- 180° : modèles face au joueur (côté écran de la machine = -X)
+    clone:PivotTo(CFrame.new(SLOT_WORLD_POS[slotIdx]) * CFrame.Angles(0, math.rad(180), 0))
     return clone
 end
 
@@ -580,6 +585,7 @@ refreshMachineClones = function(userId: number)
         if clone then
             machineClones[i] = clone :: Instance
             attachSlotPrompts(i, clone :: Model, userId, entry)
+            applyAura(clone :: Model, entry.rarity)
         end
     end
 end
@@ -634,12 +640,11 @@ local function ActionSpin(player: Player)
     local winSegIdx    = segsOfRarity[math.random(1, #segsOfRarity)]
     local winItem      = SEGMENTS[winSegIdx].item
 
-    -- 6. Ajout dans la file d'attente + clone sur socle
+    -- 6. Ajout dans la file d'attente (le clone apparaît APRÈS la fin du spin)
     table.insert(userPending, { item = winItem, rarity = winRarity })
     pendingItems[player.UserId] = userPending
 
-    refreshMachineClones(player.UserId)
-
+    -- Compteur UI immédiat (le modèle reste caché jusqu'à la révélation)
     MachineUpdate:FireClient(player, { count = #userPending, max = MAX_SLOTS })
 
     -- Badge légendaire
@@ -686,6 +691,10 @@ local function ActionSpin(player: Player)
         task.delay(SPIN_DURATION + 1.5, function()
             local updated = DataManager.GetData(player)
             if updated then UpdateClientData:FireClient(player, updated) end
+            -- Révélation du modèle sur le socle une fois la roue arrêtée
+            if pendingItems[player.UserId] then
+                refreshMachineClones(player.UserId)
+            end
         end)
     end)
 
@@ -704,67 +713,6 @@ clickDetector.MouseClick:Connect(ActionSpin)
 screenClickDetector.MouseClick:Connect(ActionSpin)
 RequestSpin.OnServerEvent:Connect(ActionSpin)
 
--- ══════════════════════════════════════════════════════════════════════════════
--- BOUTON "RENTRER" — transfert vers la galerie du joueur
--- Nettoyage = MiniClones:ClearAllChildren() UNIQUEMENT.
--- CasinoMachine n'est jamais touché.
--- ══════════════════════════════════════════════════════════════════════════════
-rentrerPrompt.Triggered:Connect(function(triggerPlayer: Player)
-    local userId  = triggerPlayer.UserId
-    local pending = pendingItems[userId] or {}
-
-    if #pending == 0 then
-        MachineUpdate:FireClient(triggerPlayer, { count = 0, max = MAX_SLOTS })
-        return
-    end
-
-    rentrerPrompt.Enabled = false
-
-    local transferred = 0
-
-    for _, entry in ipairs(pending) do
-        local item   = entry.item
-        local rarity = entry.rarity
-
-        -- Sauvegarde inventaire
-        DataManager.AddItem(triggerPlayer, {
-            Id     = item.itemId,
-            Name   = item.name,
-            Rarity = rarity,
-        })
-
-        -- Placement galerie + VFX
-        if _G.BrainrotGallery_GetEmptyPedestalTops and _G.BrainrotGallery_ForcePlace then
-            local emptySlots = _G.BrainrotGallery_GetEmptyPedestalTops(triggerPlayer)
-            local firstIdx, firstTop = next(emptySlots)
-            if firstIdx then
-                _G.BrainrotGallery_ForcePlace(triggerPlayer, firstIdx, {
-                    Id     = item.itemId,
-                    Name   = item.name,
-                    Rarity = rarity,
-                })
-                SpawnFX.Play(firstTop, rarity, triggerPlayer)
-            end
-        end
-
-        transferred += 1
-        task.wait(0.35)
-    end
-
-    -- Nettoyage machine : UNIQUEMENT le sous-dossier MiniClones
-    pendingItems[userId] = {}
-    clearMachineClones()    -- → miniClonesFolder:ClearAllChildren()
-
-    MachineUpdate:FireClient(triggerPlayer, { count = 0, max = MAX_SLOTS })
-
-    local updated = DataManager.GetData(triggerPlayer)
-    if updated then UpdateClientData:FireClient(triggerPlayer, updated) end
-
-    print(string.format("[WheelSystem] %s → Rentrer : %d item(s) → galerie",
-        triggerPlayer.Name, transferred))
-
-    task.delay(1, function() rentrerPrompt.Enabled = true end)
-end)
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DÉCONNEXION

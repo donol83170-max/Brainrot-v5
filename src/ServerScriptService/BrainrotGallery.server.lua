@@ -83,8 +83,32 @@ local PEDESTAL_TOP_SHADES: {Color3} = {
 }
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA=5, LEGENDARY=4, MYTHIC=3, RARE=2, NORMAL=1}
--- Puissance générée par mème exposé (Coins/s ajoutés au revenu passif)
-local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, COMMON=2, RARE=5, EPIC=15, MYTHIC=10, LEGENDARY=25, ULTRA=50}
+
+-- Fourchettes PPS par rareté — synchronisées avec BrainrotRNG.lua
+-- Un PPS aléatoire est tiré dans cette fourchette à chaque placement de modèle.
+type PpsRange = { min: number, max: number }
+local PPS_RANGES: {[string]: PpsRange} = {
+    COMMON          = { min = 100,         max = 500         },
+    RARE            = { min = 1_500,       max = 4_000       },
+    EPIC            = { min = 10_000,      max = 25_000      },
+    LEGENDARY       = { min = 100_000,     max = 250_000     },
+    ULTRA_LEGENDARY = { min = 1_000_000,   max = 2_500_000   },
+    -- Rétro-compatibilité roues 1-3
+    NORMAL          = { min = 100,         max = 500         },
+    MYTHIC          = { min = 10_000,      max = 25_000      },
+    ULTRA           = { min = 100_000,     max = 250_000     },
+}
+
+-- Formatte un PPS pour l'affichage (ex: 17842 → "17.8K/s")
+local function formatPPS(pps: number): string
+    if pps >= 1_000_000 then
+        return string.format("%.1fM/s", pps / 1_000_000)
+    elseif pps >= 1_000 then
+        return string.format("%.1fK/s", pps / 1_000)
+    else
+        return string.format("%d/s", pps)
+    end
+end
 local RARITY_COLOR: {[string]: Color3} = {
     NORMAL    = Color3.fromRGB(163, 162, 165),
     COMMON    = Color3.fromRGB(120, 122, 126),
@@ -143,7 +167,7 @@ local BrainrotOffsets: {[string]: {scale: number, offset: CFrame}} = {
 -- DIMENSIONS DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
 local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
-local PLACE_GAP   = 16         -- Espacement Z entre les socles
+local PLACE_GAP   = 40         -- Espacement Z entre les socles (×2.5 pour modèles scale 2)
 local SIDE_DIST   = 16         -- Distance X du centre au socle
 local CORRIDOR_W  = 44         -- Largeur du couloir (X)
 local WALL_H      = 20         -- Hauteur des murs
@@ -855,20 +879,65 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 local MAX_FIGURINE_DIM = 3.5   -- taille max sur n'importe quel axe (studs)
 
+-- applyAura — auras de rareté pour la galerie (ParticleEmitter + PointLight)
+-- Fonctionne sur Model et BasePart.
+local function applyAura(clone: Instance, rarity: string)
+    local anchor: BasePart?
+    if clone:IsA("BasePart") then
+        anchor = clone :: BasePart
+    elseif clone:IsA("Model") then
+        anchor = (clone :: Model).PrimaryPart
+            or (clone :: Model):FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+    else
+        anchor = clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+    end
+    if not anchor then return end
+
+    if rarity == "EPIC" or rarity == "MYTHIC" then
+        local pt          = Instance.new("ParticleEmitter")
+        pt.Color          = ColorSequence.new(Color3.fromRGB(200, 0, 255))
+        pt.LightEmission  = 1
+        pt.Size           = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pt.Speed          = NumberRange.new(3, 6)
+        pt.Lifetime       = NumberRange.new(1, 2)
+        pt.Rate           = 20
+        pt.VelocitySpread = 360
+        pt.Parent         = anchor
+
+        local light       = Instance.new("PointLight")
+        light.Color       = Color3.fromRGB(180, 0, 255)
+        light.Brightness  = 3
+        light.Range       = 12
+        light.Parent      = anchor
+
+    elseif rarity == "LEGENDARY" or rarity == "ULTRA_LEGENDARY"
+        or rarity == "ULTRA" then
+        local pt          = Instance.new("ParticleEmitter")
+        pt.Color          = ColorSequence.new(Color3.fromRGB(255, 215, 0))
+        pt.LightEmission  = 1
+        pt.Size           = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.6),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pt.Speed          = NumberRange.new(4, 8)
+        pt.Lifetime       = NumberRange.new(1.5, 3)
+        pt.Rate           = 35
+        pt.VelocitySpread = 360
+        pt.Parent         = anchor
+
+        local light       = Instance.new("PointLight")
+        light.Color       = Color3.fromRGB(255, 200, 0)
+        light.Brightness  = 5
+        light.Range       = 16
+        light.Parent      = anchor
+    end
+end
+
 local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)
-    local isHigh = rarity == "EPIC" or rarity == "LEGENDARY" or rarity == "ULTRA"
-    if isHigh then
-        local light      = Instance.new("PointLight")
-        light.Color      = rarityColor
-        light.Brightness = 1.5
-        light.Range      = 7
-        light.Parent     = root
-    end
-    if rarity == "ULTRA" then
-        local sp        = Instance.new("Sparkles")
-        sp.SparkleColor = rarityColor
-        sp.Parent       = root
-    end
+    -- Conservé pour compatibilité — logique migrée dans applyAura.
 end
 
 local function addFigurineBillboard(adornee: Instance, offsetY: number,
@@ -988,9 +1057,20 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         -- ── Config par modèle (BrainrotOffsets) ──────────────────────────────
         local cfg = BrainrotOffsets[itemData.Name]
 
-        -- Scale individuel (appliqué uniquement sur les Model)
-        if clone:IsA("Model") and cfg and cfg.scale ~= 1 then
-            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * cfg.scale) end)
+        -- Normalisation : adapte l'échelle pour que la plus grande dimension = 12 studs
+        -- Ajustement individuel de BrainrotOffsets.scale appliqué en multiplicateur final.
+        if clone:IsA("Model") then
+            pcall(function()
+                local mdl = clone :: Model
+                local _, size = mdl:GetBoundingBox()
+                local maxDim  = math.max(size.X, size.Y, size.Z)
+                local TARGET_SIZE = 12
+                if maxDim > 0 then
+                    local baseScale   = mdl:GetScale() * (TARGET_SIZE / maxDim)
+                    local finalScale  = baseScale * ((cfg and cfg.scale) or 1)
+                    mdl:ScaleTo(finalScale)
+                end
+            end)
         end
 
         -- Surface exacte du haut du socle (Y monde)
@@ -1047,9 +1127,16 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             if bp then (bp :: BasePart).CFrame = CFrame.new(targetPos) * yFacing * offsetCF end
         end
 
+        -- ── PPS aléatoire dans la fourchette de la rareté ────────────────────
+        local range    = PPS_RANGES[itemData.Rarity] or PPS_RANGES.COMMON
+        local ppsValue = math.random(range.min, range.max)
+        local ppsColor = RARITY_COLOR[itemData.Rarity] or Color3.fromRGB(100, 220, 255)
+
+        -- Attribute PPS → lu par EconomyManager chaque seconde pour le revenu passif
+        clone:SetAttribute("PPS",    ppsValue)
+        clone:SetAttribute("Rarity", itemData.Rarity)
+
         -- ── Billboard PPS au-dessus du modèle ────────────────────────────────
-        local ppsValue   = POWER_PER_RARITY[itemData.Rarity] or 1
-        local ppsColor   = RARITY_COLOR[itemData.Rarity] or Color3.fromRGB(100, 220, 255)
         local adornPart: BasePart? = if clone:IsA("BasePart") then clone :: BasePart
                                      elseif clone:IsA("Model") then (clone :: Model).PrimaryPart
                                                                      or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
@@ -1057,7 +1144,7 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         if adornPart then
             local ppsBb = Instance.new("BillboardGui")
             ppsBb.Adornee     = adornPart
-            ppsBb.Size        = UDim2.new(0, 110, 0, 28)
+            ppsBb.Size        = UDim2.new(0, 120, 0, 28)
             ppsBb.StudsOffset = Vector3.new(0, 4.5, 0)
             ppsBb.AlwaysOnTop = false
             ppsBb.MaxDistance = 40
@@ -1066,14 +1153,17 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             local ppsLbl = Instance.new("TextLabel")
             ppsLbl.Size                   = UDim2.new(1, 0, 1, 0)
             ppsLbl.BackgroundTransparency = 1
-            ppsLbl.Text                   = ppsValue .. "/s"
-            ppsLbl.TextColor3             = Color3.new(1, 1, 1)
+            ppsLbl.Text                   = "+" .. formatPPS(ppsValue)
+            ppsLbl.TextColor3             = ppsColor
             ppsLbl.Font                   = Enum.Font.GothamBold
             ppsLbl.TextScaled             = true
             ppsLbl.TextStrokeTransparency = 0
             ppsLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
             ppsLbl.Parent                 = ppsBb
         end
+
+        -- Aura de rareté (particules + lumière)
+        applyAura(clone, itemData.Rarity)
 
         state.displayParts[slotIndex] = clone
         print(string.format("[BrainrotGallery] ✓ Asset '%s' (%s) posé sur slot %d",
@@ -1177,10 +1267,11 @@ local function refreshGallery(player: Player)
                 local imgId = BrainrotData.GetImageId(item.Id)
                 refs.decal.Texture = "rbxassetid://" .. imgId
 
-                -- Puissance de ce slot
-                local pps = POWER_PER_RARITY[item.Rarity] or 1
+                -- Puissance de ce slot — lue depuis l'Attribute du modèle posé
+                local placed = state.displayParts[slotIndex]
+                local pps    = (placed and placed:GetAttribute("PPS")) or 0
                 totalPower += pps
-                refs.powerLabel.Text       = "+" .. pps .. "⚡/s"
+                refs.powerLabel.Text       = "+" .. formatPPS(pps) .. "⚡"
                 refs.powerLabel.TextColor3 = RARITY_COLOR[item.Rarity] or Color3.fromRGB(100, 220, 255)
 
                 -- Met à jour le taux d'accumulation de la plaque
@@ -1383,9 +1474,7 @@ task.spawn(function()
             for _, acc in pairs(slotMap) do
                 if acc.rate > 0 then
                     acc.accumulated += acc.rate
-                    -- Cap à 9999 pour éviter des nombres absurdes
-                    if acc.accumulated > 9999 then acc.accumulated = 9999 end
-                    acc.label.Text = math.floor(acc.accumulated) .. " ⚡"
+                    acc.label.Text = formatPPS(acc.accumulated) .. " ⚡"
                 end
             end
         end
@@ -1400,3 +1489,44 @@ end)
 -- Le futur système de roues appellera refreshGallery via ce hook global.
 _G.BrainrotGallery_Refresh = refreshGallery
 print("[BrainrotGallery] Hook _G.BrainrotGallery_Refresh expose pour le nouveau systeme de roues.")
+
+-- ── Hooks CarryManager ────────────────────────────────────────────────────────
+
+-- Retourne {slotIndex → topPart} pour chaque socle vide du joueur.
+-- Utilisé par CarryManager pour créer les ProximityPrompts au bon endroit.
+_G.BrainrotGallery_GetEmptyPedestalTops = function(player: Player): {[number]: BasePart}
+    local plotIndex = plotAssignments[player.UserId]
+    if not plotIndex then return {} end
+    local state = plotState[plotIndex]
+    if not state then return {} end
+
+    local result: {[number]: BasePart} = {}
+    for slotIdx, refs in pairs(state.pedestalRefs) do
+        if not state.displayParts[slotIdx] then
+            result[slotIdx] = refs.top
+        end
+    end
+    return result
+end
+
+-- Place un item sur un slot précis (appelé par CarryManager après le dépôt).
+-- Déclenche createFigurine (clone + PPS attribute) et met à jour les labels.
+_G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item: {Id: string, Name: string, Rarity: string})
+    local plotIndex = plotAssignments[player.UserId]
+    if not plotIndex then return end
+    local state = plotState[plotIndex]
+    if not state then return end
+
+    createFigurine(state, slotIndex, item)
+
+    -- Mise à jour des labels du socle depuis l'Attribute PPS du clone posé
+    local refs   = state.pedestalRefs[slotIndex]
+    local placed = state.displayParts[slotIndex]
+    if refs and placed then
+        local pps = placed:GetAttribute("PPS") or 0
+        refs.powerLabel.Text       = "+" .. formatPPS(pps) .. "⚡"
+        refs.powerLabel.TextColor3 = RARITY_COLOR[item.Rarity] or COL_GOLD
+        refs.nameLabel.Text        = item.Name
+        refs.nameLabel.TextColor3  = RARITY_COLOR[item.Rarity] or COL_GOLD
+    end
+end
