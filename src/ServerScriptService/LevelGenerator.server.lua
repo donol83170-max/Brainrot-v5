@@ -455,9 +455,8 @@ task.spawn(function()
             base.TopSurface=Enum.SurfaceType.Smooth
             base.BottomSurface=Enum.SurfaceType.Smooth
             base.CastShadow=false ; base.Parent=colFolder
-
-            task.wait()   -- 1 yield par dalle
         end
+        task.wait() -- 1 yield per row instead of per tile
     end
 
     print(string.format(

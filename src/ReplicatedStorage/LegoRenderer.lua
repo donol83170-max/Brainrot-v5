@@ -1,13 +1,29 @@
 --!strict
 -- LegoRenderer.lua  (ModuleScript — ReplicatedStorage)
--- Tile le sol en clonant le MeshPart "Carpet" depuis ReplicatedStorage.Blocks.
--- Utilisé UNIQUEMENT côté client (LocalScript StudRenderer) — zéro réplication réseau.
+-- Pavage EXCLUSIF via le MeshPart "Carpet" (ReplicatedStorage.Blocks.Carpet).
+-- Aucun fallback procédural : si Carpet est absent, on ne génère rien.
 --
--- API :
---   LegoRenderer.AutoStud(part, opts?)                          → Folder
---   LegoRenderer.GenerateChallengeFloor(parent, xMin, xMax,    → Folder
---                                        zMin, zMax, groundY?)
---   LegoRenderer.AddBorders(part, opts?)                        → Folder
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║  ✅ ÉTAT DE RÉFÉRENCE — SOL & AVENUE PARFAITS (commit: feat/floor-v1)  ║
+-- ║  Si le sol bug à nouveau, reviens à ce fichier tel quel :               ║
+-- ║                                                                          ║
+-- ║  • GenerateFloor()  → pave toute la carte avec Carpet.Size.X/Z (4×4)   ║
+-- ║  • 3 biomes par coordonnées monde (getBiome) :                          ║
+-- ║      - Herbe     : COL_GRASS  vert  (75,151,75)  rotation 0°            ║
+-- ║      - Avenue    : COL_ROAD   gris  (130,130,130) rotation 90° Y        ║
+-- ║      - Zone Défi : COL_CHALL  jaune (255,235,0)   rotation 0°           ║
+-- ║  • Avenue calée exactement sur les galeries BrainrotGallery :           ║
+-- ║      AVENUE_Z_MIN = 78  (= START_Z_SOUTH)                               ║
+-- ║      AVENUE_Z_MAX = 142 (= START_Z)                                     ║
+-- ║  • Purge systématique avant chaque régénération (zéro Z-fighting)       ║
+-- ║  • StudRenderer : UN seul appel GenerateFloor(-400→432, -400→432, 0.9) ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+--
+-- API publique :
+--   LegoRenderer.GenerateFloor(parent, xMin, xMax, zMin, zMax, surfY?)  → Folder?
+--   LegoRenderer.AutoStud(part, opts?)                                   → Folder?
+--   LegoRenderer.GenerateChallengeFloor(parent, xMin, xMax, zMin, zMax, surfY?) → Folder?
+--   LegoRenderer.AddBorders(part, opts?)                                 → Folder
 --   LegoRenderer.ProcessStructure(model, opts?)
 
 local LegoRenderer = {}
@@ -19,123 +35,181 @@ local BORDER_H    = 0.2
 local YIELD_EVERY = 500
 
 -- ── Seuil X du biome Défis ────────────────────────────────────────────────────
--- Mur backdrop : MACHINE_X(40) + dos machine(3.36) + recul(15.3) ≈ 58.66
--- On aligne la frontière au bord du mur pour une transition nette.
 local CHALLENGE_ZONE_X = 56.0
 
--- ── Palettes par zone ─────────────────────────────────────────────────────────
-local COL_GRASS_LIGHT = Color3.fromRGB( 75, 151,  75)
-local COL_GRASS_DARK  = Color3.fromRGB( 39, 106,  39)
-local COL_ROAD_LIGHT  = Color3.fromRGB(130, 130, 130)
-local COL_ROAD_DARK   = Color3.fromRGB(105, 105, 105)
-local COL_CHALL_LIGHT = Color3.fromRGB(255, 235,   0)  -- Jaune vif
-local COL_CHALL_DARK  = Color3.fromRGB(200, 180,   0)  -- Jaune foncé
+-- ── Biome Avenue (route horizontale, bande le long de l'axe X) ────────────────
+-- Calé exactement sur les entrées de galeries de BrainrotGallery :
+--   START_Z_SOUTH = 78  → bord sud  (entrée galeries côté SUD)
+--   START_Z       = 142 → bord nord (entrée galeries côté NORD)
+-- La route touche au pixel près les deux rangées de galeries — aucun écart vert.
+local AVENUE_Z_MIN = 78.0   -- bord sud  de l'avenue (= START_Z_SOUTH)
+local AVENUE_Z_MAX = 142.0  -- bord nord de l'avenue (= START_Z)
 
--- ── MeshPart Carpet (lazy, mis en cache) ──────────────────────────────────────
+-- ── Palettes de couleurs ───────────────────────────────────────────────────────
+local COL_GRASS  = Color3.fromRGB( 75, 151,  75)   -- Vert herbe
+local COL_ROAD   = Color3.fromRGB(130, 130, 130)   -- Gris route / avenue
+local COL_CHALL  = Color3.fromRGB(255, 235,   0)   -- Jaune zone Défis
+
+-- ── Cache du MeshPart Carpet ───────────────────────────────────────────────────
 local _carpet: BasePart? = nil
 
-local function makeFallbackPart(): BasePart
-    local p             = Instance.new("Part")
-    p.Name              = "Carpet_Fallback"
-    p.Size              = Vector3.new(4, 0.4, 4)
-    p.Anchored          = true
-    p.CanCollide        = false
-    p.Material          = Enum.Material.SmoothPlastic
-    p.TopSurface        = Enum.SurfaceType.Smooth
-    p.BottomSurface     = Enum.SurfaceType.Smooth
-    p.CastShadow        = false
-    return p
-end
-
-local function getCarpet(): BasePart
+-- Retourne le MeshPart Carpet ou nil si introuvable.
+-- WaitForChild attend la réplication réseau côté client.
+local function getCarpet(): BasePart?
     if _carpet then return _carpet end
 
-    local blocks = ReplicatedStorage:WaitForChild("Blocks", 10)
-    local t = blocks and blocks:WaitForChild("Carpet", 10)
+    local blocks = ReplicatedStorage:WaitForChild("Blocks", 10) :: Instance?
+    if not blocks then
+        warn("[LegoRenderer] ReplicatedStorage.Blocks introuvable")
+        return nil
+    end
 
-    if t and t:IsA("BasePart") then
+    local t = (blocks :: Instance):WaitForChild("Carpet", 10) :: Instance?
+    if t and (t :: Instance):IsA("BasePart") then
         _carpet = t :: BasePart
-    else
-        warn("[LegoRenderer] Blocks.Carpet absent — fallback procédural")
-        _carpet = makeFallbackPart()
+        return _carpet
     end
 
-    return _carpet :: BasePart
+    warn("[LegoRenderer] Blocks.Carpet absent ou non-BasePart — génération annulée")
+    return nil
 end
 
--- ── Détection de zone ─────────────────────────────────────────────────────────
-local function isRoadZone(partName: string): boolean
-    local nm = string.upper(partName)
-    return string.find(nm, "AVENUE") ~= nil
-        or string.find(nm, "ROAD")   ~= nil
-        or string.find(nm, "STREET") ~= nil
+-- ── Détection de biome par coordonnées monde ──────────────────────────────────
+local function isAvenueZone(worldZ: number): boolean
+    return worldZ >= AVENUE_Z_MIN and worldZ <= AVENUE_Z_MAX
 end
 
-local function getTileColor(worldX: number, worldZ: number, road: boolean): Color3
-    -- ZONES VERTES FORCÉES (Fontaine & Machine)
-    local isFountainOrTrade = false
-    if math.sqrt(worldX^2 + worldZ^2) <= 22 then
-        isFountainOrTrade = true
-    elseif math.sqrt((worldX + 25)^2 + worldZ^2) <= 18 then
-        isFountainOrTrade = true
+-- Retourne (couleur, estRoute) pour un point monde.
+local function getBiome(worldX: number, worldZ: number): (Color3, boolean)
+    -- 1. Zone Défi (derrière le mur bleu) — priorité maximale
+    if worldX >= CHALLENGE_ZONE_X and worldZ >= -115 and worldZ <= 78 then
+        return COL_CHALL, false
     end
-
-    -- Zone Jaune (X >= 56 et Z central)
-    local isYellowZone = worldX >= CHALLENGE_ZONE_X and worldZ >= -115 and worldZ <= 115
-
-    if isYellowZone then
-        return COL_CHALL_LIGHT    -- Zone jaune
-    elseif road and not isFountainOrTrade then
-        return Color3.fromRGB(130, 130, 130)  -- Gris route
-    else
-        return Color3.fromRGB(75, 151, 75)    -- Vert herbe
+    -- 2. Avenue (bande horizontale sur l'axe Z)
+    if isAvenueZone(worldZ) then
+        return COL_ROAD, true
     end
+    -- 3. Herbe (partout ailleurs)
+    return COL_GRASS, false
 end
 
--- ── Helpers partagés ──────────────────────────────────────────────────────────
+-- ── Appliquer la couleur au clone ET à ses Textures internes ──────────────────
 local function applyColor(clone: BasePart, tint: Color3)
     clone.Color = tint
     for _, child in ipairs(clone:GetChildren()) do
-        if child:IsA("Texture") or child:IsA("Decal") then
+        if child:IsA("Texture") then
             (child :: Texture).Color3 = tint
         end
     end
 end
 
+-- ── Propriétés physiques pour une tuile décorative ────────────────────────────
 local function applyPhysics(bp: BasePart)
-    bp.Anchored      = true
-    bp.CanCollide    = false
-    bp.CanTouch      = false
-    bp.CanQuery      = false
-    bp.Massless      = true
-    bp.CastShadow    = false
+    bp.Anchored     = true
+    bp.CanCollide   = false
+    bp.CanTouch     = false
+    bp.CanQuery     = false
+    bp.Massless     = true
+    bp.CastShadow   = false
+end
+
+-- ── Purge d'un ancien dossier (évite Z-fighting au régénération) ──────────────
+local function purge(parent: Instance, name: string)
+    local old = parent:FindFirstChild(name)
+    if old then old:Destroy() end
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- AutoStud — tuile une BasePart existante
+-- GenerateFloor — Pavage direct de toute la surface en Carpet MeshPart
+--
+-- Paramètres :
+--   parent : dossier cible dans Workspace
+--   xMin/xMax, zMin/zMax : bornes en studs monde
+--   surfY : Y de la SURFACE supérieure des tuiles (défaut 0)
+-- ══════════════════════════════════════════════════════════════════════════════
+function LegoRenderer.GenerateFloor(
+    parent : Instance,
+    xMin   : number,
+    xMax   : number,
+    zMin   : number,
+    zMax   : number,
+    surfY  : number?
+): Folder?
+    local carpet = getCarpet()
+    if not carpet then return nil end
+    local bX = carpet.Size.X
+    local bY = carpet.Size.Y
+    local bZ = carpet.Size.Z
+
+    local tileY = (surfY or 0) - bY / 2   -- centre Y pour face sup = surfY
+
+    -- Purge initiale
+    purge(parent, "LegoFloor")
+    local folder = Instance.new("Folder")
+    folder.Name   = "LegoFloor"
+    folder.Parent = parent
+
+    -- Boucle de pavage — pas = taille exacte du Carpet (aucun chevauchement)
+    local nX    = math.ceil((xMax - xMin) / bX)
+    local nZ    = math.ceil((zMax - zMin) / bZ)
+    local count = 0
+
+    -- Rotation route : 90° autour de Y pour que le motif Carpet se distingue
+    local ROAD_ROT = CFrame.Angles(0, math.rad(90), 0)
+
+    for ix = 0, nX - 1 do
+        for iz = 0, nZ - 1 do
+            local wx = xMin + (ix + 0.5) * bX
+            local wz = zMin + (iz + 0.5) * bZ
+
+            local tint, isRoad = getBiome(wx, wz)
+            local baseCF = CFrame.new(wx, tileY, wz)
+
+            local clone = (carpet :: BasePart):Clone() :: BasePart
+            applyPhysics(clone)
+            applyColor(clone, tint)
+            -- Route → rotation 90° Y pour démarquer visuellement le motif Carpet
+            clone.CFrame = if isRoad then baseCF * ROAD_ROT else baseCF
+            clone.Parent = folder
+
+            count += 1
+            if count % YIELD_EVERY == 0 then task.wait() end
+        end
+    end
+
+    print(string.format("[LegoRenderer] GenerateFloor %d×%d = %d tuiles (X %.0f→%.0f, Z %.0f→%.0f)",
+        nX, nZ, count, xMin, xMax, zMin, zMax))
+    return folder
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- AutoStud — tuile la face d'une BasePart existante
 -- ══════════════════════════════════════════════════════════════════════════════
 type Opts = {
     material : Enum.Material?,
     face     : string?,
 }
 
-function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
+function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder?
+    local carpet = getCarpet()
+    if not carpet then return nil end
+
     local o    = opts or {}
     local face = o.face or "Top"
 
-    local folder    = Instance.new("Folder")
-    folder.Name     = "LegoTiles_" .. part.Name
-    folder.Parent   = part.Parent
+    -- Purge d'un éventuel dossier précédent pour cette part
+    purge(part.Parent or game.Workspace, "LegoTiles_" .. part.Name)
 
-    local blockTemplate = getCarpet()
-    local bX = blockTemplate.Size.X
-    local bY = blockTemplate.Size.Y
-    local bZ = blockTemplate.Size.Z
+    local folder = Instance.new("Folder")
+    folder.Name   = "LegoTiles_" .. part.Name
+    folder.Parent = part.Parent
 
-    local isRoad = isRoadZone(part.Name)
+    local bX = carpet.Size.X
+    local bY = carpet.Size.Y
+    local bZ = carpet.Size.Z
 
-    local cf  = part.CFrame
-    local sz  = part.Size
+    local cf = part.CFrame
+    local sz = part.Size
 
     local surfW: number
     local surfL: number
@@ -163,13 +237,11 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
         offX = -(sz.X / 2 - bX / 2)
     end
 
-    local nX = math.max(1, math.ceil(surfW / bX)) + 1
-    local nZ = math.max(1, math.ceil(surfL / bZ)) + 1
-
+    local nX     = math.max(1, math.ceil(surfW / bX)) + 1
+    local nZ     = math.max(1, math.ceil(surfL / bZ)) + 1
     local startA = -(nX * bX) / 2 + bX / 2
     local startB = -(nZ * bZ) / 2 + bZ / 2
-
-    local count = 0
+    local count  = 0
 
     for ix = 0, nX - 1 do
         for iz = 0, nZ - 1 do
@@ -186,21 +258,21 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
             end
 
             local wx = brickCF.Position.X
+            local wz = brickCF.Position.Z
 
-            -- ── ANTI Z-FIGHTING : skip TOUT ce qui est derrière le mur (X >= 56) ──
-            -- Cela laisse GenerateChallengeFloor gérer cette zone en une fois,
-            -- évitant tout flickering avec les dalles GrassBase lentes.
-            if wx >= CHALLENGE_ZONE_X then
+            -- Skip la zone jaune (gérée par GenerateChallengeFloor)
+            if wx >= CHALLENGE_ZONE_X and wz >= -115 and wz <= 78 then
                 continue
             end
 
-            local tint  = getTileColor(wx, brickCF.Position.Z, isRoad)
-            local clone = blockTemplate:Clone() :: BasePart
-
+            local tint, isRoad = getBiome(wx, wz)
+            local clone = (carpet :: BasePart):Clone() :: BasePart
             applyPhysics(clone)
             applyColor(clone, tint)
+            clone.CFrame = if isRoad
+                then brickCF * CFrame.Angles(0, math.rad(90), 0)
+                else brickCF
             clone.Parent = folder
-            clone.CFrame = brickCF
 
             count += 1
             if count % YIELD_EVERY == 0 then task.wait() end
@@ -209,68 +281,55 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
 
     print(string.format("[LegoRenderer] '%s' %s → %d×%d = %d tuiles",
         part.Name, face, nX, nZ, count))
-
     return folder
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- GenerateChallengeFloor
--- Pose les tuiles jaunes en coordonnées monde directement.
--- Indépendant des BaseParts GrassBase — garanti sans doublons ni Z-fighting.
---
--- Paramètres :
---   parent   : Instance — dossier parent (ex. Workspace)
---   xMin/xMax: bornes X en studs monde (ex. 58, 150)
---   zMin/zMax: bornes Z en studs monde (ex. -115, 115)
---   groundY  : hauteur du sol (Y de la SURFACE du sol, pas du centre). Défaut 0.
+-- GenerateChallengeFloor — Zone Défi jaune (coordonnées monde directes)
 -- ══════════════════════════════════════════════════════════════════════════════
 function LegoRenderer.GenerateChallengeFloor(
-    parent   : Instance,
-    xMin     : number,
-    xMax     : number,
-    zMin     : number,
-    zMax     : number,
-    groundY  : number?
-): Folder
-    local surfY = groundY or 0  -- Y de la surface (sommet des tuiles)
+    parent  : Instance,
+    xMin    : number,
+    xMax    : number,
+    zMin    : number,
+    zMax    : number,
+    surfY   : number?
+): Folder?
+    local carpet = getCarpet()
+    if not carpet then return nil end
 
-    local blockTemplate = getCarpet()
-    local bX = blockTemplate.Size.X
-    local bY = blockTemplate.Size.Y
-    local bZ = blockTemplate.Size.Z
+    local bX    = carpet.Size.X
+    local bY    = carpet.Size.Y
+    local bZ    = carpet.Size.Z
+    local tileY = (surfY or 0) - bY / 2
 
-    -- Centre Y du tile : sa face supérieure doit être à surfY.
-    local tileCenterY = surfY - bY / 2
+    purge(parent, "ChallengeTiles")
+    local folder = Instance.new("Folder")
+    folder.Name   = "ChallengeTiles"
+    folder.Parent = parent
 
-    local folder      = Instance.new("Folder")
-    folder.Name       = "ChallengeTiles"
-    folder.Parent     = parent
-
-    local nX = math.ceil((xMax - xMin) / bX)
-    local nZ = math.ceil((zMax - zMin) / bZ)
-
+    local nX    = math.ceil((xMax - xMin) / bX)
+    local nZ    = math.ceil((zMax - zMin) / bZ)
     local count = 0
+
     for ix = 0, nX - 1 do
         for iz = 0, nZ - 1 do
             local wx = xMin + (ix + 0.5) * bX
             local wz = zMin + (iz + 0.5) * bZ
 
-            local tint  = getTileColor(wx, wz, false)
-            local clone = blockTemplate:Clone() :: BasePart
-
+            local clone = (carpet :: BasePart):Clone() :: BasePart
             applyPhysics(clone)
-            applyColor(clone, tint)
-            clone.CFrame  = CFrame.new(wx, tileCenterY, wz)
-            clone.Parent  = folder
+            applyColor(clone, COL_CHALL)
+            clone.CFrame = CFrame.new(wx, tileY, wz)
+            clone.Parent = folder
 
             count += 1
             if count % YIELD_EVERY == 0 then task.wait() end
         end
     end
 
-    print(string.format("[LegoRenderer] ChallengeTiles %d×%d = %d tuiles jaunes (X %.0f→%.0f)",
-        nX, nZ, count, xMin, xMax))
-
+    print(string.format("[LegoRenderer] ChallengeTiles %d×%d = %d tuiles jaunes",
+        nX, nZ, count))
     return folder
 end
 
@@ -290,7 +349,6 @@ function LegoRenderer.AddBorders(part: BasePart, opts: BorderOpts?): Folder
     local cf  = part.CFrame
     local sz  = part.Size
     local ht  = t / 2
-
     local localY = sz.Y / 2 + BORDER_H / 2 + 0.05
 
     local defs: {{off: Vector3, size: Vector3, name: string}} = {
@@ -308,27 +366,27 @@ function LegoRenderer.AddBorders(part: BasePart, opts: BorderOpts?): Folder
           name = "Border_W" },
     }
 
-    local folder    = Instance.new("Folder")
-    folder.Name     = "LegoFrame_" .. part.Name
-    folder.Parent   = part.Parent
+    local folder = Instance.new("Folder")
+    folder.Name   = "LegoFrame_" .. part.Name
+    folder.Parent = part.Parent
 
     for _, def in ipairs(defs) do
-        local b              = Instance.new("Part") :: Part
-        b.Name               = def.name
-        b.Size               = def.size
-        b.CFrame             = cf * CFrame.new(def.off)
-        b.Anchored           = true
-        b.CanCollide         = false
-        b.CanTouch           = false
-        b.CanQuery           = false
-        b.Massless           = true
-        b.CastShadow         = false
-        b.Color              = col
-        b.Material           = Enum.Material.SmoothPlastic
-        b.Reflectance        = 0.06
-        b.TopSurface         = Enum.SurfaceType.Smooth
-        b.BottomSurface      = Enum.SurfaceType.Smooth
-        b.Parent             = folder
+        local b             = Instance.new("Part") :: Part
+        b.Name              = def.name
+        b.Size              = def.size
+        b.CFrame            = cf * CFrame.new(def.off)
+        b.Anchored          = true
+        b.CanCollide        = false
+        b.CanTouch          = false
+        b.CanQuery          = false
+        b.Massless          = true
+        b.CastShadow        = false
+        b.Color             = col
+        b.Material          = Enum.Material.SmoothPlastic
+        b.Reflectance       = 0.06
+        b.TopSurface        = Enum.SurfaceType.Smooth
+        b.BottomSurface     = Enum.SurfaceType.Smooth
+        b.Parent            = folder
     end
 
     return folder
@@ -340,20 +398,16 @@ end
 function LegoRenderer.ProcessStructure(model: Instance, opts: Opts?)
     for _, desc in ipairs(model:GetDescendants()) do
         if not desc:IsA("BasePart") then continue end
-
         local part = desc :: BasePart
         local sz   = part.Size
-
         if part.Transparency > 0.5 then continue end
         if sz.X < 0.5 or sz.Y < 0.5 or sz.Z < 0.5 then continue end
 
         local nm = string.upper(part.Name)
         local o  = opts and table.clone(opts) or {}
-
         if not o.face then
             o.face = if string.find(nm, "WALL") then "Front" else "Top"
         end
-
         task.spawn(function()
             LegoRenderer.AutoStud(part, o)
         end)

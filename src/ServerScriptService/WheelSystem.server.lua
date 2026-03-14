@@ -387,9 +387,9 @@ do
     -- La face "écran" de la machine est sur -X → le dos est sur +X.
     -- +15 studs de recul supplémentaires : les Brainrots de 12 studs tournent librement.
     local WALL_X     = MACHINE_X + 3.2 * SCALE + 15.3   -- dos machine + 15 studs de clearance
-    -- Z étendu de ±52 à ±110 : bord de l'avenue jusqu'au bâtiment en face.
+    -- Z étendu de -110 jusqu'à 78 : bord sud du trottoir de l'avenue.
     local WALL_Z_MIN = MACHINE_Z - 110
-    local WALL_Z_MAX = MACHINE_Z + 110
+    local WALL_Z_MAX = MACHINE_Z + 78
     -- Y légèrement sous le sol pour supprimer tout scintillement (Z-fighting).
     local WALL_Y_MIN = -0.2
     local WALL_Y_MAX = 28                              -- hauteur imposante
@@ -397,14 +397,32 @@ do
     local COL_BLUE_LIGHT = Color3.fromRGB(0, 162, 255)
     local COL_BLUE_DARK  = Color3.fromRGB(0,  85, 255)
 
-    -- Carpet MeshPart (4 × 0.4 × 4) dans ReplicatedStorage.Blocks
-    local blocks          = ReplicatedStorage:FindFirstChild("Blocks")
-    local carpetTemplate  = blocks and blocks:FindFirstChild("Carpet") :: BasePart?
+    -- Carpet est un MeshPart direct dans ReplicatedStorage.Blocks.
+    local blocks = ReplicatedStorage:WaitForChild("Blocks", 10) :: Instance?
+    local t      = blocks and (blocks :: Instance):WaitForChild("Carpet", 10) :: Instance?
+    local carpetTemplate: BasePart? = nil
+    if t and (t :: Instance):IsA("BasePart") then
+        carpetTemplate = t :: BasePart
+    end
+    if not carpetTemplate then
+        -- Fallback : tuile plate 4×0.4×4
+        local p = Instance.new("Part")
+        p.Name          = "Carpet_Fallback"
+        p.Size          = Vector3.new(4, 0.4, 4)
+        p.Anchored      = true
+        p.CanCollide    = false
+        p.Material      = Enum.Material.SmoothPlastic
+        p.TopSurface    = Enum.SurfaceType.Smooth
+        p.BottomSurface = Enum.SurfaceType.Smooth
+        p.CastShadow    = false
+        carpetTemplate  = p
+    end
 
-    if carpetTemplate and carpetTemplate:IsA("BasePart") then
-        local tX = carpetTemplate.Size.X  -- 4
-        local tY = carpetTemplate.Size.Y  -- 0.4 (épaisseur → devient la profondeur du mur)
-        local tZ = carpetTemplate.Size.Z  -- 4
+    do
+        local template = carpetTemplate :: BasePart
+        local tX = template.Size.X  -- 4
+        local tY = template.Size.Y  -- 0.4 (épaisseur → devient la profondeur du mur)
+        local tZ = template.Size.Z  -- 4
 
         -- Rotation 90° autour de Z : l'épaisseur (Y) devient la dimension X (profondeur du mur)
         --   résultat en world space : tY studs en X, tX studs en Y, tZ studs en Z
@@ -425,7 +443,7 @@ do
 
                 local col = if (iy + iz) % 2 == 0 then COL_BLUE_LIGHT else COL_BLUE_DARK
 
-                local tile = carpetTemplate:Clone() :: BasePart
+                local tile = template:Clone() :: BasePart
                 tile.Anchored      = true
                 tile.CanCollide    = false
                 tile.CanTouch      = false
@@ -445,9 +463,7 @@ do
                 tile.Parent = wallFolder
             end
         end
-        print(string.format("[WheelSystem] Backdrop : %d×%d = %d tuiles Carpet", nY, nZ, nY * nZ))
-    else
-        warn("[WheelSystem] Backdrop : Blocks.Carpet introuvable — mur ignoré")
+        print(string.format("[WheelSystem] Backdrop : %d×%d = %d tuiles", nY, nZ, nY * nZ))
     end
 end
 
