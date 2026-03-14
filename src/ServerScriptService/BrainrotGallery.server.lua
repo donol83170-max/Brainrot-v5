@@ -14,6 +14,7 @@ local TweenService        = game:GetService("TweenService")
 local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
 local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
 local BrainrotData  = require(ReplicatedStorage:WaitForChild("BrainrotData"))
+local LegoRenderer = require(ReplicatedStorage:WaitForChild("LegoRenderer"))
 
 print("--- DIAGNOSTIC BRAINROT --- BrainrotGallery.server.lua démarre")
 
@@ -54,32 +55,32 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- COULEURS
 -- ══════════════════════════════════════════════════════════════════════════════
-local COL_FLOOR      = Color3.fromRGB( 50,  50,  50)
-local COL_RED_LINE   = Color3.fromRGB(196,  40,  28)
+local COL_FLOOR      = Color3.fromRGB( 10,  40, 160) -- Bleu profond
+local COL_RED_LINE   = Color3.fromRGB(240,  40,  40) -- Rouge vif
 local COL_WALL_MID   = Color3.fromRGB( 27,  42,  31)
 local COL_WALL_LIGHT = Color3.fromRGB( 27,  42,  31)
 local COL_GOLD       = Color3.fromRGB(255, 215,   0)
 local COL_PLAQUE     = Color3.fromRGB( 20,  20,  25)
 
 local PEDESTAL_BASE_SHADES: {Color3} = {
-    Color3.fromRGB(232, 232, 232),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(250, 250, 250),
+    Color3.fromRGB(245, 245, 245),
+    Color3.fromRGB(240, 240, 240),
+    Color3.fromRGB(235, 235, 235),
+    Color3.fromRGB(230, 230, 230),
+    Color3.fromRGB(225, 225, 225),
     Color3.fromRGB(220, 220, 220),
-    Color3.fromRGB(208, 208, 208),
-    Color3.fromRGB(196, 196, 196),
-    Color3.fromRGB(184, 184, 184),
-    Color3.fromRGB(172, 172, 172),
-    Color3.fromRGB(160, 160, 160),
-    Color3.fromRGB(148, 148, 148),
 }
 local PEDESTAL_TOP_SHADES: {Color3} = {
-    Color3.fromRGB(248, 248, 248),
-    Color3.fromRGB(236, 236, 236),
-    Color3.fromRGB(224, 224, 224),
-    Color3.fromRGB(212, 212, 212),
-    Color3.fromRGB(200, 200, 200),
-    Color3.fromRGB(188, 188, 188),
-    Color3.fromRGB(176, 176, 176),
-    Color3.fromRGB(164, 164, 164),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(255, 255, 255),
 }
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA=5, LEGENDARY=4, MYTHIC=3, RARE=2, NORMAL=1}
@@ -166,10 +167,10 @@ local BrainrotOffsets: {[string]: {scale: number, offset: CFrame}} = {
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DIMENSIONS DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
-local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
-local PLACE_GAP   = 28         -- Espacement Z entre les socles (-30 % pour galerie plus compacte)
-local SIDE_DIST   = 16         -- Distance X du centre au socle
-local CORRIDOR_W  = 44         -- Largeur du couloir (X)
+local NUM_SIDES   = 8          -- Retour à 8 par côté (16 socles au total)
+local PLACE_GAP   = 28
+local SIDE_DIST   = 26         -- Massivement reculé (était 19)
+local CORRIDOR_W  = 64         -- Massivement élargi (était 44)
 local WALL_H      = 20         -- Hauteur des murs
 local WALL_T      = 2          -- Épaisseur des murs
 local FLOOR_Y     = 1          -- Y du sol
@@ -312,19 +313,36 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         p.CanCollide    = true
         p.Color         = color
         p.Material      = material
-        p.Reflectance   = 0
-        p.TopSurface    = topSurf or Enum.SurfaceType.Smooth
-        p.BottomSurface = Enum.SurfaceType.Smooth
+        p.CastShadow    = false -- Suppression des ombres pour un look clean "Full-Bright"
         p.Parent        = folder
         return p
     end
 
     -- ── 1. SOL ────────────────────────────────────────────────────────────────
     -- Légèrement surélevé (+0.1) par rapport à l'avenue pour éviter le Z-fighting.
-    mp("GalleryFloor",
+    local floor = mp("GalleryFloor",
         Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
         Vector3.new(0, FLOOR_Y - 0.4, START_Z + GALLERY_LEN / 2),
         COL_FLOOR, Enum.Material.DiamondPlate, Enum.SurfaceType.Smooth)
+    
+    -- On évite de poser des briques Lego sous les zones de récolte pour ne pas les cacher
+    local function isNearCollector(pos: Vector3)
+        for i = 1, NUM_SIDES do
+            local pz = worldZ(START_Z + i * PLACE_GAP)
+            for _, side in ipairs({-1, 1}) do
+                local px = offsetX + side * 10 -- Centre de la zone jaune
+                local dx = math.abs(pos.X - px)
+                local dz = math.abs(pos.Z - pz)
+                if dx < 8 and dz < 8 then return true end -- On dégage une large zone sous le jaune
+            end
+        end
+        return false
+    end
+
+    LegoRenderer.Decorate(floor, "Top", {
+        skipCheck = isNearCollector,
+        canCollide = true
+    })
 
     -- FLOOR_Y - 0.4 (centre sol) + 0.5 (demi-hauteur) = 1.1 (surface sol galerie)
     -- La ligne doit être AU-DESSUS : 1.1 + 0.05 = FLOOR_Y + 0.15
@@ -402,18 +420,20 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
     end
 
-    -- Mur du fond : béton peint moderne (opaque — point focal de la galerie)
-    mp("WallBack",
+    -- Mur du fond : poussé de 20 studs pour garantir zéro clipping
+    local wallBack = mp("WallBack",
         Vector3.new(CORRIDOR_W + POST_W * 2, WALL_H, WALL_T),
-        Vector3.new(0, FLOOR_Y + WALL_H / 2, START_Z + GALLERY_LEN + 4),
+        Vector3.new(0, FLOOR_Y + WALL_H / 2, START_Z + GALLERY_LEN + 20),
         Color3.fromRGB(32, 34, 40), Enum.Material.SmoothPlastic)
+    LegoRenderer.Decorate(wallBack, "Front")
 
     -- ── 3. PLAFOND ────────────────────────────────────────────────────────────
     local ceiling = mp("GalleryCeiling",
         Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
         Vector3.new(0, FLOOR_Y + WALL_H + 0.5, WALL_CZ),
-        Color3.fromRGB(40, 40, 40), Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+        Color3.fromRGB(180, 20, 20), Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs) -- Rouge
     ceiling.Reflectance = 0
+    LegoRenderer.Decorate(ceiling, "Bottom")
 
     -- Plafond centre à FLOOR_Y + WALL_H + 0.5, bottom à FLOOR_Y + WALL_H.
     -- La ligne doit être 0.05 SOUS le plafond pour éviter le Z-fighting.
@@ -433,19 +453,22 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             local baseX     = side * SIDE_DIST
 
             local base = mp("PedestalBase_" .. i .. sideLabel,
-                Vector3.new(7, 1.5, 7),
-                Vector3.new(baseX, FLOOR_Y + 0.75, placeZ),
+                Vector3.new(12, 1, 10),     -- Aligné au mur (32) et au jaune (20)
+                Vector3.new(baseX, FLOOR_Y + 0.6, placeZ),
                 PEDESTAL_BASE_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+            LegoRenderer.Decorate(base, "Top")
 
-            mp("PedestalMid_" .. i .. sideLabel,
-                Vector3.new(5, 1, 5),
-                Vector3.new(baseX, FLOOR_Y + 2, placeZ),
+            local mid = mp("PedestalMid_" .. i .. sideLabel,
+                Vector3.new(8, 0.4, 7),     -- Largeur plus robuste
+                Vector3.new(baseX, FLOOR_Y + 1.3, placeZ),
                 PEDESTAL_BASE_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+            LegoRenderer.Decorate(mid, "Top")
 
             local topPart = mp("PedestalTop_" .. i .. sideLabel,
-                Vector3.new(6, 0.5, 6),
-                Vector3.new(baseX, FLOOR_Y + 2.75, placeZ),
+                Vector3.new(9.5, 0.2, 8.5), -- Plateau large pour la figurine
+                Vector3.new(baseX, FLOOR_Y + 1.6, placeZ),
                 PEDESTAL_TOP_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+            LegoRenderer.Decorate(topPart, "Top")
 
             local slotIndex = (i - 1) * 2 + (side == -1 and 1 or 2)
 
@@ -501,14 +524,14 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             local slotName = SLOT_NAMES[slotIndex] or ("Slot " .. slotIndex)
 
             local plaque = mp("Plaque_" .. i .. sideLabel,
-                Vector3.new(7, 0.3, 1.5),
-                Vector3.new(baseX, FLOOR_Y + 1.7, placeZ),
+                Vector3.new(9, 0.3, 1.8),   -- Un peu plus large pour suivre le socle
+                Vector3.new(baseX, FLOOR_Y + 2.0, placeZ),
                 COL_PLAQUE, Enum.Material.SmoothPlastic)
             plaque.CanCollide = false
 
             local plaqueRim = mp("PlaqueRim_" .. i .. sideLabel,
-                Vector3.new(7.3, 0.1, 1.8),
-                Vector3.new(baseX, FLOOR_Y + 1.55, placeZ),
+                Vector3.new(9.4, 0.1, 2.2),
+                Vector3.new(baseX, FLOOR_Y + 1.85, placeZ),
                 COL_GOLD, Enum.Material.Metal)
             plaqueRim.CanCollide = false
 
@@ -587,11 +610,11 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             floorSpot.Parent     = floorSpotPart
 
             -- ── Plaque de récolte (Collector Plate) ──────────────────────────
-            local plateX = side * (SIDE_DIST - 4)   -- 4 studs vers le centre
+            local plateX = side * 14        -- Positionnée pour un couloir central géant
             local plate  = Instance.new("Part")
             plate.Name      = "CollectorPlate_" .. i .. sideLabel
-            plate.Size      = Vector3.new(8.8, 0.2, 8.8)
-            plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
+            plate.Size      = Vector3.new(12, 0.4, 12)  -- JUMBO
+            plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.5, worldZ(placeZ)) -- Plus haut
             plate.Anchored  = true
             plate.CanCollide = false   -- trigger zone : Touched fire sans bloquer le passage
             plate.Material  = Enum.Material.Neon
