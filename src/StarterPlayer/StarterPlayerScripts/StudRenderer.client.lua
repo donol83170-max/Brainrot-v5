@@ -35,29 +35,7 @@ local generating: { [BasePart]: boolean }    = {}
 -- ══════════════════════════════════════════════════════════════════════════════
 -- RECHERCHE UNIVERSELLE — scan complet du Workspace
 -- ══════════════════════════════════════════════════════════════════════════════
-local function getAllBases(): { BasePart }
-    local result: { BasePart } = {}
-    for _, inst in ipairs(Workspace:GetDescendants()) do
-        if not inst:IsA("BasePart") then continue end
-        if inst.Parent == nil      then continue end
-        -- Transparence ignorée : les plaques serveur sont invisibles (Transparency=1)
-        local sz = inst.Size
-        if sz.X < 4 or sz.Z < 4   then continue end
-        local nm = string.upper(inst.Name)
-        if string.find(nm, "GRASSBASE") or string.find(nm, "AVENUE")
-            or string.find(nm, "ROAD") or string.find(nm, "STREET") then
-            -- Neutralisation totale de la plaque source côté client :
-            -- invisible + matériau neutre + noir → aucun conflit visuel possible
-            local bp = inst :: BasePart
-            bp.Transparency = 1
-            bp.CastShadow   = false
-            bp.Material     = Enum.Material.SmoothPlastic
-            bp.Color        = Color3.new(0, 0, 0)
-            table.insert(result, bp)
-        end
-    end
-    return result
-end
+
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- POSITION DE RÉFÉRENCE
@@ -159,6 +137,25 @@ local function hideChunk(part: BasePart)
     entry.visible = false
 end
 
+local function processBasePart(inst: Instance)
+    if not inst:IsA("BasePart") then return end
+    local sz = inst.Size
+    if sz.X < 4 or sz.Z < 4 then return end
+    
+    local nm = string.upper(inst.Name)
+    if string.find(nm, "GRASSBASE") or string.find(nm, "AVENUE")
+        or string.find(nm, "ROAD") or string.find(nm, "STREET") then
+        
+        local bp = inst :: BasePart
+        bp.Transparency = 1
+        bp.CastShadow   = false
+        bp.Material     = Enum.Material.SmoothPlastic
+        bp.Color        = Color3.new(0, 0, 0)
+        
+        showChunk(bp)
+    end
+end
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DÉMARRAGE
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -169,21 +166,14 @@ task.spawn(function()
     end
     task.wait(1)   -- laisser le serveur peupler la map
 
-    -- ── Scan unique au démarrage ───────────────────────────────────────────
-    -- getAllBases() n'est appelé qu'UNE SEULE FOIS ici.
-    -- La boucle de maintien réutilise ce tableau fixe — zéro GetDescendants() en boucle.
-    local bases = getAllBases()
-    print(string.format("[StudRenderer] %d dalles trouvées — chargement initial", #bases))
+    -- ── Détection dynamique des plaques (fix : plaques lentes à pop) ───────
+    Workspace.DescendantAdded:Connect(processBasePart)
 
-    if #bases == 0 then
-        warn("[StudRenderer] Aucune dalle trouvée — vérifier les noms GrassBase/Avenue")
+    -- Scan initial pour ce qui est déjà là
+    for _, inst in ipairs(Workspace:GetDescendants()) do
+        processBasePart(inst)
     end
 
-    -- Chargement initial lissé (50 ms entre chaque dalle)
-    for _, part in ipairs(bases) do
-        showChunk(part)
-        task.wait(0.05)
-    end
 
     -- ── Sol jaune du biome Défis (derrière le mur bleu, X ≥ 58) ─────────────
     -- Généré une seule fois, indépendamment des GrassBase (zone sans dalles).
@@ -192,21 +182,20 @@ task.spawn(function()
     task.spawn(function()
         LegoRenderer.GenerateChallengeFloor(
             Workspace,   -- parent
-            58.0, 150,   -- X : pied du mur bleu jusqu'au fond de la map
-            -115, 115,   -- Z : même étendue que le mur backdrop
-            0            -- groundY : surface du sol = Y 0
+            56.0, 400.0, -- X : pied du mur bleu jusqu'au bout de la map
+            -400, 400,   -- Z : toute la largeur pour éviter les trous verts
+            1.0          -- groundY : 1.0 pour être sûr d'écraser tout grésillement
         )
     end)
 
-    -- ── Boucle de maintien allégée ────────────────────────────────────────
-    -- Itère sur le tableau fixe (pas de rescan).
-    -- Ne charge que les dalles manquantes — hideChunk() supprimé.
+    -- ── Surveillance constante (sécurité) ─────────────────────────────────
     while true do
-        task.wait(LOOP_WAIT)
-
-        for _, part in ipairs(bases) do
-            if part.Parent == nil then continue end
-            showChunk(part)   -- no-op si déjà visible (entry.visible = true)
+        task.wait(5)
+        -- Si une plaque a été rajoutée sans être détectée (rare)
+        for _, inst in ipairs(Workspace:GetDescendants()) do
+            if inst:IsA("BasePart") and not chunkCache[inst] then
+                processBasePart(inst)
+            end
         end
     end
 end)

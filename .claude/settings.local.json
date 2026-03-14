@@ -12,7 +12,8 @@
       "Bash(which git:*)",
       "Bash(tail:*)",
       "Bash(git:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(sed:*)"
     ]
   }
 }

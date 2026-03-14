@@ -1,4 +1,7 @@
 -- RoamingNPCSystem.server.lua
+-- !! DÉSACTIVÉ TEMPORAIREMENT — retirer le `return` ci-dessous pour réactiver !!
+do return end
+
 -- Brainrots sauvages dans la zone publique (boulevard + fontaine).
 -- Source  : ReplicatedStorage.WildBrainrots
 -- Cible   : Workspace.WildNPCs

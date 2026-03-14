@@ -12,12 +12,18 @@ local playerGui = player:WaitForChild("PlayerGui")
 local Events        = ReplicatedStorage:WaitForChild("Events")
 local HarvestResult = Events:WaitForChild("HarvestResult")
 
--- ── Formatage : 1250 → "1,250" ───────────────────────────────────────────────
+-- ── Formatage : 350 → "350"  |  1500 → "1.5K"  |  2 500 000 → "2.5M" ─────────
 local function fmt(n: number): string
-    local s = tostring(math.floor(n))
-    local result = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
-    -- Supprime la virgule en tête si le nombre est multiple de 1000
-    return result:gsub("^,", "")
+    n = math.floor(n)
+    if n >= 1_000_000_000 then
+        return string.format("%.2fB", n / 1_000_000_000)
+    elseif n >= 1_000_000 then
+        return string.format("%.2fM", n / 1_000_000)
+    elseif n >= 1_000 then
+        return string.format("%.1fK", n / 1_000)
+    else
+        return tostring(n)
+    end
 end
 
 -- ── UI ───────────────────────────────────────────────────────────────────────

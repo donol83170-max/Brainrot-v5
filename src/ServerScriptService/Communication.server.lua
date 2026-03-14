@@ -32,6 +32,8 @@ local SellAllResult    = getOrCreate("SellAllResult",     "RemoteEvent")
 getOrCreate("SpinRequest",    "RemoteEvent")
 getOrCreate("SpinResult",     "RemoteEvent")
 getOrCreate("HarvestResult",  "RemoteEvent")
+getOrCreate("CarryUpdate",    "RemoteEvent")  -- server→client : item porté (ou nil)
+getOrCreate("MachineUpdate",  "RemoteEvent")  -- server→client : nb items en machine (multi-roll)
 
 local GetPlayerData    = getOrCreate("GetPlayerData", "RemoteFunction")
 

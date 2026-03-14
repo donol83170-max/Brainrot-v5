@@ -417,7 +417,7 @@ spawnLoc.Parent       = envFolder
 -- Grille 7×7 de plaques 32×32 — LegoRenderer ajoute les studs en tâche de fond
 task.spawn(function()
     local TILE  = 32
-    local RANGE = 3   -- ±3 → 7×7 = 49 dalles, 224×224 studs
+    local RANGE = 12   -- ±12 → couvre toute la map
 
     local legoRoot = Instance.new("Folder")
     legoRoot.Name  = "LegoGround_3D"

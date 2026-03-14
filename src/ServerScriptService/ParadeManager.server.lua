@@ -1,4 +1,7 @@
 -- ParadeManager.server.lua
+-- !! DÉSACTIVÉ TEMPORAIREMENT — retirer le `return` ci-dessous pour réactiver !!
+do return end
+
 -- Brainrots sauvages défilent en file indienne le long de l'avenue (axe X, Z=110).
 -- Source  : ReplicatedStorage.WildBrainrots
 -- Cible   : Workspace.Parade

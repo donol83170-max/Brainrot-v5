@@ -13,6 +13,21 @@ local Events = ReplicatedStorage:WaitForChild("Events")
 local UpdateClientData = Events:WaitForChild("UpdateClientData")
 local GetPlayerData = Events:WaitForChild("GetPlayerData")
 
+-- ── Formateur de grands nombres ───────────────────────────────────────────────
+-- 350 → "350"  |  1 500 → "1.5K"  |  2 500 000 → "2.5M"  |  3 000 000 000 → "3B"
+local function fmt(n: number): string
+    n = math.floor(n)
+    if n >= 1_000_000_000 then
+        return string.format("%.2fB", n / 1_000_000_000)
+    elseif n >= 1_000_000 then
+        return string.format("%.2fM", n / 1_000_000)
+    elseif n >= 1_000 then
+        return string.format("%.1fK", n / 1_000)
+    else
+        return tostring(n)
+    end
+end
+
 -- Création du ScreenGui principal
 local hudScreen = Instance.new("ScreenGui")
 hudScreen.Name = "GlobalHUD"
@@ -120,10 +135,10 @@ invButton.MouseButton1Click:Connect(fireToggle)
 local function refreshHUD(data)
     if not data or not data.Stats then return end
     if goldPill:FindFirstChild("Amount") then
-        goldPill.Amount.Text = tostring(data.Stats.Gold)
+        goldPill.Amount.Text = fmt(data.Stats.Gold or 0)
     end
     if ticketPill:FindFirstChild("Amount") then
-        ticketPill.Amount.Text = tostring(data.Stats.Tickets)
+        ticketPill.Amount.Text = tostring(data.Stats.Tickets or 0)
     end
 end
 

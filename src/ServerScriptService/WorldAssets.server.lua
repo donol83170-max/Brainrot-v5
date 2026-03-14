@@ -4,15 +4,11 @@
 
 local Workspace = game:GetService("Workspace")
 
--- ── Sol herbe ──────────────────────────────────────────────────────────────────
-local ground = Instance.new("Part")
-ground.Name      = "GrassGround"
-ground.Size      = Vector3.new(600, 1, 400)
-ground.Position  = Vector3.new(0, -0.5, 0)
-ground.Anchored  = true
-ground.Material  = Enum.Material.Grass
-ground.Color     = Color3.fromRGB(106, 127, 63)
-ground.Parent    = Workspace
+-- ── Sol herbe (Désactivé car géré par LegoRenderer/StudRenderer) ──────────────
+-- local ground = Instance.new("Part")
+-- ground.Name      = "GrassGround"
+-- ...
+
 
 -- ── Fontaine centrale ──────────────────────────────────────────────────────────
 local fountainFolder = Instance.new("Folder")

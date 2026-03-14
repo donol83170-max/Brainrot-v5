@@ -16,12 +16,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ── Constantes ────────────────────────────────────────────────────────────────
 local BORDER_H    = 0.2
-local YIELD_EVERY = 15
+local YIELD_EVERY = 500
 
 -- ── Seuil X du biome Défis ────────────────────────────────────────────────────
 -- Mur backdrop : MACHINE_X(40) + dos machine(3.36) + recul(15.3) ≈ 58.66
 -- On aligne la frontière au bord du mur pour une transition nette.
-local CHALLENGE_ZONE_X = 58.0
+local CHALLENGE_ZONE_X = 56.0
 
 -- ── Palettes par zone ─────────────────────────────────────────────────────────
 local COL_GRASS_LIGHT = Color3.fromRGB( 75, 151,  75)
@@ -50,8 +50,8 @@ end
 local function getCarpet(): BasePart
     if _carpet then return _carpet end
 
-    local blocks = ReplicatedStorage:FindFirstChild("Blocks")
-    local t = blocks and blocks:FindFirstChild("Carpet")
+    local blocks = ReplicatedStorage:WaitForChild("Blocks", 10)
+    local t = blocks and blocks:WaitForChild("Carpet", 10)
 
     if t and t:IsA("BasePart") then
         _carpet = t :: BasePart
@@ -71,20 +71,24 @@ local function isRoadZone(partName: string): boolean
         or string.find(nm, "STREET") ~= nil
 end
 
--- Couleur d'une tuile selon sa position monde (checkerboard par zone).
-local function getTileColor(worldX: number, worldZ: number,
-                             bTileX: number, bTileZ: number,
-                             road: boolean): Color3
-    local gx  = math.floor(worldX / bTileX)
-    local gz  = math.floor(worldZ / bTileZ)
-    local odd = (gx + gz) % 2 == 1
+local function getTileColor(worldX: number, worldZ: number, road: boolean): Color3
+    -- ZONES VERTES FORCÉES (Fontaine & Machine)
+    local isFountainOrTrade = false
+    if math.sqrt(worldX^2 + worldZ^2) <= 22 then
+        isFountainOrTrade = true
+    elseif math.sqrt((worldX + 25)^2 + worldZ^2) <= 18 then
+        isFountainOrTrade = true
+    end
 
-    if worldX >= CHALLENGE_ZONE_X then
-        return if odd then COL_CHALL_DARK  else COL_CHALL_LIGHT
-    elseif road then
-        return if odd then COL_ROAD_DARK   else COL_ROAD_LIGHT
+    -- Zone Jaune (X >= 56 et Z central)
+    local isYellowZone = worldX >= CHALLENGE_ZONE_X and worldZ >= -115 and worldZ <= 115
+
+    if isYellowZone then
+        return COL_CHALL_LIGHT    -- Zone jaune
+    elseif road and not isFountainOrTrade then
+        return Color3.fromRGB(130, 130, 130)  -- Gris route
     else
-        return if odd then COL_GRASS_DARK  else COL_GRASS_LIGHT
+        return Color3.fromRGB(75, 151, 75)    -- Vert herbe
     end
 end
 
@@ -183,14 +187,14 @@ function LegoRenderer.AutoStud(part: BasePart, opts: Opts?): Folder
 
             local wx = brickCF.Position.X
 
-            -- ── ANTI Z-FIGHTING : skip zone Défis pour les tuiles non-route ──
-            -- GenerateChallengeFloor gère exclusivement ce territoire.
-            -- Cela empêche toute superposition si une dalle GrassBase dépasse X=58.
-            if not isRoad and wx >= CHALLENGE_ZONE_X then
+            -- ── ANTI Z-FIGHTING : skip TOUT ce qui est derrière le mur (X >= 56) ──
+            -- Cela laisse GenerateChallengeFloor gérer cette zone en une fois,
+            -- évitant tout flickering avec les dalles GrassBase lentes.
+            if wx >= CHALLENGE_ZONE_X then
                 continue
             end
 
-            local tint  = getTileColor(wx, brickCF.Position.Z, bX, bZ, isRoad)
+            local tint  = getTileColor(wx, brickCF.Position.Z, isRoad)
             local clone = blockTemplate:Clone() :: BasePart
 
             applyPhysics(clone)
@@ -251,7 +255,7 @@ function LegoRenderer.GenerateChallengeFloor(
             local wx = xMin + (ix + 0.5) * bX
             local wz = zMin + (iz + 0.5) * bZ
 
-            local tint  = getTileColor(wx, wz, bX, bZ, false)
+            local tint  = getTileColor(wx, wz, false)
             local clone = blockTemplate:Clone() :: BasePart
 
             applyPhysics(clone)
