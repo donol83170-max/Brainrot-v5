@@ -58,19 +58,13 @@ local _carpet: BasePart? = nil
 local function getCarpet(): BasePart?
     if _carpet then return _carpet end
 
-    local blocks = ReplicatedStorage:WaitForChild("Blocks", 10) :: Instance?
-    if not blocks then
-        warn("[LegoRenderer] ReplicatedStorage.Blocks introuvable")
-        return nil
-    end
-
-    local t = (blocks :: Instance):WaitForChild("Carpet", 10) :: Instance?
+    local t = ReplicatedStorage:WaitForChild("Carpet", 10) :: Instance?
     if t and (t :: Instance):IsA("BasePart") then
         _carpet = t :: BasePart
         return _carpet
     end
 
-    warn("[LegoRenderer] Blocks.Carpet absent ou non-BasePart — génération annulée")
+    warn("[LegoRenderer] ReplicatedStorage.Carpet introuvable ou non-BasePart — génération annulée")
     return nil
 end
 
