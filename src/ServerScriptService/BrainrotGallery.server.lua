@@ -588,9 +588,13 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 accRef.accumulated = 0
                 accRef.label.Text  = "0 ⚡"
 
+                -- Leaderstat ⚡ Power (affichage)
                 local ls = pl:FindFirstChild("leaderstats")
                 local pv = ls and ls:FindFirstChild("⚡ Power")
                 if pv then pv.Value = pv.Value + amount end
+
+                -- Sauvegarde persistante dans le DataStore
+                DataManager.AddPower(pl, amount)
 
                 totalHarvested[pl.UserId] = (totalHarvested[pl.UserId] or 0) + amount
                 HarvestResult:FireClient(pl, amount, totalHarvested[pl.UserId])
@@ -640,10 +644,10 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     local signLabel = Instance.new("TextLabel")
     signLabel.Name                   = "GallerySignLabel"
     signLabel.Size                   = UDim2.new(1, 0, 1, 0)
-    signLabel.BackgroundColor3       = Color3.new(0, 0, 0)
+    signLabel.BackgroundColor3       = Color3.fromRGB(0, 0, 255)
     signLabel.BackgroundTransparency = 0.1
     signLabel.Text                   = "★  BASE DE " .. string.upper(playerName) .. "  ★"
-    signLabel.TextColor3             = Color3.fromRGB(255, 230, 0)
+    signLabel.TextColor3             = Color3.fromRGB(255, 255, 255)
     signLabel.Font                   = Enum.Font.GothamBlack
     signLabel.TextScaled             = true
     signLabel.TextStrokeTransparency = 0
@@ -1052,8 +1056,10 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         -- Le pivot doit être placé à socleTopY + pivotToBottom
         local targetPivotY = socleTopY + pivotToBottom
 
-        -- Orientation : face vers le couloir
-        local yRot  = (slotIndex % 2 == 1) and math.rad(-90) or math.rad(90)
+        -- Orientation : face à face vers l'allée centrale
+        -- Impair = côté gauche (X négatif) → regarde vers +X = +90°
+        -- Pair   = côté droit  (X positif) → regarde vers -X = -90°
+        local yRot  = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
 
         if clone:IsA("Model") then
             local mdl = clone :: Model
@@ -1383,8 +1389,6 @@ task.spawn(function()
             for _, acc in pairs(slotMap) do
                 if acc.rate > 0 then
                     acc.accumulated += acc.rate
-                    -- Cap à 9999 pour éviter des nombres absurdes
-                    if acc.accumulated > 9999 then acc.accumulated = 9999 end
                     acc.label.Text = math.floor(acc.accumulated) .. " ⚡"
                 end
             end

@@ -30,6 +30,7 @@ function DataManager.CreateDefaultData()
             XP = Constants.STARTING_STATS.XP,
             Level = 1,
             Tickets = Constants.STARTING_STATS.TICKETS,
+            TotalPower = 0,
         },
         Inventory = {},
         Collection = {}
@@ -49,7 +50,12 @@ function DataManager.LoadData(player)
     end)
 
     if success then
-        playerCache[player.UserId] = data or DataManager.CreateDefaultData()
+        local loaded = data or DataManager.CreateDefaultData()
+        -- Migration : ajouter TotalPower si absent (anciennes sauvegardes)
+        if loaded.Stats and loaded.Stats.TotalPower == nil then
+            loaded.Stats.TotalPower = 0
+        end
+        playerCache[player.UserId] = loaded
         print("💾 Données chargées pour " .. player.Name)
     else
         warn("❌ Erreur DataStore (Load) pour " .. player.Name .. ": " .. tostring(data))
@@ -84,6 +90,19 @@ function DataManager.AddGold(player, amount)
     if data then
         data.Stats.Gold += amount
     end
+end
+
+-- Update Power (accumulé depuis les plaques de récolte)
+function DataManager.AddPower(player, amount)
+    local data = playerCache[player.UserId]
+    if data then
+        data.Stats.TotalPower = (data.Stats.TotalPower or 0) + amount
+    end
+end
+
+function DataManager.GetPower(player)
+    local data = playerCache[player.UserId]
+    return data and (data.Stats.TotalPower or 0) or 0
 end
 
 -- Ajouter un item à l'inventaire
