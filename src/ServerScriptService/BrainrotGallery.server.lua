@@ -1056,24 +1056,29 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         -- Le pivot doit être placé à socleTopY + pivotToBottom
         local targetPivotY = socleTopY + pivotToBottom
 
-        -- Orientation : face à face vers l'allée centrale
-        -- Impair = côté gauche (X négatif) → regarde vers +X = +90°
-        -- Pair   = côté droit  (X positif) → regarde vers -X = -90°
-        local yRot  = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
+        -- Rotation de redressement (axe X, modèles importés couchés depuis Blender)
+        local redressement = CFrame.Angles(math.rad(-90), 0, 0)
+
+        -- Orientation face à face vers l'allée centrale
+        local yRot = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
+        local facing = CFrame.Angles(0, yRot, 0)
+
+        -- CFrame final : position + redressement + orientation
+        local finalCF = CFrame.new(socleX, targetPivotY, socleZ) * redressement * facing
 
         if clone:IsA("Model") then
             local mdl = clone :: Model
             if mdl.PrimaryPart then
-                mdl:PivotTo(CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0))
+                mdl:PivotTo(finalCF)
             else
                 mdl:MoveTo(Vector3.new(socleX, socleTopY + TARGET_HEIGHT / 2, socleZ))
             end
         elseif clone:IsA("BasePart") then
-            (clone :: BasePart).CFrame = CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0)
+            (clone :: BasePart).CFrame = finalCF
         else
             local bp = clone:FindFirstChildWhichIsA("BasePart", true)
             if bp then
-                (bp :: BasePart).CFrame = CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0)
+                (bp :: BasePart).CFrame = finalCF
             end
         end
 
