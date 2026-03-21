@@ -776,23 +776,50 @@ local HITBOX_NAMES: {[string]: boolean} = {
 local SPIN_SPEED = 1.2  -- rad/s
 local spinningFigurines: {{instance: Instance, center: Vector3}} = {}
 
--- Calcule le bas Y visuel d'un modèle (ignore les parts transparentes)
-local function getVisualMinY(inst: Instance): number
-    local minY = math.huge
-    local parts = inst:GetDescendants()
-    if inst:IsA("BasePart") and (inst :: BasePart).Transparency < 1 then
-        local p = inst :: BasePart
-        local bot = p.Position.Y - p.Size.Y / 2
-        if bot < minY then minY = bot end
+-- Mesure les extents visuels (min/max sur chaque axe, parts non-transparentes)
+local function getVisualBounds(inst: Instance): (Vector3, Vector3)
+    local minX, minY, minZ =  math.huge,  math.huge,  math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+
+    local function measure(bp: BasePart)
+        if bp.Transparency >= 1 then return end
+        local pos = bp.Position
+        local half = bp.Size / 2
+        if pos.X - half.X < minX then minX = pos.X - half.X end
+        if pos.Y - half.Y < minY then minY = pos.Y - half.Y end
+        if pos.Z - half.Z < minZ then minZ = pos.Z - half.Z end
+        if pos.X + half.X > maxX then maxX = pos.X + half.X end
+        if pos.Y + half.Y > maxY then maxY = pos.Y + half.Y end
+        if pos.Z + half.Z > maxZ then maxZ = pos.Z + half.Z end
     end
-    for _, child in ipairs(parts) do
-        if child:IsA("BasePart") and (child :: BasePart).Transparency < 1 then
-            local bp = child :: BasePart
-            local bot = bp.Position.Y - bp.Size.Y / 2
-            if bot < minY then minY = bot end
-        end
+
+    if inst:IsA("BasePart") then measure(inst :: BasePart) end
+    for _, child in ipairs(inst:GetDescendants()) do
+        if child:IsA("BasePart") then measure(child :: BasePart) end
     end
-    return minY
+
+    return Vector3.new(minX, minY, minZ), Vector3.new(maxX, maxY, maxZ)
+end
+
+-- Détecte l'axe le plus grand et retourne la rotation pour le mettre vertical (Y-up)
+local function getUprightRotation(inst: Instance): CFrame
+    local mins, maxs = getVisualBounds(inst)
+    local extX = maxs.X - mins.X
+    local extY = maxs.Y - mins.Y
+    local extZ = maxs.Z - mins.Z
+
+    -- Si Y est déjà le plus grand → modèle debout
+    if extY >= extX and extY >= extZ then
+        return CFrame.Angles(0, 0, 0)
+    end
+
+    -- Si Z est le plus grand → couché avant/arrière → rotation X
+    if extZ >= extX then
+        return CFrame.Angles(math.rad(-90), 0, 0)
+    end
+
+    -- Si X est le plus grand → couché sur le côté → rotation Z
+    return CFrame.Angles(0, 0, math.rad(90))
 end
 
 local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)
@@ -1006,43 +1033,42 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         end
 
         -- ════════════════════════════════════════════════════════════════════
-        -- C. SCALING À 12 STUDS (hauteur visuelle)
+        -- C. AUTO-REDRESSEMENT (détecte l'axe le plus grand → le met vertical)
         -- ════════════════════════════════════════════════════════════════════
+        local uprightCF = getUprightRotation(clone)
         if clone:IsA("Model") then
             local mdl = clone :: Model
-            -- Mesurer la hauteur visuelle (parts non-transparentes seulement)
-            local visMinY = math.huge
-            local visMaxY = -math.huge
-            for _, p in ipairs(mdl:GetDescendants()) do
-                if p:IsA("BasePart") and (p :: BasePart).Transparency < 1 then
-                    local bp = p :: BasePart
-                    local bot = bp.Position.Y - bp.Size.Y / 2
-                    local top = bp.Position.Y + bp.Size.Y / 2
-                    if bot < visMinY then visMinY = bot end
-                    if top > visMaxY then visMaxY = top end
-                end
+            if mdl.PrimaryPart then
+                mdl:PivotTo(mdl:GetPivot() * uprightCF)
             end
-            local visHeight = visMaxY - visMinY
+        elseif clone:IsA("BasePart") then
+            (clone :: BasePart).CFrame = (clone :: BasePart).CFrame * uprightCF
+        end
+
+        -- ════════════════════════════════════════════════════════════════════
+        -- D. SCALING À 12 STUDS (hauteur visuelle Y, post-redressement)
+        -- ════════════════════════════════════════════════════════════════════
+        local mins, maxs = getVisualBounds(clone)
+        local visHeight = maxs.Y - mins.Y
+        if clone:IsA("Model") then
             if visHeight > 0.01 then
-                local scaleFactor = TARGET_HEIGHT / visHeight
-                pcall(function() mdl:ScaleTo(scaleFactor) end)
+                pcall(function() (clone :: Model):ScaleTo(TARGET_HEIGHT / visHeight) end)
             end
         elseif clone:IsA("BasePart") then
             local bp = clone :: BasePart
             if bp.Size.Y > 0.01 then
-                local s = TARGET_HEIGHT / bp.Size.Y
-                bp.Size = bp.Size * s
+                bp.Size = bp.Size * (TARGET_HEIGHT / bp.Size.Y)
             end
         end
 
         -- ════════════════════════════════════════════════════════════════════
-        -- D. PLACEMENT VISUEL — pieds sur le socle, PAS de GetBoundingBox Y
+        -- E. PLACEMENT VISUEL — pieds sur le socle
         -- ════════════════════════════════════════════════════════════════════
-        -- Après le scale, recalculer le bas visuel
-        local visualMinY = getVisualMinY(clone)
-        if visualMinY == math.huge then visualMinY = socleTopY end  -- fallback
+        -- Re-mesurer après scale
+        local minsPost, _ = getVisualBounds(clone)
+        local visualMinY = minsPost.Y
+        if visualMinY == math.huge then visualMinY = socleTopY end
 
-        -- L'offset entre le pivot actuel et le bas visuel
         local currentPivotY: number
         if clone:IsA("Model") then
             currentPivotY = (clone :: Model):GetPivot().Position.Y
@@ -1053,32 +1079,30 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         end
 
         local pivotToBottom = currentPivotY - visualMinY
-        -- Le pivot doit être placé à socleTopY + pivotToBottom
         local targetPivotY = socleTopY + pivotToBottom
-
-        -- Rotation de redressement (axe X, modèles importés couchés depuis Blender)
-        local redressement = CFrame.Angles(math.rad(-90), 0, 0)
 
         -- Orientation face à face vers l'allée centrale
         local yRot = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
-        local facing = CFrame.Angles(0, yRot, 0)
 
-        -- CFrame final : position + redressement + orientation
-        local finalCF = CFrame.new(socleX, targetPivotY, socleZ) * redressement * facing
-
+        -- CFrame final : position + rotation Y (le redressement X/Z est déjà appliqué)
+        -- On utilise PivotTo avec seulement la rotation Y, le redressement est dans le modèle
         if clone:IsA("Model") then
             local mdl = clone :: Model
             if mdl.PrimaryPart then
-                mdl:PivotTo(finalCF)
+                -- Garder la rotation de redressement, ajouter Y
+                local currentCF = mdl:GetPivot()
+                local currentRot = currentCF - currentCF.Position
+                -- Composer : position cible + rotation Y + rotation de redressement existante
+                mdl:PivotTo(CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0) * uprightCF)
             else
                 mdl:MoveTo(Vector3.new(socleX, socleTopY + TARGET_HEIGHT / 2, socleZ))
             end
         elseif clone:IsA("BasePart") then
-            (clone :: BasePart).CFrame = finalCF
+            (clone :: BasePart).CFrame = CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0) * uprightCF
         else
             local bp = clone:FindFirstChildWhichIsA("BasePart", true)
             if bp then
-                (bp :: BasePart).CFrame = finalCF
+                (bp :: BasePart).CFrame = CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0) * uprightCF
             end
         end
 
