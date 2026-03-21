@@ -54,7 +54,7 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- COULEURS
 -- ══════════════════════════════════════════════════════════════════════════════
-local COL_FLOOR      = Color3.fromRGB( 10,  40, 160)  -- Bleu profond
+local COL_FLOOR      = Color3.fromRGB(  0,   0, 255)  -- Bleu pur
 local COL_RED_LINE   = Color3.fromRGB(240,  40,  40)  -- Rouge vif
 local COL_WALL_MID   = Color3.fromRGB( 27,  42,  31)
 local COL_WALL_LIGHT = Color3.fromRGB( 27,  42,  31)
@@ -83,8 +83,8 @@ local PEDESTAL_TOP_SHADES: {Color3} = {
 }
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA_LEGENDARY=6, ULTRA=5, LEGENDARY=4, MYTHIC=3, EPIC=3, RARE=2, COMMON=1, NORMAL=1}
--- Puissance générée par mème exposé (Coins/s ajoutés au revenu passif)
-local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, COMMON=2, RARE=5, EPIC=15, MYTHIC=10, LEGENDARY=25, ULTRA=50, ULTRA_LEGENDARY=75}
+-- Puissance générée par mème exposé (×1000 multiplicateur)
+local POWER_PER_RARITY: {[string]: number} = {NORMAL=1000, COMMON=2000, RARE=5000, EPIC=15000, MYTHIC=10000, LEGENDARY=25000, ULTRA=50000, ULTRA_LEGENDARY=75000}
 local RARITY_COLOR: {[string]: Color3} = {
     NORMAL          = Color3.fromRGB(163, 162, 165),
     COMMON          = Color3.fromRGB(120, 122, 126),
@@ -303,58 +303,31 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     end
     table.insert(postZList, START_Z + GALLERY_LEN + 4)
 
+    -- ── MURS VITRÉS — sans cadres, aspect épuré et moderne ──────────────
     for _, wallSide in ipairs({-1, 1}) do
         local wallX = wallSide * (CORRIDOR_W / 2)
         local sTag  = wallSide == -1 and "L" or "R"
 
-        -- Traverse basse (seuil métallique)
-        local rb = mp("RailBot_" .. sTag,
-            Vector3.new(POST_W, RAIL_H, FULL_WALL_LEN),
-            Vector3.new(wallX, FLOOR_Y + RAIL_H / 2, WALL_CZ),
-            COL_POST, Enum.Material.Metal)
-        rb.CanCollide = true
-
-        -- Traverse haute (linteau métallique)
-        local rt = mp("RailTop_" .. sTag,
-            Vector3.new(POST_W, RAIL_H, FULL_WALL_LEN),
-            Vector3.new(wallX, FLOOR_Y + WALL_H - RAIL_H / 2, WALL_CZ),
-            COL_POST, Enum.Material.Metal)
-        rt.CanCollide = true
-
-        -- Montants verticaux (colonnes)
-        for pi, pz in ipairs(postZList) do
-            local post = mp("Post_" .. sTag .. "_" .. pi,
-                Vector3.new(POST_W, WALL_H, POST_D),
-                Vector3.new(wallX, FLOOR_Y + WALL_H / 2, pz),
-                COL_POST, Enum.Material.Metal)
-            post.CanCollide = true
-        end
-
-        -- Panneaux de verre entre chaque paire de montants consécutifs
-        for gi = 1, #postZList - 1 do
-            local z1   = postZList[gi]
-            local z2   = postZList[gi + 1]
-            local gz   = (z1 + z2) / 2        -- centre du panneau (local Z)
-            local gLen = z2 - z1 - POST_D     -- longueur nette (hors montants)
-
-            if gLen > 0.5 then
-                local panel = mp("Glass_" .. sTag .. "_" .. gi,
-                    Vector3.new(0.3, GLASS_H, gLen),
-                    Vector3.new(wallX, FLOOR_Y + WALL_H / 2, gz),
-                    COL_GLASS, Enum.Material.Glass)
-                panel.Transparency = 0.55
-                panel.CastShadow   = false
-                panel.CanCollide   = true
-                panel.Reflectance  = 0.05
-            end
-        end
+        -- Un seul grand panneau de verre par côté (pas de rails, pas de montants)
+        local glassWall = mp("GlassWall_" .. sTag,
+            Vector3.new(0.4, WALL_H, FULL_WALL_LEN),
+            Vector3.new(wallX, FLOOR_Y + WALL_H / 2, WALL_CZ),
+            COL_GLASS, Enum.Material.Glass)
+        glassWall.Transparency = 0.5
+        glassWall.CastShadow   = false
+        glassWall.CanCollide   = true
+        glassWall.Reflectance  = 0.08
     end
 
-    -- Mur du fond : béton peint moderne (opaque — point focal de la galerie)
-    mp("WallBack",
-        Vector3.new(CORRIDOR_W + POST_W * 2, WALL_H, WALL_T),
+    -- Mur du fond : vitré également (cohérence visuelle)
+    local wallBack = mp("WallBack",
+        Vector3.new(CORRIDOR_W, WALL_H, 0.4),
         Vector3.new(0, FLOOR_Y + WALL_H / 2, START_Z + GALLERY_LEN + 4),
-        Color3.fromRGB(32, 34, 40), Enum.Material.SmoothPlastic)
+        COL_GLASS, Enum.Material.Glass)
+    wallBack.Transparency = 0.5
+    wallBack.CastShadow   = false
+    wallBack.CanCollide   = true
+    wallBack.Reflectance  = 0.08
 
     -- ── 3. PLAFOND (ROUGE, sans ombres) ────────────────────────────────────
     local ceiling = mp("GalleryCeiling",
@@ -415,36 +388,13 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             numLabel.TextStrokeTransparency = 0.8
             numLabel.Parent                 = numBillboard
 
-            -- Cadres en or
+            -- (Cadres supprimés — aspect épuré murs vitrés)
+
+            -- Coordonnées pour le panneau image (conservé sans cadre)
             local wallInnerX = side * (CORRIDOR_W / 2 - WALL_T - 0.05)
             local frameH  = 10
             local frameW  = 10
             local frameCY = FLOOR_Y + 9
-            local bT      = 0.75
-
-            local fTop = mp("GoldFrameTop_" .. i .. sideLabel,
-                Vector3.new(0.15, bT, frameW),
-                Vector3.new(wallInnerX, frameCY + (frameH - bT) / 2, placeZ),
-                COL_GOLD, Enum.Material.Metal)
-            fTop.CanCollide = false
-
-            local fBot = mp("GoldFrameBot_" .. i .. sideLabel,
-                Vector3.new(0.15, bT, frameW),
-                Vector3.new(wallInnerX, frameCY - (frameH - bT) / 2, placeZ),
-                COL_GOLD, Enum.Material.Metal)
-            fBot.CanCollide = false
-
-            local fLeft = mp("GoldFrameLeft_" .. i .. sideLabel,
-                Vector3.new(0.15, frameH - bT * 2, bT),
-                Vector3.new(wallInnerX, frameCY, placeZ - (frameW - bT) / 2),
-                COL_GOLD, Enum.Material.Metal)
-            fLeft.CanCollide = false
-
-            local fRight = mp("GoldFrameRight_" .. i .. sideLabel,
-                Vector3.new(0.15, frameH - bT * 2, bT),
-                Vector3.new(wallInnerX, frameCY, placeZ + (frameW - bT) / 2),
-                COL_GOLD, Enum.Material.Metal)
-            fRight.CanCollide = false
 
             -- Plaque d'identification
             local slotName = SLOT_NAMES[slotIndex] or ("Slot " .. slotIndex)
