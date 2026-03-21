@@ -16,6 +16,7 @@ local SpinResult = Events:WaitForChild("SpinResult")
 -- ══════════════════════════════════════════════════════════════════════════════
 local function getRarityColor(rarity: string): Color3
     local r = string.upper(tostring(rarity or ""))
+    if string.find(r, "ULTRA")                               then return Color3.fromRGB(255,  50,  50) end  -- ROUGE ULTRA
     if string.find(r, "EPIC")   or string.find(r, "PIQUE")  then return Color3.fromRGB(255,   0, 255) end  -- VIOLET
     if string.find(r, "LEGEND")                              then return Color3.fromRGB(255, 215,   0) end  -- DORÉ
     if string.find(r, "RARE")                                then return Color3.fromRGB(  0, 130, 255) end  -- BLEU
@@ -26,6 +27,7 @@ end
 
 local function getRarityLabel(rarity: string): string
     local r = string.upper(tostring(rarity or ""))
+    if string.find(r, "ULTRA")                               then return "ULTRA LÉGENDAIRE" end
     if string.find(r, "EPIC")   or string.find(r, "PIQUE")  then return "ÉPIQUE"    end
     if string.find(r, "LEGEND")                              then return "LÉGENDAIRE" end
     if string.find(r, "RARE")                                then return "RARE"       end
@@ -256,6 +258,25 @@ SpinResult.OnClientEvent:Connect(function(data)
     if not data.success then
         if data.reason == "coins" then
             showNoCoins()
+        elseif data.reason == "machine_full" then
+            -- Affiche une notification similaire pour machine pleine
+            local oldGui = playerGui:FindFirstChild("NoCoinsGui")
+            if oldGui then oldGui:Destroy() end
+            local sg = Instance.new("ScreenGui")
+            sg.Name = "NoCoinsGui"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true
+            sg.Parent = playerGui
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.new(0, 380, 0, 60); frame.AnchorPoint = Vector2.new(0.5, 0)
+            frame.Position = UDim2.new(0.5, 0, 0.12, 0)
+            frame.BackgroundColor3 = Color3.fromRGB(200, 120, 0); frame.BorderSizePixel = 0
+            frame.Parent = sg
+            Instance.new("UICorner", frame).CornerRadius = UDim.new(0.2, 0)
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -12, 1, 0); lbl.Position = UDim2.new(0, 6, 0, 0)
+            lbl.BackgroundTransparency = 1; lbl.Text = "Machine pleine ! Envoie tes Brainrots à ta base."
+            lbl.TextColor3 = Color3.new(1,1,1); lbl.Font = Enum.Font.GothamBold
+            lbl.TextScaled = true; lbl.Parent = frame
+            task.delay(3, function() if sg.Parent then sg:Destroy() end end)
         end
         return
     end

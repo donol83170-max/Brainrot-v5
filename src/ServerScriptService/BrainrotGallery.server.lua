@@ -82,17 +82,18 @@ local PEDESTAL_TOP_SHADES: {Color3} = {
     Color3.fromRGB(164, 164, 164),
 }
 
-local RARITY_PRIORITY: {[string]: number} = {ULTRA=5, LEGENDARY=4, MYTHIC=3, RARE=2, NORMAL=1}
+local RARITY_PRIORITY: {[string]: number} = {ULTRA_LEGENDARY=6, ULTRA=5, LEGENDARY=4, MYTHIC=3, EPIC=3, RARE=2, COMMON=1, NORMAL=1}
 -- Puissance générée par mème exposé (Coins/s ajoutés au revenu passif)
-local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, COMMON=2, RARE=5, EPIC=15, MYTHIC=10, LEGENDARY=25, ULTRA=50}
+local POWER_PER_RARITY: {[string]: number} = {NORMAL=1, COMMON=2, RARE=5, EPIC=15, MYTHIC=10, LEGENDARY=25, ULTRA=50, ULTRA_LEGENDARY=75}
 local RARITY_COLOR: {[string]: Color3} = {
-    NORMAL    = Color3.fromRGB(163, 162, 165),
-    COMMON    = Color3.fromRGB(120, 122, 126),
-    RARE      = Color3.fromRGB(  0, 162, 255),
-    EPIC      = Color3.fromRGB(255,   0, 255),
-    MYTHIC    = Color3.fromRGB(170,   0, 255),
-    LEGENDARY = Color3.fromRGB(255, 170,   0),
-    ULTRA     = Color3.fromRGB(255,   0, 127),
+    NORMAL          = Color3.fromRGB(163, 162, 165),
+    COMMON          = Color3.fromRGB(120, 122, 126),
+    RARE            = Color3.fromRGB(  0, 162, 255),
+    EPIC            = Color3.fromRGB(255,   0, 255),
+    MYTHIC          = Color3.fromRGB(170,   0, 255),
+    LEGENDARY       = Color3.fromRGB(255, 170,   0),
+    ULTRA           = Color3.fromRGB(255,   0, 127),
+    ULTRA_LEGENDARY = Color3.fromRGB(255,  50,  50),
 }
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -825,15 +826,69 @@ end
 local MAX_FIGURINE_DIM = 3.5   -- taille max sur n'importe quel axe (studs)
 
 local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)
-    local isHigh = rarity == "EPIC" or rarity == "LEGENDARY" or rarity == "ULTRA"
+    local isHigh = rarity == "EPIC" or rarity == "LEGENDARY" or rarity == "ULTRA" or rarity == "ULTRA_LEGENDARY"
+
     if isHigh then
         local light      = Instance.new("PointLight")
         light.Color      = rarityColor
-        light.Brightness = 1.5
-        light.Range      = 7
+        light.Brightness = if rarity == "ULTRA_LEGENDARY" then 3 else 1.5
+        light.Range      = if rarity == "ULTRA_LEGENDARY" then 12 else 7
         light.Parent     = root
     end
-    if rarity == "ULTRA" then
+
+    -- Aura VIOLET mouvante pour EPIC
+    if rarity == "EPIC" then
+        local pt               = Instance.new("ParticleEmitter")
+        pt.Texture             = "rbxassetid://299324419"
+        pt.Color               = ColorSequence.new(Color3.fromRGB(170, 0, 255))
+        pt.LightEmission       = 1
+        pt.LightInfluence      = 0
+        pt.Size                = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.3),
+            NumberSequenceKeypoint.new(0.5, 1.2),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pt.Transparency        = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.2),
+            NumberSequenceKeypoint.new(0.6, 0.4),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        pt.Speed               = NumberRange.new(2, 5)
+        pt.Acceleration        = Vector3.new(0, 8, 0)
+        pt.Lifetime            = NumberRange.new(0.5, 1.0)
+        pt.Rate                = 25
+        pt.LockedToPart        = true
+        pt.Enabled             = true
+        pt.Parent              = root
+    end
+
+    -- Aura JAUNE/OR intense pour LEGENDARY + ULTRA_LEGENDARY
+    if rarity == "LEGENDARY" or rarity == "ULTRA_LEGENDARY" then
+        local pt               = Instance.new("ParticleEmitter")
+        pt.Texture             = "rbxassetid://299324419"
+        pt.Color               = ColorSequence.new(Color3.fromRGB(255, 200, 0))
+        pt.LightEmission       = 1
+        pt.LightInfluence      = 0
+        pt.Size                = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.4),
+            NumberSequenceKeypoint.new(0.4, 1.8),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pt.Transparency        = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.1),
+            NumberSequenceKeypoint.new(0.6, 0.3),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        pt.Speed               = NumberRange.new(4, 8)
+        pt.Acceleration        = Vector3.new(0, 15, 0)
+        pt.Lifetime            = NumberRange.new(0.6, 1.2)
+        pt.Rate                = if rarity == "ULTRA_LEGENDARY" then 50 else 35
+        pt.LockedToPart        = true
+        pt.Enabled             = true
+        pt.Parent              = root
+    end
+
+    if rarity == "ULTRA" or rarity == "ULTRA_LEGENDARY" then
         local sp        = Instance.new("Sparkles")
         sp.SparkleColor = rarityColor
         sp.Parent       = root
@@ -1323,3 +1378,49 @@ end)
 -- Le futur système de roues appellera refreshGallery via ce hook global.
 _G.BrainrotGallery_Refresh = refreshGallery
 print("[BrainrotGallery] Hook _G.BrainrotGallery_Refresh expose pour le nouveau systeme de roues.")
+
+-- ── Hook : socles vides du joueur (pour WheelSystem / CarryManager) ──────────
+-- Retourne {slotIndex → topPart} pour chaque socle vide.
+_G.BrainrotGallery_GetEmptyPedestalTops = function(player: Player): {[number]: BasePart}
+    local plotIndex = plotAssignments[player.UserId]
+    if not plotIndex then return {} end
+    local state = plotState[plotIndex]
+    if not state then return {} end
+
+    local result: {[number]: BasePart} = {}
+    for slotIdx, refs in pairs(state.pedestalRefs) do
+        if not state.displayParts[slotIdx] then
+            result[slotIdx] = refs.top
+        end
+    end
+    return result
+end
+
+-- ── Hook : placement direct d'un item sur un socle précis ────────────────────
+-- Appelé par WheelSystem après le spin pour poser le brainrot gagné.
+_G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item: {Id: string, Name: string, Rarity: string})
+    local plotIndex = plotAssignments[player.UserId]
+    if not plotIndex then return end
+    local state = plotState[plotIndex]
+    if not state then return end
+
+    createFigurine(state, slotIndex, item)
+
+    local refs = state.pedestalRefs[slotIndex]
+    if refs then
+        local pps = POWER_PER_RARITY[item.Rarity] or 1
+        refs.powerLabel.Text       = "+" .. pps .. "⚡/s"
+        refs.powerLabel.TextColor3 = RARITY_COLOR[item.Rarity] or COL_GOLD
+        refs.nameLabel.Text        = item.Name
+        refs.nameLabel.TextColor3  = RARITY_COLOR[item.Rarity] or COL_GOLD
+    end
+
+    -- Hook QuestManager
+    if _G.QuestManager_OnDeposit then
+        task.spawn(_G.QuestManager_OnDeposit, player)
+    end
+
+    print(string.format("[BrainrotGallery] ForcePlace: %s dépôt '%s' (%s) sur slot %d",
+        player.Name, item.Name, item.Rarity, slotIndex))
+end
+print("[BrainrotGallery] Hooks GetEmptyPedestalTops + ForcePlace exposes.")

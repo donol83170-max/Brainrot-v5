@@ -33,10 +33,11 @@ local SpinResult = Events:WaitForChild("SpinResult")
 -- Jamais de fallback gris : rareté inconnue → orange vif pour diagnostiquer.
 local function getRarityColor(rarity: string): Color3
     local r = string.upper(rarity or "")
-    if r == "LEGENDARY" then return Color3.fromRGB(255, 215,   0) end  -- DORÉ
-    if r == "EPIC"      then return Color3.fromRGB(255,   0, 255) end  -- VIOLET
-    if r == "RARE"      then return Color3.fromRGB(  0, 130, 255) end  -- BLEU
-    if r == "COMMON"    then return Color3.fromRGB(  0, 255,   0) end  -- VERT
+    if r == "ULTRA_LEGENDARY" then return Color3.fromRGB(255,  50,  50) end  -- ROUGE
+    if r == "LEGENDARY"      then return Color3.fromRGB(255, 215,   0) end  -- DORÉ
+    if r == "EPIC"           then return Color3.fromRGB(255,   0, 255) end  -- VIOLET
+    if r == "RARE"           then return Color3.fromRGB(  0, 130, 255) end  -- BLEU
+    if r == "COMMON"         then return Color3.fromRGB(  0, 255,   0) end  -- VERT
     -- Rareté inconnue → orange vif = visible immédiatement en test
     return Color3.fromRGB(255, 120, 0)
 end
