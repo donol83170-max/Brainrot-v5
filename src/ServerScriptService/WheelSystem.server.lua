@@ -320,10 +320,10 @@ local MAX_SLOTS      = 6
 local SLOT_FLOOR_Y   = 0
 local SLOT_OFFSETS_Z: {number} = { -18, -30, -43, 18, 30, 43 }
 
-local PEDESTAL_H     = 3
-local PEDESTAL_TOP_H = 0.5
-local PEDESTAL_W     = 3.5
-local PEDESTAL_TOP_W = 4
+local PEDESTAL_H     = 4.5    -- Agrandi (+50%)
+local PEDESTAL_TOP_H = 0.75   -- Agrandi (+50%)
+local PEDESTAL_W     = 5.25   -- Agrandi (+50%)
+local PEDESTAL_TOP_W = 6      -- Agrandi (+50%)
 local PEDESTAL_SURF_Y = SLOT_FLOOR_Y + PEDESTAL_H + PEDESTAL_TOP_H  -- = 3.5
 
 -- Positions monde du dessus de chaque socle (où se posent les mini-clones)
@@ -605,7 +605,7 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
         local _, size = clone:GetBoundingBox()
         local maxDim  = math.max(size.X, size.Y, size.Z)
         if maxDim > 0 then
-            clone:ScaleTo(clone:GetScale() * (12 / maxDim))
+            clone:ScaleTo(clone:GetScale() * (18 / maxDim))  -- 18 studs max (+50%)
         end
     end)
 

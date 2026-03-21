@@ -54,8 +54,8 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- COULEURS
 -- ══════════════════════════════════════════════════════════════════════════════
-local COL_FLOOR      = Color3.fromRGB( 50,  50,  50)
-local COL_RED_LINE   = Color3.fromRGB(196,  40,  28)
+local COL_FLOOR      = Color3.fromRGB( 10,  40, 160)  -- Bleu profond
+local COL_RED_LINE   = Color3.fromRGB(240,  40,  40)  -- Rouge vif
 local COL_WALL_MID   = Color3.fromRGB( 27,  42,  31)
 local COL_WALL_LIGHT = Color3.fromRGB( 27,  42,  31)
 local COL_GOLD       = Color3.fromRGB(255, 215,   0)
@@ -114,9 +114,9 @@ end
 -- DIMENSIONS DE LA GALERIE
 -- ══════════════════════════════════════════════════════════════════════════════
 local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
-local PLACE_GAP   = 16         -- Espacement Z entre les socles
-local SIDE_DIST   = 16         -- Distance X du centre au socle
-local CORRIDOR_W  = 44         -- Largeur du couloir (X)
+local PLACE_GAP   = 28         -- Espacement Z entre les socles (agrandi)
+local SIDE_DIST   = 26         -- Distance X du centre au socle (reculé)
+local CORRIDOR_W  = 64         -- Largeur du couloir (X) (massivement élargi)
 local WALL_H      = 20         -- Hauteur des murs
 local WALL_T      = 2          -- Épaisseur des murs
 local FLOOR_Y     = 1          -- Y du sol
@@ -260,6 +260,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         p.Color         = color
         p.Material      = material
         p.Reflectance   = 0
+        p.CastShadow    = false -- Full-Bright : pas d'ombres dans la galerie
         p.TopSurface    = topSurf or Enum.SurfaceType.Smooth
         p.BottomSurface = Enum.SurfaceType.Smooth
         p.Parent        = folder
@@ -355,12 +356,13 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         Vector3.new(0, FLOOR_Y + WALL_H / 2, START_Z + GALLERY_LEN + 4),
         Color3.fromRGB(32, 34, 40), Enum.Material.SmoothPlastic)
 
-    -- ── 3. PLAFOND ────────────────────────────────────────────────────────────
+    -- ── 3. PLAFOND (ROUGE, sans ombres) ────────────────────────────────────
     local ceiling = mp("GalleryCeiling",
         Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
         Vector3.new(0, FLOOR_Y + WALL_H + 0.5, WALL_CZ),
-        Color3.fromRGB(40, 40, 40), Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
+        Color3.fromRGB(255, 0, 0), Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
     ceiling.Reflectance = 0
+    ceiling.CastShadow  = false
 
     -- Plafond centre à FLOOR_Y + WALL_H + 0.5, bottom à FLOOR_Y + WALL_H.
     -- La ligne doit être 0.05 SOUS le plafond pour éviter le Z-fighting.
@@ -823,7 +825,7 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- FIGURINES — modèle 3D depuis BrainrotModels, sinon cube de couleur
 -- ══════════════════════════════════════════════════════════════════════════════
-local MAX_FIGURINE_DIM = 3.5   -- taille max sur n'importe quel axe (studs)
+local MAX_FIGURINE_DIM = 5.25  -- taille max sur n'importe quel axe (studs) — agrandi +50%
 
 local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)
     local isHigh = rarity == "EPIC" or rarity == "LEGENDARY" or rarity == "ULTRA" or rarity == "ULTRA_LEGENDARY"
@@ -1022,7 +1024,7 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
                 end
             end
             -- Boost visuel ×2.25 (taille finale sur le socle)
-            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * 2.25) end)
+            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * 3.375) end)  -- ×2.25 × 1.5 = ×3.375 (+50%)
         end
 
         -- ── Orientation : face vers le couloir (axe Y uniquement) ────────────
@@ -1035,7 +1037,7 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
         local standCF = CFrame.Angles(0, yRot, 0)
 
         -- Position cible : 2 studs au-dessus du dessus du socle
-        local targetPos = (socleTopCF * CFrame.new(0, 2, 0)).Position
+        local targetPos = (socleTopCF * CFrame.new(0, 3, 0)).Position  -- rehaussé pour modèles +50%
         local targetCF  = CFrame.new(targetPos) * standCF
 
         if clone:IsA("Model") then

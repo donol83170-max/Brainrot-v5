@@ -159,29 +159,87 @@ local function showResult(data)
     rarityLbl.TextScaled             = true
     rarityLbl.Parent                 = rarityBadge
 
-    -- Image du mème
-    local imgFrame = Instance.new("Frame")
-    imgFrame.Size             = UDim2.new(0, 220, 0, 220)
-    imgFrame.AnchorPoint      = Vector2.new(0.5, 0)
-    imgFrame.Position         = UDim2.new(0.5, 0, 0, 114)
-    imgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
-    imgFrame.BorderSizePixel  = 0
-    imgFrame.Parent           = panel
-    Instance.new("UICorner", imgFrame).CornerRadius = UDim.new(0.08, 0)
+    -- ViewportFrame 3D du mème (remplace l'ImageLabel vide)
+    local vpFrame = Instance.new("ViewportFrame")
+    vpFrame.Size             = UDim2.new(0, 220, 0, 220)
+    vpFrame.AnchorPoint      = Vector2.new(0.5, 0)
+    vpFrame.Position         = UDim2.new(0.5, 0, 0, 114)
+    vpFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+    vpFrame.BorderSizePixel  = 0
+    vpFrame.Parent           = panel
+    Instance.new("UICorner", vpFrame).CornerRadius = UDim.new(0.08, 0)
 
-    local imgStroke = Instance.new("UIStroke")
-    imgStroke.Color     = rarityColor
-    imgStroke.Thickness = 3
-    imgStroke.Parent    = imgFrame
+    local vpStroke = Instance.new("UIStroke")
+    vpStroke.Color     = rarityColor
+    vpStroke.Thickness = 3
+    vpStroke.Parent    = vpFrame
 
-    local img = Instance.new("ImageLabel")
-    img.Size             = UDim2.new(0.9, 0, 0.9, 0)
-    img.AnchorPoint      = Vector2.new(0.5, 0.5)
-    img.Position         = UDim2.new(0.5, 0, 0.5, 0)
-    img.BackgroundTransparency = 1
-    img.Image            = "rbxassetid://" .. data.imageId
-    img.ScaleType        = Enum.ScaleType.Fit
-    img.Parent           = imgFrame
+    -- Cherche le modèle 3D dans BrainrotModels (direct ou sous-dossier)
+    local modelsFolder = ReplicatedStorage:FindFirstChild("BrainrotModels")
+    local vpClone: Instance? = nil
+    if modelsFolder then
+        local template = modelsFolder:FindFirstChild(data.memeName)
+        if not template then
+            for _, child in ipairs(modelsFolder:GetChildren()) do
+                if child:IsA("Model") or child:IsA("Folder") then
+                    local found = child:FindFirstChild(data.memeName)
+                    if found then template = found; break end
+                end
+            end
+        end
+        if template then
+            vpClone = template:Clone()
+            -- Ancrer toutes les parts
+            for _, p in ipairs((vpClone :: Instance):GetDescendants()) do
+                if p:IsA("BasePart") then
+                    (p :: BasePart).Anchored = true
+                end
+            end
+            (vpClone :: Instance).Parent = vpFrame
+
+            -- Centrer le modèle et configurer la caméra
+            local cam = Instance.new("Camera")
+            vpFrame.CurrentCamera = cam
+            cam.Parent = vpFrame
+
+            if (vpClone :: Instance):IsA("Model") then
+                local mdl = vpClone :: Model
+                local cf, size = mdl:GetBoundingBox()
+                local maxDim = math.max(size.X, size.Y, size.Z)
+                local dist = maxDim * 1.8
+                mdl:PivotTo(CFrame.new(0, 0, 0))
+                cam.CFrame = CFrame.new(Vector3.new(0, size.Y * 0.3, dist), Vector3.new(0, size.Y * 0.1, 0))
+            elseif (vpClone :: Instance):IsA("BasePart") then
+                local bp = vpClone :: BasePart
+                local maxDim = math.max(bp.Size.X, bp.Size.Y, bp.Size.Z)
+                local dist = maxDim * 1.8
+                bp.CFrame = CFrame.new(0, 0, 0)
+                cam.CFrame = CFrame.new(Vector3.new(0, 0, dist), Vector3.new(0, 0, 0))
+            end
+
+            -- Rotation idle dans le viewport
+            task.spawn(function()
+                while vpClone and (vpClone :: Instance).Parent do
+                    if (vpClone :: Instance):IsA("Model") then
+                        (vpClone :: Model):PivotTo((vpClone :: Model):GetPivot() * CFrame.Angles(0, math.rad(1.5), 0))
+                    end
+                    task.wait(0.03)
+                end
+            end)
+        end
+    end
+
+    -- Fallback : si pas de modèle 3D, affiche l'image (si dispo)
+    if not vpClone and data.imageId and data.imageId ~= 0 then
+        local img = Instance.new("ImageLabel")
+        img.Size             = UDim2.new(0.9, 0, 0.9, 0)
+        img.AnchorPoint      = Vector2.new(0.5, 0.5)
+        img.Position         = UDim2.new(0.5, 0, 0.5, 0)
+        img.BackgroundTransparency = 1
+        img.Image            = "rbxassetid://" .. data.imageId
+        img.ScaleType        = Enum.ScaleType.Fit
+        img.Parent           = vpFrame
+    end
 
     -- Nom du mème
     local nameLbl = Instance.new("TextLabel")
