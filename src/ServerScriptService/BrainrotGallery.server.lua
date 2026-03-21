@@ -970,14 +970,14 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
             pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * 2.25) end)
         end
 
-        -- ── Orientation : debout (axe Z) + face vers le couloir (axe Y) ──────
-        -- Étape 1 — Redressement : rotation +90° sur Z = modèle debout
-        --           (utilise Z et non X pour éviter de coucher sur le côté)
-        -- Étape 2 — Face au couloir : rotation Y selon le côté du socle
-        --   Slots impairs = côté gauche (X<0) → yRot = +90° (face vers +X = centre)
-        --   Slots pairs   = côté droit  (X>0) → yRot = -90° (face vers -X = centre)
-        local yRot  = (slotIndex % 2 == 1) and math.rad(90) or math.rad(-90)
-        local standCF = CFrame.Angles(0, 0, math.rad(-90)) * CFrame.Angles(0, yRot, 0)
+        -- ── Orientation : face vers le couloir (axe Y uniquement) ────────────
+        -- Les modèles Toolbox sont déjà debout → PAS de rotation Z.
+        -- On applique seulement une rotation Y pour que le modèle regarde
+        -- vers le centre de l'avenue (le couloir entre les deux rangées).
+        --   Slots impairs = côté nord → yRot = -90° (face vers -Z = centre)
+        --   Slots pairs   = côté sud → yRot = +90° (face vers +Z = centre)
+        local yRot  = (slotIndex % 2 == 1) and math.rad(-90) or math.rad(90)
+        local standCF = CFrame.Angles(0, yRot, 0)
 
         -- Position cible : 2 studs au-dessus du dessus du socle
         local targetPos = (socleTopCF * CFrame.new(0, 2, 0)).Position
@@ -1147,6 +1147,11 @@ local function refreshGallery(player: Player)
 
     print("[BrainrotGallery] Galerie #" .. plotIndex .. " maj pour " .. player.Name
         .. " (" .. #ownedItems .. " items, " .. totalPower .. "⚡/s)")
+
+    -- Hook quêtes : signaler le dépôt au QuestManager
+    if _G.QuestManager_OnDeposit then
+        task.spawn(_G.QuestManager_OnDeposit, player)
+    end
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════

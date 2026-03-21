@@ -315,6 +315,147 @@ tickSound.Volume = 0.5
 tickSound.Parent = machineBase
 
 -- ══════════════════════════════════════════════════════════════════════════════
+-- SLOTS — 6 SOCLES D'EXPOSITION (à côté de la machine)
+-- ══════════════════════════════════════════════════════════════════════════════
+local MAX_SLOTS      = 6
+local SLOT_FLOOR_Y   = 0
+local SLOT_OFFSETS_Z: {number} = { -18, -30, -43, 18, 30, 43 }
+
+local PEDESTAL_H     = 3
+local PEDESTAL_TOP_H = 0.5
+local PEDESTAL_W     = 3.5
+local PEDESTAL_TOP_W = 4
+local PEDESTAL_SURF_Y = SLOT_FLOOR_Y + PEDESTAL_H + PEDESTAL_TOP_H  -- = 3.5
+
+for i, dz in ipairs(SLOT_OFFSETS_Z) do
+    local cx = MACHINE_X
+    local cz = MACHINE_Z + dz
+
+    local col              = Instance.new("Part")
+    col.Name               = "SlotPedestal_" .. i
+    col.Size               = Vector3.new(PEDESTAL_W, PEDESTAL_H, PEDESTAL_W)
+    col.CFrame             = CFrame.new(cx, SLOT_FLOOR_Y + PEDESTAL_H / 2, cz)
+    col.Anchored           = true
+    col.CanCollide         = true
+    col.Material           = Enum.Material.SmoothPlastic
+    col.Color              = Color3.fromRGB(160, 10, 10)
+    col.TopSurface         = Enum.SurfaceType.Smooth
+    col.BottomSurface      = Enum.SurfaceType.Smooth
+    col.Parent             = wheelFolder
+
+    local plateau          = Instance.new("Part")
+    plateau.Name           = "SlotPlateTop_" .. i
+    plateau.Size           = Vector3.new(PEDESTAL_TOP_W, PEDESTAL_TOP_H, PEDESTAL_TOP_W)
+    plateau.CFrame         = CFrame.new(cx, PEDESTAL_SURF_Y - PEDESTAL_TOP_H / 2, cz)
+    plateau.Anchored       = true
+    plateau.CanCollide     = false
+    plateau.Material       = Enum.Material.Metal
+    plateau.Color          = Color3.fromRGB(255, 215, 0)
+    plateau.TopSurface     = Enum.SurfaceType.Smooth
+    plateau.BottomSurface  = Enum.SurfaceType.Smooth
+    plateau.Parent         = wheelFolder
+
+    local bb               = Instance.new("BillboardGui")
+    bb.Size                = UDim2.new(0, 44, 0, 26)
+    bb.StudsOffset         = Vector3.new(0, 3, 0)
+    bb.Adornee             = plateau
+    bb.AlwaysOnTop         = false
+    bb.MaxDistance         = 28
+    bb.Parent              = wheelFolder
+
+    local txt                      = Instance.new("TextLabel")
+    txt.Size                       = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency     = 1
+    txt.Text                       = tostring(i)
+    txt.TextColor3                 = Color3.fromRGB(255, 255, 255)
+    txt.Font                       = Enum.Font.GothamBlack
+    txt.TextScaled                 = true
+    txt.TextStrokeTransparency     = 0.4
+    txt.TextStrokeColor3           = Color3.new(0, 0, 0)
+    txt.Parent                     = bb
+end
+print(string.format("[WheelSystem] %d socles d'exposition créés", MAX_SLOTS))
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- MUR BACKDROP (derrière la machine, style Carpet en damier bleu)
+-- ══════════════════════════════════════════════════════════════════════════════
+do
+    local WALL_X     = MACHINE_X + 3.2 * SCALE + 15.3   -- dos machine + 15 studs de clearance
+    local WALL_Z_MIN = MACHINE_Z - 110
+    local WALL_Z_MAX = MACHINE_Z + 78
+    local WALL_Y_MIN = -0.2
+    local WALL_Y_MAX = 28
+
+    local COL_BLUE_LIGHT = Color3.fromRGB(0, 162, 255)
+    local COL_BLUE_DARK  = Color3.fromRGB(0,  85, 255)
+
+    -- Carpet est un MeshPart direct dans ReplicatedStorage
+    local t = ReplicatedStorage:WaitForChild("Carpet", 10) :: Instance?
+    local carpetTemplate: BasePart? = nil
+    if t and (t :: Instance):IsA("BasePart") then
+        carpetTemplate = t :: BasePart
+    end
+    if not carpetTemplate then
+        -- Fallback : tuile plate 4×0.4×4
+        local p = Instance.new("Part")
+        p.Name          = "Carpet_Fallback"
+        p.Size          = Vector3.new(4, 0.4, 4)
+        p.Anchored      = true
+        p.CanCollide    = false
+        p.Material      = Enum.Material.SmoothPlastic
+        p.TopSurface    = Enum.SurfaceType.Smooth
+        p.BottomSurface = Enum.SurfaceType.Smooth
+        p.CastShadow    = false
+        carpetTemplate  = p
+    end
+
+    do
+        local template = carpetTemplate :: BasePart
+        local tX = template.Size.X  -- 4
+        local tY = template.Size.Y  -- 0.4 (épaisseur → profondeur du mur)
+        local tZ = template.Size.Z  -- 4
+
+        -- Rotation 90° autour de Z : l'épaisseur (Y) devient la profondeur du mur
+        local wallRot = CFrame.Angles(0, 0, math.rad(90))
+
+        local wallFolder_      = Instance.new("Folder")
+        wallFolder_.Name       = "CasinoBackdrop"
+        wallFolder_.Parent     = wheelFolder
+
+        local nZ = math.ceil((WALL_Z_MAX - WALL_Z_MIN) / tZ)
+        local nY = math.ceil((WALL_Y_MAX - WALL_Y_MIN) / tX)
+
+        for iy = 0, nY - 1 do
+            for iz = 0, nZ - 1 do
+                local tileZ = WALL_Z_MIN + (iz + 0.5) * tZ
+                local tileY = WALL_Y_MIN + tX / 2 + iy * tX
+
+                local col = if (iy + iz) % 2 == 0 then COL_BLUE_LIGHT else COL_BLUE_DARK
+
+                local tile = template:Clone() :: BasePart
+                tile.Anchored      = true
+                tile.CanCollide    = false
+                tile.CanTouch      = false
+                tile.CanQuery      = false
+                tile.Massless      = true
+                tile.CastShadow    = false
+                tile.Color         = col
+                tile.CFrame        = CFrame.new(WALL_X, tileY, tileZ) * wallRot
+
+                for _, ch in ipairs(tile:GetChildren()) do
+                    if ch:IsA("Texture") or ch:IsA("Decal") then
+                        (ch :: Texture).Color3 = col
+                    end
+                end
+
+                tile.Parent = wallFolder_
+            end
+        end
+        print(string.format("[WheelSystem] Backdrop bleu : %d×%d = %d tuiles", nY, nZ, nY * nZ))
+    end
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
 -- LOGIQUE
 -- ══════════════════════════════════════════════════════════════════════════════
 local wheelLocked: boolean              = false
