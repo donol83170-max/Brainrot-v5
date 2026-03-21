@@ -31,14 +31,22 @@ task.spawn(function()
     -- ── Masquer les dalles de base (elles seront couvertes par les Carpet) ──
     -- Elles restent en mémoire mais invisibles ; la collision est portée
     -- par le CollisionFloor invisible créé dans LevelGenerator.
+    -- Masque TOUS les sols "natifs" : GrassBase (claude branch), GrassGround
+    -- (WorldAssets), Tile_X_Y (LevelGenerator LegoGround), Avenue, Road, Street.
+    -- Les tuiles Carpet générées ci-dessous les remplacent visuellement.
+    local function shouldHide(nm: string): boolean
+        return string.find(nm, "GRASSBASE")  ~= nil
+            or string.find(nm, "GRASSGROUND") ~= nil
+            or string.find(nm, "AVENUE")      ~= nil
+            or string.find(nm, "ROAD")        ~= nil
+            or string.find(nm, "STREET")      ~= nil
+            or string.find(nm, "TILE_")       ~= nil  -- LegoGround de LevelGenerator
+    end
+
     local function hideBasePlates()
         for _, inst in ipairs(Workspace:GetDescendants()) do
             if not inst:IsA("BasePart") then continue end
-            local nm = string.upper(inst.Name)
-            if  string.find(nm, "GRASSBASE")
-             or string.find(nm, "AVENUE")
-             or string.find(nm, "ROAD")
-             or string.find(nm, "STREET") then
+            if shouldHide(string.upper(inst.Name)) then
                 local bp = inst :: BasePart
                 bp.Transparency = 1
                 bp.CastShadow   = false
@@ -48,24 +56,17 @@ task.spawn(function()
 
     hideBasePlates()
 
-    -- Écoute les nouvelles dalles qui popent après le scan initial
     Workspace.DescendantAdded:Connect(function(inst: Instance)
         if not inst:IsA("BasePart") then return end
-        local nm = string.upper(inst.Name)
-        if  string.find(nm, "GRASSBASE")
-         or string.find(nm, "AVENUE")
-         or string.find(nm, "ROAD")
-         or string.find(nm, "STREET") then
+        if shouldHide(string.upper(inst.Name)) then
             (inst :: BasePart).Transparency = 1
             (inst :: BasePart).CastShadow   = false
         end
     end)
 
     -- ── Génération du sol complet en une passe ────────────────────────────
-    -- Bounds calées sur la grille LevelGenerator : tx/tz ∈ [-12, 12], TILE=32.
-    -- X : (-12×32) - 16 = -400  →  (12×32) + 16 + 32 = 432  (marge d'1 tuile)
-    -- Z : idem
-    -- surfY = 0.9 = top des GrassBase (center=0.5, height=0.8 → top=0.9).
+    -- surfY = 0.9 (top du GrassGround = 0, mais on garde 0.9 pour rester
+    -- au niveau de la galerie BrainrotGallery dont FLOOR_Y = 1).
     LegoRenderer.GenerateFloor(
         Workspace,
         -400, 432,   -- X : toute la carte + marge
