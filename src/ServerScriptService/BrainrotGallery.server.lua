@@ -10,10 +10,12 @@ local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local TweenService        = game:GetService("TweenService")
+local RunService          = game:GetService("RunService")
 
 local DataManager   = require(ServerScriptService:WaitForChild("DataManager"))
 local LootTables    = require(ReplicatedStorage:WaitForChild("LootTables"))
 local BrainrotData  = require(ReplicatedStorage:WaitForChild("BrainrotData"))
+local LegoRenderer  = require(ReplicatedStorage:WaitForChild("LegoRenderer"))
 
 print("--- DIAGNOSTIC BRAINROT --- BrainrotGallery.server.lua démarre")
 
@@ -231,9 +233,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     local playerName = player.Name
     local userId     = player.UserId
 
-    -- worldZ : convertit un Z « local » (référencé sur START_Z nord) en monde réel
-    -- • côté nord (zDir=+1) : worldZ(z) = z          (aucun changement)
-    -- • côté sud  (zDir=-1) : worldZ(z) = 220 - z    (miroir autour de Z=110)
     local function worldZ(localZ: number): number
         return baseEntranceZ + zDir * (localZ - START_Z)
     end
@@ -242,7 +241,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     folder.Name   = "BrainrotGallery_" .. tostring(userId)
     folder.Parent = mapFolder
 
-    -- Helper Part avec transform X+Z automatique
+    -- Helper : crée un Part ancré, sans ombre, parenté au folder
     local function mp(
         name    : string,
         size    : Vector3,
@@ -260,91 +259,128 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         p.Color         = color
         p.Material      = material
         p.Reflectance   = 0
-        p.CastShadow    = false -- Full-Bright : pas d'ombres dans la galerie
+        p.CastShadow    = false
         p.TopSurface    = topSurf or Enum.SurfaceType.Smooth
         p.BottomSurface = Enum.SurfaceType.Smooth
         p.Parent        = folder
         return p
     end
 
-    -- ── 1. SOL ────────────────────────────────────────────────────────────────
-    -- Légèrement surélevé (+0.1) par rapport à l'avenue pour éviter le Z-fighting.
-    mp("GalleryFloor",
-        Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y - 0.4, START_Z + GALLERY_LEN / 2),
-        COL_FLOOR, Enum.Material.DiamondPlate, Enum.SurfaceType.Smooth)
-
-    -- FLOOR_Y - 0.4 (centre sol) + 0.5 (demi-hauteur) = 1.1 (surface sol galerie)
-    -- La ligne doit être AU-DESSUS : 1.1 + 0.05 = FLOOR_Y + 0.15
-    mp("CenterLine",
-        Vector3.new(1.5, 0.1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y + 0.15, START_Z + GALLERY_LEN / 2),
-        COL_RED_LINE, Enum.Material.SmoothPlastic, Enum.SurfaceType.Smooth)
-
-    -- ── 2. MURS (SHOWROOM — BAIES VITRÉES) ──────────────────────────────────
     local FULL_WALL_LEN = GALLERY_LEN + 8
     local WALL_CZ       = START_Z + GALLERY_LEN / 2
 
-    -- Palette showroom
-    local COL_POST  = Color3.fromRGB(28, 30, 34)      -- métal anthracite quasi-noir
-    local COL_GLASS = Color3.fromRGB(155, 200, 235)   -- verre bleuté lumineux
-    local POST_W    = 1.8   -- largeur du montant perpendiculaire au mur (axe X)
-    local POST_D    = 1.5   -- épaisseur du montant dans l'axe du couloir (axe Z)
-    local RAIL_H    = 0.8   -- hauteur des rails horizontaux (traverse haut/bas)
-    local GLASS_H   = WALL_H - RAIL_H * 2 - 0.2  -- hauteur libre entre les rails
+    -- ── 1. SOL (BLEU) — Pavage avec le MeshPart Carpet du monde ────────────
+    -- Dalle invisible comme base de collision
+    local floorBase = mp("GalleryFloor",
+        Vector3.new(CORRIDOR_W, 1, FULL_WALL_LEN),
+        Vector3.new(0, FLOOR_Y - 0.4, WALL_CZ),
+        COL_FLOOR, Enum.Material.SmoothPlastic, Enum.SurfaceType.Smooth)
+    floorBase.Transparency = 1  -- invisible, juste collision
 
-    -- Positions Z locales (frame nord) des montants verticaux :
-    --   • 1 poteau à l'entrée (START_Z)
-    --   • 1 poteau entre chaque paire de cadres (i + 0.5) * PLACE_GAP
-    --   • 1 poteau au fond (START_Z + GALLERY_LEN + 4)
+    -- Pavage Carpet réel (bleu)
+    local floorSurfY = FLOOR_Y - 0.4 + 0.5  -- surface du sol = centre + demi-hauteur
+    local wz1 = worldZ(START_Z)
+    local wz2 = worldZ(START_Z + GALLERY_LEN + 8)
+    local floorFolder = LegoRenderer.GenerateFloor(
+        folder,
+        -CORRIDOR_W / 2 + offsetX, CORRIDOR_W / 2 + offsetX,
+        math.min(wz1, wz2), math.max(wz1, wz2),
+        floorSurfY
+    )
+    -- Teinter toutes les tuiles en bleu
+    if floorFolder then
+        floorFolder.Name = "FloorCarpet"
+        for _, tile in ipairs(floorFolder:GetChildren()) do
+            if tile:IsA("BasePart") then
+                (tile :: BasePart).Color = COL_FLOOR
+                for _, tex in ipairs(tile:GetChildren()) do
+                    if tex:IsA("Texture") then (tex :: Texture).Color3 = COL_FLOOR end
+                end
+            end
+        end
+    end
+
+    -- ── 2. PLAFOND (VERT) — Pavage Carpet identique au sol, sans ombres ─────
+    local ceilBase = mp("GalleryCeiling",
+        Vector3.new(CORRIDOR_W, 1, FULL_WALL_LEN),
+        Vector3.new(0, FLOOR_Y + WALL_H + 0.5, WALL_CZ),
+        Color3.fromRGB(0, 180, 0), Enum.Material.SmoothPlastic, Enum.SurfaceType.Smooth)
+    ceilBase.Transparency = 1  -- invisible, juste collision
+    ceilBase.CastShadow = false
+
+    local ceilSurfY = FLOOR_Y + WALL_H + 0.5 + 0.5  -- surface du plafond
+    local ceilFolder = LegoRenderer.GenerateFloor(
+        folder,
+        -CORRIDOR_W / 2 + offsetX, CORRIDOR_W / 2 + offsetX,
+        math.min(wz1, wz2), math.max(wz1, wz2),
+        ceilSurfY
+    )
+    if ceilFolder then
+        ceilFolder.Name = "CeilingCarpet"
+        for _, tile in ipairs(ceilFolder:GetChildren()) do
+            if tile:IsA("BasePart") then
+                (tile :: BasePart).Color = Color3.fromRGB(0, 180, 0);
+                (tile :: BasePart).CastShadow = false
+                for _, tex in ipairs(tile:GetChildren()) do
+                    if tex:IsA("Texture") then (tex :: Texture).Color3 = Color3.fromRGB(0, 180, 0) end
+                end
+            end
+        end
+    end
+
+    -- ── 3. MURS VITRÉS + PILIERS ────────────────────────────────────────────
+    local COL_POST  = Color3.fromRGB(28, 30, 34)
+    local COL_GLASS = Color3.fromRGB(155, 200, 235)
+    local POST_W    = 2
+    local POST_D    = 2
+
+    -- Positions Z locales des piliers
     local postZList: {number} = {START_Z}
     for i = 0, NUM_SIDES do
         table.insert(postZList, START_Z + (i + 0.5) * PLACE_GAP)
     end
     table.insert(postZList, START_Z + GALLERY_LEN + 4)
 
-    -- ── MURS VITRÉS — sans cadres, aspect épuré et moderne ──────────────
     for _, wallSide in ipairs({-1, 1}) do
         local wallX = wallSide * (CORRIDOR_W / 2)
         local sTag  = wallSide == -1 and "L" or "R"
 
-        -- Un seul grand panneau de verre par côté (pas de rails, pas de montants)
-        local glassWall = mp("GlassWall_" .. sTag,
-            Vector3.new(0.4, WALL_H, FULL_WALL_LEN),
-            Vector3.new(wallX, FLOOR_Y + WALL_H / 2, WALL_CZ),
-            COL_GLASS, Enum.Material.Glass)
-        glassWall.Transparency = 0.5
-        glassWall.CastShadow   = false
-        glassWall.CanCollide   = true
-        glassWall.Reflectance  = 0.08
+        -- Piliers structurels le long du mur
+        for pi, pZ in ipairs(postZList) do
+            local pillar = mp("Pillar_" .. sTag .. "_" .. pi,
+                Vector3.new(POST_W, WALL_H, POST_D),
+                Vector3.new(wallX, FLOOR_Y + WALL_H / 2, pZ),
+                COL_POST, Enum.Material.Metal)
+            pillar.CanCollide = true
+        end
+
+        -- Panneaux de verre entre chaque paire de piliers
+        for gi = 1, #postZList - 1 do
+            local z1 = postZList[gi] + POST_D / 2
+            local z2 = postZList[gi + 1] - POST_D / 2
+            local glassLen = z2 - z1
+            if glassLen > 0.5 then
+                local glass = mp("Glass_" .. sTag .. "_" .. gi,
+                    Vector3.new(0.4, WALL_H, glassLen),
+                    Vector3.new(wallX, FLOOR_Y + WALL_H / 2, (z1 + z2) / 2),
+                    COL_GLASS, Enum.Material.Glass)
+                glass.Transparency = 0.5
+                glass.CanCollide   = true
+                glass.Reflectance  = 0.08
+            end
+        end
     end
 
-    -- Mur du fond : vitré également (cohérence visuelle)
+    -- Mur du fond vitré
     local wallBack = mp("WallBack",
         Vector3.new(CORRIDOR_W, WALL_H, 0.4),
         Vector3.new(0, FLOOR_Y + WALL_H / 2, START_Z + GALLERY_LEN + 4),
         COL_GLASS, Enum.Material.Glass)
     wallBack.Transparency = 0.5
-    wallBack.CastShadow   = false
     wallBack.CanCollide   = true
     wallBack.Reflectance  = 0.08
 
-    -- ── 3. PLAFOND (ROUGE, sans ombres) ────────────────────────────────────
-    local ceiling = mp("GalleryCeiling",
-        Vector3.new(CORRIDOR_W, 1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y + WALL_H + 0.5, WALL_CZ),
-        Color3.fromRGB(255, 0, 0), Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
-    ceiling.Reflectance = 0
-    ceiling.CastShadow  = false
-
-    -- Plafond centre à FLOOR_Y + WALL_H + 0.5, bottom à FLOOR_Y + WALL_H.
-    -- La ligne doit être 0.05 SOUS le plafond pour éviter le Z-fighting.
-    mp("CeilingRedLine",
-        Vector3.new(1.5, 0.1, GALLERY_LEN + 8),
-        Vector3.new(0, FLOOR_Y + WALL_H - 0.05, WALL_CZ),
-        COL_RED_LINE, Enum.Material.SmoothPlastic)
-
-    -- ── 4. SOCLES D'EXPOSITION ────────────────────────────────────────────────
+    -- ── 4. SOCLES D'EXPOSITION (16 au total : 8 gauche + 8 droite) ──────────
     local pedestalRefs: {[number]: PedestalRef} = {}
 
     for i = 1, NUM_SIDES do
@@ -353,24 +389,27 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         for _, side in ipairs({-1, 1}) do
             local sideLabel = side == -1 and "L" or "R"
             local baseX     = side * SIDE_DIST
+            local slotIndex = (i - 1) * 2 + (side == -1 and 1 or 2)
 
+            -- Base du socle
             local base = mp("PedestalBase_" .. i .. sideLabel,
                 Vector3.new(7, 1.5, 7),
                 Vector3.new(baseX, FLOOR_Y + 0.75, placeZ),
                 PEDESTAL_BASE_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
 
+            -- Milieu du socle
             mp("PedestalMid_" .. i .. sideLabel,
                 Vector3.new(5, 1, 5),
                 Vector3.new(baseX, FLOOR_Y + 2, placeZ),
                 PEDESTAL_BASE_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
 
+            -- Dessus du socle
             local topPart = mp("PedestalTop_" .. i .. sideLabel,
                 Vector3.new(6, 0.5, 6),
                 Vector3.new(baseX, FLOOR_Y + 2.75, placeZ),
                 PEDESTAL_TOP_SHADES[i], Enum.Material.SmoothPlastic, Enum.SurfaceType.Studs)
 
-            local slotIndex = (i - 1) * 2 + (side == -1 and 1 or 2)
-
+            -- Numéro de slot
             local numBillboard = Instance.new("BillboardGui")
             numBillboard.Size        = UDim2.new(0, 60, 0, 30)
             numBillboard.StudsOffset = Vector3.new(0, 2, 0)
@@ -387,14 +426,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             numLabel.TextSize               = 22
             numLabel.TextStrokeTransparency = 0.8
             numLabel.Parent                 = numBillboard
-
-            -- (Cadres supprimés — aspect épuré murs vitrés)
-
-            -- Coordonnées pour le panneau image (conservé sans cadre)
-            local wallInnerX = side * (CORRIDOR_W / 2 - WALL_T - 0.05)
-            local frameH  = 10
-            local frameW  = 10
-            local frameCY = FLOOR_Y + 9
 
             -- Plaque d'identification
             local slotName = SLOT_NAMES[slotIndex] or ("Slot " .. slotIndex)
@@ -432,12 +463,11 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             nameLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
             nameLabel.Parent                 = sGui
 
-            -- Panneau image (fond du cadre)
-            local innerH = frameH - bT * 2
-            local innerW = frameW - bT * 2
+            -- Panneau image sur le mur (fond noir pour decal)
+            local wallInnerX = side * (CORRIDOR_W / 2 - WALL_T - 0.05)
             local imgPanel = mp("ImgPanel_" .. i .. sideLabel,
-                Vector3.new(0.12, innerH, innerW),
-                Vector3.new(wallInnerX, frameCY, placeZ),
+                Vector3.new(0.12, 10, 10),
+                Vector3.new(wallInnerX, FLOOR_Y + 9, placeZ),
                 Color3.fromRGB(20, 20, 20), Enum.Material.SmoothPlastic)
             imgPanel.CanCollide = false
 
@@ -447,10 +477,10 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             decal.Face    = side == -1 and Enum.NormalId.Right or Enum.NormalId.Left
             decal.Parent  = imgPanel
 
-            -- Label de puissance flottant au-dessus du cadre doré
+            -- Label puissance
             local powerBb = Instance.new("BillboardGui")
             powerBb.Size        = UDim2.new(0, 120, 0, 26)
-            powerBb.StudsOffset = Vector3.new(0, 6, 0)   -- 6 studs au-dessus du centre du cadre
+            powerBb.StudsOffset = Vector3.new(0, 6, 0)
             powerBb.Adornee     = imgPanel
             powerBb.AlwaysOnTop = false
             powerBb.MaxDistance = 35
@@ -469,36 +499,20 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
 
             pedestalRefs[slotIndex] = {top = topPart, nameLabel = nameLabel, decal = decal, powerLabel = powerLbl}
 
-            -- Spot au sol
-            local floorSpotPart = mp("FloorSpot_" .. i .. sideLabel,
-                Vector3.new(0.6, 0.3, 0.6),
-                Vector3.new(baseX - side * 4, FLOOR_Y + 0.15, placeZ),
-                Color3.fromRGB(30, 30, 30), Enum.Material.Metal)
-            floorSpotPart.CanCollide = false
-
-            local floorSpot = Instance.new("SpotLight")
-            floorSpot.Face       = Enum.NormalId.Top
-            floorSpot.Brightness = 1.5
-            floorSpot.Range      = 8
-            floorSpot.Angle      = 30
-            floorSpot.Color      = Color3.fromRGB(255, 240, 200)
-            floorSpot.Shadows    = true
-            floorSpot.Parent     = floorSpotPart
-
-            -- ── Plaque de récolte (Collector Plate) ──────────────────────────
-            local plateX = side * (SIDE_DIST - 4)   -- 4 studs vers le centre
+            -- ── ZONE DE RÉCOLTE (grand rectangle jaune) ─────────────────────
+            local plateX = side * (SIDE_DIST - 4)
             local plate  = Instance.new("Part")
             plate.Name      = "CollectorPlate_" .. i .. sideLabel
-            plate.Size      = Vector3.new(4, 0.2, 4)
+            plate.Size      = Vector3.new(10, 0.2, 10)
             plate.Position  = Vector3.new(plateX + offsetX, FLOOR_Y + 0.2, worldZ(placeZ))
             plate.Anchored  = true
-            plate.CanCollide = false   -- trigger zone : Touched fire sans bloquer le passage
+            plate.CanCollide = false
             plate.Material  = Enum.Material.Neon
-            plate.Color     = Color3.fromRGB(255, 215, 0)   -- jaune vif
+            plate.Color     = Color3.fromRGB(255, 215, 0)
             plate.CastShadow = false
             plate.Parent    = folder
 
-            -- Label dynamique au-dessus de la plaque
+            -- Label au-dessus de la zone
             local harvestBb = Instance.new("BillboardGui")
             harvestBb.Size        = UDim2.new(0, 120, 0, 30)
             harvestBb.StudsOffset = Vector3.new(0, 2.2, 0)
@@ -518,7 +532,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             harvestLbl.TextStrokeColor3       = Color3.new(0, 0, 0)
             harvestLbl.Parent                 = harvestBb
 
-            -- Particules de récolte (désactivées par défaut)
+            -- Particules
             local particles = Instance.new("ParticleEmitter")
             particles.Texture       = "rbxassetid://243160943"
             particles.LightEmission = 0.9
@@ -534,14 +548,14 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             particles.Enabled       = false
             particles.Parent        = plate
 
-            -- Son de récolte
+            -- Son
             local harvestSound = Instance.new("Sound")
             harvestSound.SoundId   = "rbxassetid://5153734135"
             harvestSound.Volume    = 0.7
             harvestSound.RollOffMaxDistance = 30
             harvestSound.Parent    = plate
 
-            -- Référence accumulateur
+            -- Accumulateur
             if not allAccumulators[plotIndex] then
                 allAccumulators[plotIndex] = {}
             end
@@ -555,7 +569,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
             }
             allAccumulators[plotIndex][slotIndex] = accRef
 
-            -- Connexion Touched : récolte uniquement par le propriétaire
+            -- Récolte au toucher (propriétaire uniquement)
             plate.Touched:Connect(function(hit)
                 if not hit.Parent then return end
                 local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
@@ -574,7 +588,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 accRef.accumulated = 0
                 accRef.label.Text  = "0 ⚡"
 
-                -- Ajouter au leaderstat ⚡ Power (monnaie secondaire)
                 local ls = pl:FindFirstChild("leaderstats")
                 local pv = ls and ls:FindFirstChild("⚡ Power")
                 if pv then pv.Value = pv.Value + amount end
@@ -582,13 +595,10 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
                 totalHarvested[pl.UserId] = (totalHarvested[pl.UserId] or 0) + amount
                 HarvestResult:FireClient(pl, amount, totalHarvested[pl.UserId])
 
-                -- Texte flottant 3D au-dessus de la plaque
                 showFloatingText(plate.Position + Vector3.new(0, 0.5, 0), amount)
 
-                -- Burst de particules jaunes + son
                 accRef.particles:Emit(30)
                 accRef.sound:Play()
-                -- Éclat de la plaque : légère surbrillance temporaire
                 plate.Color = Color3.fromRGB(255, 255, 100)
                 task.delay(0.3, function()
                     plate.Color = Color3.fromRGB(255, 215, 0)
@@ -597,16 +607,14 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
     end
 
-    -- ── 5. SEUIL D'ENTRÉE ────────────────────────────────────────────────────
-    -- Petite marche noire qui fait la transition propre entre route (Y=1.0)
-    -- et sol de galerie (Y=1.1). Épaisseur = 0.1, largeur = ouverture du couloir.
+    -- ── 5. SEUIL D'ENTRÉE ──────────────────────────────────────────────────
     local threshold = mp("EntryThreshold",
         Vector3.new(CORRIDOR_W, 0.1, 1),
         Vector3.new(0, FLOOR_Y + 0.05, START_Z - 0.5),
         Color3.fromRGB(15, 15, 15), Enum.Material.SmoothPlastic)
     threshold.CanCollide = false
 
-    -- ── 6. ENSEIGNE ──────────────────────────────────────────────────────────
+    -- ── 6. ENSEIGNE (GallerySignPlaque — CRITIQUE pour le client) ───────────
     local signPlaque = mp("GallerySignPlaque",
         Vector3.new(CORRIDOR_W - 4, 5, 3),
         Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 6),
@@ -621,7 +629,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
 
     local signSGui = Instance.new("SurfaceGui")
     signSGui.Name           = "GallerySignGui"
-    -- Nord : face -Z (vers la route), Sud : face +Z (vers la route)
     signSGui.Face           = zDir == 1 and Enum.NormalId.Front or Enum.NormalId.Back
     signSGui.CanvasSize     = Vector2.new(520, 100)
     signSGui.SizingMode     = Enum.SurfaceGuiSizingMode.FixedSize
@@ -643,11 +650,9 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     signLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
     signLabel.Parent                 = signSGui
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent       = signLabel
+    Instance.new("UICorner", signLabel).CornerRadius = UDim.new(0, 8)
 
-    -- ── 6. LAMPADAIRES D'ENTRÉE ───────────────────────────────────────────────
+    -- ── 7. LAMPADAIRES D'ENTRÉE ─────────────────────────────────────────────
     do
         local LAMP_POLE_COLOR = Color3.fromRGB(50, 50, 55)
         local LAMP_BULB_COLOR = Color3.fromRGB(255, 220, 120)
@@ -656,19 +661,17 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         for _, side in ipairs({-1, 1}) do
             local sLbl = side == -1 and "L" or "R"
             local lx   = side * (CORRIDOR_W / 2 + 1)
-            local lz   = START_Z - 4   -- worldZ() l'appliquera
+            local lz   = START_Z - 4
 
-            local pole = mp("EntryPole_" .. sLbl,
+            mp("EntryPole_" .. sLbl,
                 Vector3.new(1, poleH, 1),
                 Vector3.new(lx, FLOOR_Y + poleH / 2, lz),
-                LAMP_POLE_COLOR, Enum.Material.Metal)
-            pole.CanCollide = false
+                LAMP_POLE_COLOR, Enum.Material.Metal).CanCollide = false
 
-            local cap = mp("EntryLampCap_" .. sLbl,
+            mp("EntryLampCap_" .. sLbl,
                 Vector3.new(2.8, 0.5, 2.8),
                 Vector3.new(lx, FLOOR_Y + poleH + 0.25, lz),
-                LAMP_POLE_COLOR, Enum.Material.Metal)
-            cap.CanCollide = false
+                LAMP_POLE_COLOR, Enum.Material.Metal).CanCollide = false
 
             local bulb = mp("EntryLampBulb_" .. sLbl,
                 Vector3.new(2, 1.5, 2),
@@ -685,7 +688,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
     end
 
-    -- ── 7. LUMIÈRES DE PLAFOND ────────────────────────────────────────────────
+    -- ── 8. LUMIÈRES DE PLAFOND ──────────────────────────────────────────────
     for j = 1, NUM_SIDES do
         local lightZ    = START_Z + j * PLACE_GAP
         local lightPart = mp("CeilingLight_" .. j,
@@ -702,7 +705,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         pt.Parent     = lightPart
     end
 
-    -- ── 8. LUMIÈRES D'AMBIANCE ────────────────────────────────────────────────
+    -- ── 9. LUMIÈRES D'AMBIANCE ──────────────────────────────────────────────
     local edgeX = CORRIDOR_W / 2 - WALL_T - 4
     local midY  = FLOOR_Y + WALL_H / 2
 
@@ -728,36 +731,17 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         amb.CastShadow   = false
         amb.Parent       = folder
 
-        -- Lumière chaude principale
         local pl = Instance.new("PointLight")
         pl.Color      = Color3.fromRGB(255, 255, 255)
         pl.Brightness = 3.5
         pl.Range      = 25
         pl.Shadows    = false
         pl.Parent     = amb
-
-        -- Lumière froide bleue simulant le reflet des baies vitrées
-        local glassAmb = Instance.new("Part")
-        glassAmb.Name         = "GlassAmbient_" .. k
-        glassAmb.Size         = Vector3.new(0.2, 0.2, 0.2)
-        glassAmb.Position     = Vector3.new(pos.X + offsetX, pos.Y, pos.Z)
-        glassAmb.Anchored     = true
-        glassAmb.CanCollide   = false
-        glassAmb.Transparency = 1
-        glassAmb.CastShadow   = false
-        glassAmb.Parent       = folder
-
-        local bl = Instance.new("PointLight")
-        bl.Color      = Color3.fromRGB(155, 200, 255)
-        bl.Brightness = 0.6
-        bl.Range      = 12
-        bl.Shadows    = false
-        bl.Parent     = glassAmb
     end
 
-    -- Force l'ancrage de toutes les BaseParts
+    -- Ancrage final de toutes les BaseParts
     for _, v in pairs(folder:GetDescendants()) do
-        if v:IsA("BasePart") then v.Anchored = true end
+        if v:IsA("BasePart") then (v :: BasePart).Anchored = true end
     end
 
     local side_lbl = zDir == 1 and "Nord" or "Sud"
@@ -775,7 +759,37 @@ end
 -- ══════════════════════════════════════════════════════════════════════════════
 -- FIGURINES — modèle 3D depuis BrainrotModels, sinon cube de couleur
 -- ══════════════════════════════════════════════════════════════════════════════
-local MAX_FIGURINE_DIM = 5.25  -- taille max sur n'importe quel axe (studs) — agrandi +50%
+local MAX_FIGURINE_DIM = 5.25  -- legacy (non utilisé directement)
+local TARGET_HEIGHT    = 12   -- hauteur cible des figurines en studs
+
+-- Noms de parts à cacher (hitbox / cubes blancs)
+local HITBOX_NAMES: {[string]: boolean} = {
+    HumanoidRootPart = true, Root = true, Hitbox = true,
+    CollisionBox = true, Handle = true,
+}
+
+-- Rotation continue Heartbeat
+local SPIN_SPEED = 1.2  -- rad/s
+local spinningFigurines: {{instance: Instance, center: Vector3}} = {}
+
+-- Calcule le bas Y visuel d'un modèle (ignore les parts transparentes)
+local function getVisualMinY(inst: Instance): number
+    local minY = math.huge
+    local parts = inst:GetDescendants()
+    if inst:IsA("BasePart") and (inst :: BasePart).Transparency < 1 then
+        local p = inst :: BasePart
+        local bot = p.Position.Y - p.Size.Y / 2
+        if bot < minY then minY = bot end
+    end
+    for _, child in ipairs(parts) do
+        if child:IsA("BasePart") and (child :: BasePart).Transparency < 1 then
+            local bp = child :: BasePart
+            local bot = bp.Position.Y - bp.Size.Y / 2
+            if bot < minY then minY = bot end
+        end
+    end
+    return minY
+end
 
 local function addFigurineEffects(root: BasePart, rarityColor: Color3, rarity: string)
     local isHigh = rarity == "EPIC" or rarity == "LEGENDARY" or rarity == "ULTRA" or rarity == "ULTRA_LEGENDARY"
@@ -912,8 +926,15 @@ local function findBrainrotModel(name: string): Instance?
 end
 
 local function createFigurine(state: PlotState, slotIndex: number, itemData: any)
-    -- Détruire l'ancienne figurine (cube ou modèle) avant tout remplacement
+    -- Détruire l'ancienne figurine
     if state.displayParts[slotIndex] then
+        -- Retirer de la rotation
+        for idx = #spinningFigurines, 1, -1 do
+            if spinningFigurines[idx].instance == state.displayParts[slotIndex] then
+                table.remove(spinningFigurines, idx)
+                break
+            end
+        end
         (state.displayParts[slotIndex] :: Instance):Destroy()
         state.displayParts[slotIndex] = nil
     end
@@ -925,111 +946,160 @@ local function createFigurine(state: PlotState, slotIndex: number, itemData: any
     local topPart     = refs.top
     local rarityColor = RARITY_COLOR[itemData.Rarity] or RARITY_COLOR.NORMAL
 
-    -- CFrame du dessus du socle (surface sur laquelle le modèle est posé)
-    local socleTopCF = topPart.CFrame * CFrame.new(0, topPart.Size.Y / 2, 0)
+    -- Y absolu du dessus du socle
+    local socleTopY = topPart.Position.Y + topPart.Size.Y / 2
+    local socleX    = topPart.Position.X
+    local socleZ    = topPart.Position.Z
 
-    -- ── Cherche le vrai asset (insensible à la casse, tout type accepté) ───────
     local template = findBrainrotModel(itemData.Name)
 
     if template then
-        -- ── ASSET TOOLBOX (Model, MeshPart, Part, Folder…) ───────────────────
         local clone = template:Clone()
         clone.Name   = "Figurine_" .. slotIndex
+        clone.Parent = state.folder  -- parent AVANT PivotTo/ScaleTo
 
-        -- ★ PARENT EN PREMIER — le clone doit être dans le Workspace AVANT
-        --   tout PivotTo / ScaleTo, sinon Roblox l'ignore (reste dans nil)
-        clone.Parent = state.folder
+        -- ════════════════════════════════════════════════════════════════════
+        -- A. ANCRAGE + HITBOX INVISIBLE
+        -- ════════════════════════════════════════════════════════════════════
+        local primaryPart: BasePart? = clone:IsA("Model") and (clone :: Model).PrimaryPart or nil
 
-        -- FIX Gravité : ancrer TOUS les BasePart (clone lui-même s'il en est un)
         if clone:IsA("BasePart") then
-            (clone :: BasePart).Anchored   = true
+            (clone :: BasePart).Anchored   = true;
             (clone :: BasePart).CanCollide = false
         end
-        for _, part in pairs(clone:GetDescendants()) do
+        for _, part in ipairs(clone:GetDescendants()) do
             if part:IsA("BasePart") then
-                (part :: BasePart).Anchored   = true
-                (part :: BasePart).CanCollide = false
-            end
-        end
-
-        -- FIX Transparence : remettre à 0 les parts totalement invisibles
-        if clone:IsA("BasePart") and (clone :: BasePart).Transparency >= 1 then
-            (clone :: BasePart).Transparency = 0
-        end
-        for _, part in pairs(clone:GetDescendants()) do
-            if part:IsA("BasePart") and (part :: BasePart).Transparency >= 1 then
-                (part :: BasePart).Transparency = 0
-                warn(string.format("[BrainrotGallery] Part '%s' dans '%s' était Transparency=1 — corrigé",
-                    part.Name, itemData.Name))
-            end
-        end
-
-        -- Auto-scaling : contenir dans MAX_FIGURINE_DIM studs, puis boost ×1.5
-        if clone:IsA("Model") then
-            local ok, rawBB = pcall(function() return select(2, clone:GetBoundingBox()) end)
-            if ok and rawBB then
-                local maxDim = math.max((rawBB :: Vector3).X, (rawBB :: Vector3).Y, (rawBB :: Vector3).Z)
-                if maxDim > 0.01 and maxDim > MAX_FIGURINE_DIM then
-                    pcall(function() (clone :: Model):ScaleTo(MAX_FIGURINE_DIM / maxDim) end)
+                local bp = part :: BasePart
+                bp.Anchored   = true
+                bp.CanCollide = false
+                -- Cacher les hitbox / cubes blancs
+                if HITBOX_NAMES[bp.Name] or bp == primaryPart then
+                    bp.Transparency = 1
                 end
             end
-            -- Boost visuel ×2.25 (taille finale sur le socle)
-            pcall(function() (clone :: Model):ScaleTo((clone :: Model):GetScale() * 3.375) end)  -- ×2.25 × 1.5 = ×3.375 (+50%)
         end
 
-        -- ── Orientation : face vers le couloir (axe Y uniquement) ────────────
-        -- Les modèles Toolbox sont déjà debout → PAS de rotation Z.
-        -- On applique seulement une rotation Y pour que le modèle regarde
-        -- vers le centre de l'avenue (le couloir entre les deux rangées).
-        --   Slots impairs = côté nord → yRot = -90° (face vers -Z = centre)
-        --   Slots pairs   = côté sud → yRot = +90° (face vers +Z = centre)
-        local yRot  = (slotIndex % 2 == 1) and math.rad(-90) or math.rad(90)
-        local standCF = CFrame.Angles(0, yRot, 0)
+        -- ════════════════════════════════════════════════════════════════════
+        -- B. GARANTIR UN PRIMARY PART (visible de préférence)
+        -- ════════════════════════════════════════════════════════════════════
+        if clone:IsA("Model") then
+            local mdl = clone :: Model
+            if not mdl.PrimaryPart or (mdl.PrimaryPart :: BasePart).Transparency >= 1 then
+                local bestBp: BasePart? = nil
+                local bestVol = 0
+                for _, p in ipairs(mdl:GetDescendants()) do
+                    if p:IsA("BasePart") and (p :: BasePart).Transparency < 1 then
+                        local s = (p :: BasePart).Size
+                        local vol = s.X * s.Y * s.Z
+                        if vol > bestVol then bestVol = vol; bestBp = p :: BasePart end
+                    end
+                end
+                if not bestBp then
+                    bestBp = mdl:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+                end
+                if bestBp then mdl.PrimaryPart = bestBp end
+            end
+        end
 
-        -- Position cible : 2 studs au-dessus du dessus du socle
-        local targetPos = (socleTopCF * CFrame.new(0, 3, 0)).Position  -- rehaussé pour modèles +50%
-        local targetCF  = CFrame.new(targetPos) * standCF
+        -- ════════════════════════════════════════════════════════════════════
+        -- C. SCALING À 12 STUDS (hauteur visuelle)
+        -- ════════════════════════════════════════════════════════════════════
+        if clone:IsA("Model") then
+            local mdl = clone :: Model
+            -- Mesurer la hauteur visuelle (parts non-transparentes seulement)
+            local visMinY = math.huge
+            local visMaxY = -math.huge
+            for _, p in ipairs(mdl:GetDescendants()) do
+                if p:IsA("BasePart") and (p :: BasePart).Transparency < 1 then
+                    local bp = p :: BasePart
+                    local bot = bp.Position.Y - bp.Size.Y / 2
+                    local top = bp.Position.Y + bp.Size.Y / 2
+                    if bot < visMinY then visMinY = bot end
+                    if top > visMaxY then visMaxY = top end
+                end
+            end
+            local visHeight = visMaxY - visMinY
+            if visHeight > 0.01 then
+                local scaleFactor = TARGET_HEIGHT / visHeight
+                pcall(function() mdl:ScaleTo(scaleFactor) end)
+            end
+        elseif clone:IsA("BasePart") then
+            local bp = clone :: BasePart
+            if bp.Size.Y > 0.01 then
+                local s = TARGET_HEIGHT / bp.Size.Y
+                bp.Size = bp.Size * s
+            end
+        end
+
+        -- ════════════════════════════════════════════════════════════════════
+        -- D. PLACEMENT VISUEL — pieds sur le socle, PAS de GetBoundingBox Y
+        -- ════════════════════════════════════════════════════════════════════
+        -- Après le scale, recalculer le bas visuel
+        local visualMinY = getVisualMinY(clone)
+        if visualMinY == math.huge then visualMinY = socleTopY end  -- fallback
+
+        -- L'offset entre le pivot actuel et le bas visuel
+        local currentPivotY: number
+        if clone:IsA("Model") then
+            currentPivotY = (clone :: Model):GetPivot().Position.Y
+        elseif clone:IsA("BasePart") then
+            currentPivotY = (clone :: BasePart).Position.Y
+        else
+            currentPivotY = socleTopY
+        end
+
+        local pivotToBottom = currentPivotY - visualMinY
+        -- Le pivot doit être placé à socleTopY + pivotToBottom
+        local targetPivotY = socleTopY + pivotToBottom
+
+        -- Orientation : face vers le couloir
+        local yRot  = (slotIndex % 2 == 1) and math.rad(-90) or math.rad(90)
 
         if clone:IsA("Model") then
             local mdl = clone :: Model
-            -- FIX PrimaryPart : garantir qu'un PrimaryPart existe avant PivotTo
-            if not mdl.PrimaryPart then
-                local bp = mdl:FindFirstChildWhichIsA("BasePart", true)
-                if bp then
-                    mdl.PrimaryPart = bp :: BasePart
-                    warn(string.format("[BrainrotGallery] '%s' sans PrimaryPart — '%s' assigné automatiquement",
-                        itemData.Name, (bp :: BasePart).Name))
-                end
-            end
             if mdl.PrimaryPart then
-                mdl:PivotTo(targetCF)
+                mdl:PivotTo(CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0))
             else
-                mdl:MoveTo(targetPos)
-                warn(string.format("[BrainrotGallery] '%s' sans aucun BasePart — MoveTo de secours", itemData.Name))
+                mdl:MoveTo(Vector3.new(socleX, socleTopY + TARGET_HEIGHT / 2, socleZ))
             end
         elseif clone:IsA("BasePart") then
-            (clone :: BasePart).CFrame = targetCF
+            (clone :: BasePart).CFrame = CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0)
         else
             local bp = clone:FindFirstChildWhichIsA("BasePart", true)
-            if bp then (bp :: BasePart).CFrame = targetCF end
+            if bp then
+                (bp :: BasePart).CFrame = CFrame.new(socleX, targetPivotY, socleZ) * CFrame.Angles(0, yRot, 0)
+            end
         end
 
-        -- Effets visuels sur le BasePart le plus pertinent
-        local pp: BasePart? = if clone:IsA("BasePart") then clone :: BasePart
-                              elseif clone:IsA("Model")  then (clone :: Model).PrimaryPart
-                                                                or (clone :: Model):FindFirstChildOfClass("BasePart") :: BasePart?
-                              else clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+        -- ════════════════════════════════════════════════════════════════════
+        -- E. EFFETS VISUELS (aura, lumière, sparkles, billboard)
+        -- ════════════════════════════════════════════════════════════════════
+        local pp: BasePart? = nil
+        if clone:IsA("BasePart") then
+            pp = clone :: BasePart
+        elseif clone:IsA("Model") then
+            local mdl = clone :: Model
+            pp = mdl.PrimaryPart or mdl:FindFirstChildOfClass("BasePart") :: BasePart?
+        else
+            pp = clone:FindFirstChildWhichIsA("BasePart", true) :: BasePart?
+        end
         if pp then
             addFigurineEffects(pp :: BasePart, rarityColor, itemData.Rarity)
-            addFigurineBillboard(pp :: BasePart, 2.5, itemData.Name, rarityColor)
+            addFigurineBillboard(pp :: BasePart, 8, itemData.Name, rarityColor)
         end
 
         state.displayParts[slotIndex] = clone
-        print(string.format("[BrainrotGallery] ✓ Asset '%s' (%s) posé sur slot %d",
+
+        -- Enregistrer pour rotation continue
+        table.insert(spinningFigurines, {
+            instance = clone,
+            center   = Vector3.new(socleX, targetPivotY, socleZ),
+        })
+
+        print(string.format("[BrainrotGallery] Figurine '%s' (%s) posée sur slot %d — 12 studs",
             itemData.Name, clone.ClassName, slotIndex))
 
     else
-        -- Modèle absent de BrainrotModels → socle laissé vide, rien généré.
         warn(string.format("[BrainrotGallery] Modèle manquant pour : '%s' (slot %d) — socle vide.",
             itemData.Name, slotIndex))
     end
@@ -1376,3 +1446,31 @@ _G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item
         player.Name, item.Name, item.Rarity, slotIndex))
 end
 print("[BrainrotGallery] Hooks GetEmptyPedestalTops + ForcePlace exposes.")
+
+-- ── Rotation continue Heartbeat ─────────────────────────────────────────────
+RunService.Heartbeat:Connect(function(dt: number)
+    local angle = SPIN_SPEED * dt
+    for idx = #spinningFigurines, 1, -1 do
+        local entry = spinningFigurines[idx]
+        local inst  = entry.instance
+        if not inst or not inst.Parent then
+            table.remove(spinningFigurines, idx)
+            continue
+        end
+        local center = entry.center :: Vector3
+        if inst:IsA("Model") then
+            local mdl = inst :: Model
+            if mdl.PrimaryPart then
+                local cf      = mdl:GetPivot()
+                local rotOnly = cf - cf.Position
+                mdl:PivotTo(CFrame.new(center) * CFrame.Angles(0, angle, 0) * rotOnly)
+            end
+        elseif inst:IsA("BasePart") then
+            local bp      = inst :: BasePart
+            local cf      = bp.CFrame
+            local rotOnly = cf - cf.Position
+            bp.CFrame = CFrame.new(center) * CFrame.Angles(0, angle, 0) * rotOnly
+        end
+    end
+end)
+print("[BrainrotGallery] Rotation Heartbeat active — " .. SPIN_SPEED .. " rad/s")
