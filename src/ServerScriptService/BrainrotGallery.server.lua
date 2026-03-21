@@ -874,36 +874,32 @@ local function findBrainrotModel(name: string): Instance?
     local lowerName = string.lower(name)
     local best: Instance? = nil
     local bestCount = -1
-    local foundButRejected = false
 
+    -- Construit la liste des candidats : enfants directs + enfants de sous-conteneurs
+    -- (gère le cas où tous les modèles sont regroupés dans un seul .rbxm ex: "Brainrots")
+    local candidates: {Instance} = {}
     for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
-        local childLower = string.lower(child.Name)
-        if childLower == lowerName then
-            -- Correspondance de nom — on accepte TOUS les types
-            local n = #child:GetDescendants()
-            print(string.format("[BrainrotGallery] Candidat pour '%s' : '%s' (%s, %d descendants)",
-                name, child.Name, child.ClassName, n))
-            if n > bestCount then
-                bestCount = n
-                best      = child
-            end
-        else
-            -- Avertir si nom similaire (aide à repérer les fautes de frappe)
-            if string.find(childLower, lowerName, 1, true) or string.find(lowerName, childLower, 1, true) then
-                warn(string.format("[BrainrotGallery] Nom similaire : cherché='%s' / trouvé='%s' (%s) — faute de frappe ?",
-                    name, child.Name, child.ClassName))
+        table.insert(candidates, child)
+        if child:IsA("Model") or child:IsA("Folder") then
+            for _, grandchild in ipairs(child:GetChildren()) do
+                table.insert(candidates, grandchild)
             end
         end
     end
 
-    if best then
-        print(string.format("[BrainrotGallery] ✓ Sélectionné pour '%s' : '%s' (%s, %d descendants)",
-            name, (best :: Instance).Name, (best :: Instance).ClassName, bestCount))
-    else
-        warn(string.format("[BrainrotGallery] ✗ RAISON DU REJET : aucun enfant de BrainrotModels ne correspond au nom '%s' (insensible à la casse). Liste des enfants :", name))
-        for _, child in ipairs((brainrotModelsFolder :: Folder):GetChildren()) do
-            warn(string.format("   → '%s' (%s)", child.Name, child.ClassName))
+    for _, child in ipairs(candidates) do
+        local childLower = string.lower(child.Name)
+        if childLower == lowerName then
+            local n = #child:GetDescendants()
+            if n > bestCount then
+                bestCount = n
+                best      = child
+            end
         end
+    end
+
+    if not best then
+        warn(string.format("[BrainrotGallery] Modèle '%s' introuvable dans BrainrotModels (ni direct ni sous-conteneur).", name))
     end
     return best
 end
