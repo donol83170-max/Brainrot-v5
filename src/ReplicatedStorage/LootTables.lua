@@ -143,7 +143,7 @@ LootTables.Wheels = {
             { Id = "BombardiroCroc",   Name = "Bombardiro Crocodilo",       Rarity = "COMMON",    SegmentId = 2  },
             { Id = "BombombiniGus",    Name = "Bombombini Gusini",          Rarity = "COMMON",    SegmentId = 4  },
             { Id = "CappuccinoAss",    Name = "Cappuccino Assassino",       Rarity = "COMMON",    SegmentId = 5  },
-            { Id = "LirilaLarila",     Name = "Lirili Larila",              Rarity = "COMMON",    SegmentId = 7  },
+            { Id = "LirilaLarila",     Name = "Lirilì Larilà",              Rarity = "COMMON",    SegmentId = 7  },
             { Id = "SixSeven",         Name = "Six Seven",                  Rarity = "COMMON",    SegmentId = 9  },
             { Id = "Tralalero",        Name = "Tralalero Tralala",          Rarity = "COMMON",    SegmentId = 11 },
             { Id = "TrippiTroppi",     Name = "Trippi Troppi",              Rarity = "COMMON",    SegmentId = 13 },

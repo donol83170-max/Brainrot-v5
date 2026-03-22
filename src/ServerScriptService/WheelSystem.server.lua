@@ -46,8 +46,6 @@ local MachineUpdate = getOrCreateEvent("MachineUpdate")
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONFIG
 -- ══════════════════════════════════════════════════════════════════════════════
-local N_SEGMENTS      = 16
-local SEG_ANGLE       = 360 / N_SEGMENTS   -- 22.5° par segment
 local SPIN_COST       = 20
 local FULL_ROTATIONS  = 5
 local PHASE1_DURATION = 3.5
@@ -59,100 +57,101 @@ local MACHINE_X     = WHEEL_CENTER.X
 local MACHINE_Z     = WHEEL_CENTER.Z
 local SCALE         = 1.05
 
-local RARITY_COLORS = {
-    COMMON          = Color3.fromRGB(  0, 255,   0),
-    RARE            = Color3.fromRGB(  0, 130, 255),
-    EPIC            = Color3.fromRGB(255,   0, 255),
-    LEGENDARY       = Color3.fromRGB(255, 215,   0),
-    ULTRA_LEGENDARY = Color3.fromRGB(255,  50,  50),
-}
-
 -- ══════════════════════════════════════════════════════════════════════════════
--- POOLS DE RARETÉ
+-- CHARGEMENT DYNAMIQUE — TOUS les brainrots des packs
 -- ══════════════════════════════════════════════════════════════════════════════
-local POOL = {
-    COMMON = {
-        { itemId = "BallerinaCapp",   imageId = 0, name = "Ballerina Cappuccina" },
-        { itemId = "BombardiroCroc",  imageId = 0, name = "Bombardiro Crocodilo" },
-        { itemId = "BombombiniGus",   imageId = 0, name = "Bombombini Gusini"    },
-        { itemId = "CappuccinoAss",   imageId = 0, name = "Cappuccino Assassino" },
-        { itemId = "LirilaLarila",    imageId = 0, name = "Lirilì Larilà"        },
-        { itemId = "Tralalero",       imageId = 0, name = "Tralalero Tralala"    },
-        { itemId = "TrippiTroppi",    imageId = 0, name = "Trippi Troppi"        },
-    },
-    RARE = {
-        { itemId = "BrBrPatapim",     imageId = 0, name = "Brr Brr Patapim"      },
-        { itemId = "ChimpanziniBan",  imageId = 0, name = "Chimpanzini Bananini" },
-        { itemId = "Los67",           imageId = 0, name = "Los 67"               },
-        { itemId = "LosTralaleritos", imageId = 0, name = "Los Tralaleritos"     },
-    },
-    EPIC = {
-        { itemId = "TungTungSahur",   imageId = 0, name = "Tung Tung Tung Sahur" },
-        { itemId = "WOrL",            imageId = 0, name = "W or L"               },
-    },
-    LEGENDARY = {
-        { itemId = "Item67",          imageId = 0, name = "67"                   },
-    },
-    ULTRA_LEGENDARY = {
-        { itemId = "DragonCannell",   imageId = 0, name = "Dragon Cannelloni"    },
-        { itemId = "StrawberryEleph", imageId = 0, name = "Strawberry Elephant"  },
-    },
+local ALL_ITEMS: {{itemId: string, name: string, imageId: number}} = {}
+
+local BRAINROT_SOURCES = {
+    "Brainrots",
+    "BrainrotPack",
+    "Brainrot pack1",
+    "BrainrotModels",
 }
 
-local RARITY_WEIGHTS = {
-    { rarity = "COMMON",          weight = 595 },
-    { rarity = "RARE",            weight = 250 },
-    { rarity = "EPIC",            weight = 140 },
-    { rarity = "LEGENDARY",       weight =  10 },
-    { rarity = "ULTRA_LEGENDARY", weight =   5 },
-}
+-- Attendre que BrainrotModelsSetup fusionne les dossiers
+task.wait(2)
 
-local SEGMENTS = {
-    { rarity = "COMMON",          item = POOL.COMMON[1]          },
-    { rarity = "COMMON",          item = POOL.COMMON[2]          },
-    { rarity = "RARE",            item = POOL.RARE[1]            },
-    { rarity = "COMMON",          item = POOL.COMMON[3]          },
-    { rarity = "COMMON",          item = POOL.COMMON[4]          },
-    { rarity = "ULTRA_LEGENDARY", item = POOL.ULTRA_LEGENDARY[1] },
-    { rarity = "COMMON",          item = POOL.COMMON[5]          },
-    { rarity = "RARE",            item = POOL.RARE[2]            },
-    { rarity = "COMMON",          item = POOL.COMMON[6]          },
-    { rarity = "EPIC",            item = POOL.EPIC[1]            },
-    { rarity = "COMMON",          item = POOL.COMMON[7]          },
-    { rarity = "RARE",            item = POOL.RARE[3]            },
-    { rarity = "LEGENDARY",       item = POOL.LEGENDARY[1]       },
-    { rarity = "EPIC",            item = POOL.EPIC[2]            },
-    { rarity = "ULTRA_LEGENDARY", item = POOL.ULTRA_LEGENDARY[2] },
-    { rarity = "RARE",            item = POOL.RARE[4]            },
-}
-assert(#SEGMENTS == N_SEGMENTS, "SEGMENTS count mismatch")
+-- ── DIAGNOSTIC : lister tout le contenu de ReplicatedStorage ────────────────
+print("[WheelSystem] === DIAGNOSTIC ReplicatedStorage ===")
+for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+    local count = #child:GetChildren()
+    print(string.format("  → '%s' (%s) [%d enfants]", child.Name, child.ClassName, count))
+end
+print("[WheelSystem] === FIN DIAGNOSTIC ===")
 
-local SEGS_BY_RARITY: {[string]: {number}} = {
-    COMMON={}, RARE={}, EPIC={}, LEGENDARY={}, ULTRA_LEGENDARY={}
-}
-for idx, seg in ipairs(SEGMENTS) do
-    table.insert(SEGS_BY_RARITY[seg.rarity], idx)
+local seen: {[string]: boolean} = {}
+for _, sourceName in ipairs(BRAINROT_SOURCES) do
+    local source = ReplicatedStorage:FindFirstChild(sourceName)
+    if not source then
+        warn(string.format("[WheelSystem] Source '%s' introuvable", sourceName))
+        continue
+    end
+    print(string.format("[WheelSystem] Scan de '%s' (%s, %d enfants)...",
+        sourceName, source.ClassName, #source:GetChildren()))
+
+    local function scanContainer(container: Instance, depth: number)
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("Model") and not seen[child.Name] then
+                seen[child.Name] = true
+                table.insert(ALL_ITEMS, {
+                    itemId  = child.Name,
+                    name    = child.Name,
+                    imageId = 0,
+                })
+                print(string.format("[WheelSystem]   + Model '%s' (profondeur %d)", child.Name, depth))
+            elseif child:IsA("Folder") or child:IsA("Model") then
+                -- Récurser dans les Folders ET les Models conteneurs
+                scanContainer(child, depth + 1)
+            end
+        end
+    end
+    scanContainer(source, 0)
+end
+
+-- Fallback si aucun modèle trouvé
+if #ALL_ITEMS == 0 then
+    warn("[WheelSystem] AUCUN brainrot trouvé dans les sources ! Scan de TOUT ReplicatedStorage...")
+    -- Dernier recours : scanner TOUT ReplicatedStorage pour des Models
+    for _, child in ipairs(ReplicatedStorage:GetDescendants()) do
+        if child:IsA("Model") and not seen[child.Name] then
+            seen[child.Name] = true
+            table.insert(ALL_ITEMS, {
+                itemId  = child.Name,
+                name    = child.Name,
+                imageId = 0,
+            })
+            print(string.format("[WheelSystem]   + FALLBACK Model '%s' (path: %s)", child.Name, child:GetFullName()))
+        end
+    end
+end
+
+if #ALL_ITEMS == 0 then
+    warn("[WheelSystem] TOUJOURS AUCUN brainrot ! Ajout placeholder.")
+    table.insert(ALL_ITEMS, { itemId = "Unknown", name = "???", imageId = 0 })
+end
+
+-- Trier par nom pour un ordre stable sur la roue
+table.sort(ALL_ITEMS, function(a, b) return a.name < b.name end)
+
+local N_SEGMENTS = #ALL_ITEMS
+local SEG_ANGLE  = 360 / N_SEGMENTS
+
+-- Construire SEGMENTS (format attendu par le client)
+local SEGMENTS = {}
+for i, item in ipairs(ALL_ITEMS) do
+    SEGMENTS[i] = { rarity = "COMMON", item = item }
+end
+
+print(string.format("[WheelSystem] === %d brainrots chargés : ===", N_SEGMENTS))
+for i, item in ipairs(ALL_ITEMS) do
+    print(string.format("[WheelSystem]   [%d] %s", i, item.name))
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- TIRAGE PONDÉRÉ
+-- TIRAGE — probabilité égale, pas de rareté
 -- ══════════════════════════════════════════════════════════════════════════════
 math.randomseed(os.clock() * 1000)
-
-local function pickRarity(): string
-    local roll = math.random(1, 1000)
-    local cum  = 0
-    for _, entry in ipairs(RARITY_WEIGHTS) do
-        cum += entry.weight
-        if roll <= cum then return entry.rarity end
-    end
-    return "COMMON"
-end
-
-local function pickItem(rarity: string)
-    local pool = POOL[rarity]
-    return pool[math.random(1, #pool)]
-end
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CONSTRUCTION PHYSIQUE — STRUCTURE FIXE
@@ -564,26 +563,62 @@ local refreshMachineClones: (userId: number) -> ()
 
 -- ── Placement d'un mini-clone sur un socle ────────────────────────────────────
 -- Le clone est parenté dans miniClonesFolder, PAS dans casinoFolder.
-local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance?
-    local modelsFolder = ReplicatedStorage:FindFirstChild("BrainrotModels")
-    if not modelsFolder then return nil end
+local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string, itemId: string?): Instance?
+    print(string.format("[WheelSystem] spawnMiniCloneAtSlot(%d, '%s', '%s') — DÉBUT",
+        slotIdx, itemName, tostring(itemId)))
 
-    -- Recherche en profondeur (les modèles peuvent être dans un sous-dossier "Brainrots")
-    local template: Instance? = modelsFolder:FindFirstChild(itemName)
+    -- ── Recherche RÉCURSIVE dans tout ReplicatedStorage ──────────────────────
+    -- On cherche par nom exact (FindFirstChild récursif)
+    local template: Instance? = nil
+
+    -- Méthode 1 : FindFirstChild récursif dans les sources connues
+    local SEARCH_FOLDERS = {
+        ReplicatedStorage:FindFirstChild("Brainrots"),
+        ReplicatedStorage:FindFirstChild("BrainrotPack"),
+        ReplicatedStorage:FindFirstChild("Brainrot pack1"),
+        ReplicatedStorage:FindFirstChild("BrainrotModels"),
+    }
+
+    local searchNames = { itemName }
+    if itemId and itemId ~= "" and itemId ~= itemName then
+        table.insert(searchNames, itemId)
+    end
+
+    for _, folder in ipairs(SEARCH_FOLDERS) do
+        if not folder then continue end
+        for _, tryName in ipairs(searchNames) do
+            -- FindFirstChild(name, true) = recherche récursive native
+            local found = folder:FindFirstChild(tryName, true)
+            if found and found:IsA("Model") then
+                template = found
+                print(string.format("[WheelSystem]   TROUVÉ '%s' dans %s", tryName, folder.Name))
+                break
+            end
+        end
+        if template then break end
+    end
+
+    -- Méthode 2 : fallback sur TOUT ReplicatedStorage
     if not template then
-        for _, child in ipairs(modelsFolder:GetChildren()) do
-            if child:IsA("Model") or child:IsA("Folder") then
-                local found = child:FindFirstChild(itemName)
-                if found then
-                    template = found
-                    break
-                end
+        for _, tryName in ipairs(searchNames) do
+            local found = ReplicatedStorage:FindFirstChild(tryName, true)
+            if found and found:IsA("Model") then
+                template = found
+                print(string.format("[WheelSystem]   TROUVÉ (fallback global) '%s' → %s", tryName, found:GetFullName()))
+                break
             end
         end
     end
-    if not template or not template:IsA("Model") then return nil end
 
+    if not template then
+        warn(string.format("[WheelSystem] ❌ INTROUVABLE : '%s' (itemId='%s') — aucun Model de ce nom dans ReplicatedStorage",
+            itemName, tostring(itemId)))
+        return nil
+    end
+
+    -- ── Clonage ──────────────────────────────────────────────────────────────
     local clone = (template :: Model):Clone() :: Model
+    print(string.format("[WheelSystem]   Clone créé : '%s' (%d descendants)", clone.Name, #clone:GetDescendants()))
 
     for _, p in ipairs(clone:GetDescendants()) do
         if p:IsA("BasePart") then
@@ -597,21 +632,45 @@ local function spawnMiniCloneAtSlot(slotIdx: number, itemName: string): Instance
         end
     end
 
-    -- ▶ Parent EN PREMIER — GetBoundingBox exige que le modèle soit dans le DataModel
+    -- ▶ Parent dans miniClonesFolder (Workspace) — OBLIGATOIRE pour que le modèle soit visible
     clone.Parent = miniClonesFolder
+    print(string.format("[WheelSystem]   Parent → %s", miniClonesFolder:GetFullName()))
 
-    -- ── Scale proportionnel (12 studs max) ───────────────────────────────────
-    pcall(function()
+    -- ── Scale proportionnel (9 studs max) ────────────────────────────────────
+    local scaleOk, scaleErr = pcall(function()
         local _, size = clone:GetBoundingBox()
         local maxDim  = math.max(size.X, size.Y, size.Z)
+        print(string.format("[WheelSystem]   BoundingBox = (%.1f, %.1f, %.1f) max=%.1f", size.X, size.Y, size.Z, maxDim))
         if maxDim > 0 then
-            clone:ScaleTo(clone:GetScale() * (18 / maxDim))  -- 18 studs max (+50%)
+            clone:ScaleTo(clone:GetScale() * (9 / maxDim))
+        end
+    end)
+    if not scaleOk then
+        warn("[WheelSystem]   Scale ERREUR : " .. tostring(scaleErr))
+    end
+
+    -- ── Redresser si couché (plus grande dim ≠ Y) ──────────────────────────
+    pcall(function()
+        local _, size = clone:GetBoundingBox()
+        if size.X >= size.Y and size.X >= size.Z then
+            clone:PivotTo(clone:GetPivot() * CFrame.Angles(0, 0, math.rad(90)))
+        elseif size.Z >= size.Y and size.Z >= size.X then
+            clone:PivotTo(clone:GetPivot() * CFrame.Angles(math.rad(-90), 0, 0))
         end
     end)
 
-    -- ── Orientation : copie la rotation de la machine (pas de LookAt) ──────────
+    -- ── Position sur le socle ────────────────────────────────────────────────
     local spawnPos = SLOT_WORLD_POS[slotIdx]
+    if not spawnPos then
+        warn(string.format("[WheelSystem]   ❌ SLOT_WORLD_POS[%d] est nil ! MAX_SLOTS=%d", slotIdx, MAX_SLOTS))
+        clone:Destroy()
+        return nil
+    end
+
     clone:PivotTo(CFrame.new(spawnPos) * machineBase.CFrame.Rotation)
+    local finalPos = clone:GetPivot().Position
+    print(string.format("[WheelSystem]   ✅ Positionné slot %d → (%.1f, %.1f, %.1f)",
+        slotIdx, finalPos.X, finalPos.Y, finalPos.Z))
 
     -- ── Idle spin : rotation continue sur l'axe Y (effet showroom) ──────────
     task.spawn(function()
@@ -665,18 +724,19 @@ local function attachSlotPrompts(slotIdx: number, clone: Model, userId: number, 
             triggerPlayer.Name, itemName, rarity, slotIdx))
     end)
 
-    -- ── Prompt "Envoyer à la Base" (F) ───────────────────────────────────────
-    local ppSend                     = Instance.new("ProximityPrompt")
-    ppSend.ActionText                = "Envoyer à la Base"
-    ppSend.ObjectText                = itemName
-    ppSend.KeyboardKeyCode           = Enum.KeyCode.F
-    ppSend.HoldDuration              = 0.5
-    ppSend.MaxActivationDistance     = 12
-    ppSend.RequiresLineOfSight       = false
-    ppSend.UIOffset                  = Vector2.new(0, 60)
-    ppSend.Parent                    = anchor
+    -- ── Prompt "Téléporter à la Base" (F) ─────────────────────────────────────
+    -- Envoie le brainrot à la galerie ET téléporte le joueur à sa base
+    local ppTeleport                     = Instance.new("ProximityPrompt")
+    ppTeleport.ActionText                = "Téléporter à la Base"
+    ppTeleport.ObjectText                = itemName
+    ppTeleport.KeyboardKeyCode           = Enum.KeyCode.F
+    ppTeleport.HoldDuration              = 0.5
+    ppTeleport.MaxActivationDistance     = 12
+    ppTeleport.RequiresLineOfSight       = false
+    ppTeleport.UIOffset                  = Vector2.new(0, 60)
+    ppTeleport.Parent                    = anchor
 
-    ppSend.Triggered:Connect(function(triggerPlayer: Player)
+    ppTeleport.Triggered:Connect(function(triggerPlayer: Player)
         if triggerPlayer.UserId ~= userId then return end
         local userPending = pendingItems[userId]
         if not userPending or not userPending[slotIdx] then return end
@@ -696,25 +756,48 @@ local function attachSlotPrompts(slotIdx: number, clone: Model, userId: number, 
         DataManager.AddItem(triggerPlayer, { Id = itemId, Name = itemName, Rarity = rarity })
 
         -- Placement galerie + VFX
-        if _G.BrainrotGallery_GetEmptyPedestalTops and _G.BrainrotGallery_ForcePlace then
+        local placedSlotIdx: number? = nil
+        local hookExists = _G.BrainrotGallery_GetEmptyPedestalTops and _G.BrainrotGallery_ForcePlace
+        print(string.format("[WheelSystem] F pressé — hooks existent: %s", tostring(hookExists ~= nil)))
+
+        if hookExists then
             local emptySlots = _G.BrainrotGallery_GetEmptyPedestalTops(triggerPlayer) :: {[number]: BasePart}
+            local emptyCount = 0
+            for _ in pairs(emptySlots) do emptyCount += 1 end
+            print(string.format("[WheelSystem] Socles vides dans la base : %d", emptyCount))
+
             local firstIdx, firstTop = next(emptySlots)
             if firstIdx then
+                placedSlotIdx = firstIdx
+                print(string.format("[WheelSystem] Placement sur socle %d — item='%s'", firstIdx, itemName))
                 _G.BrainrotGallery_ForcePlace(triggerPlayer, firstIdx, {
                     Id     = itemId,
                     Name   = itemName,
                     Rarity = rarity,
                 })
                 SpawnFX.Play(firstTop, rarity, triggerPlayer)
+            else
+                warn("[WheelSystem] ❌ Aucun socle vide dans la base ! Le brainrot est sauvé dans l'inventaire uniquement.")
             end
+        else
+            warn("[WheelSystem] ❌ Hooks BrainrotGallery NON DISPONIBLES — BrainrotGallery n'a pas démarré ?")
         end
 
         -- Mise à jour client
         local updated = DataManager.GetData(triggerPlayer)
         if updated then UpdateClientData:FireClient(triggerPlayer, updated) end
 
-        print(string.format("[WheelSystem] %s → Envoyé à la Base '%s' (%s) depuis slot %d",
-            triggerPlayer.Name, itemName, rarity, slotIdx))
+        -- Téléporter le joueur sur le socle où le brainrot a été posé
+        local character = triggerPlayer.Character
+        if character and _G.BrainrotGallery_TeleportToPlot and placedSlotIdx then
+            _G.BrainrotGallery_TeleportToPlot(character, triggerPlayer.UserId, placedSlotIdx)
+            print(string.format("[WheelSystem] ✅ Joueur téléporté au socle %d de sa base", placedSlotIdx))
+        elseif not placedSlotIdx then
+            warn("[WheelSystem] Pas de téléportation — aucun socle n'a reçu le brainrot")
+        end
+
+        print(string.format("[WheelSystem] %s → '%s' envoyé à la base depuis slot machine %d",
+            triggerPlayer.Name, itemName, slotIdx))
     end)
 end
 
@@ -722,14 +805,20 @@ end
 refreshMachineClones = function(userId: number)
     clearMachineClones()
     local items = pendingItems[userId] or {}
+    print(string.format("[WheelSystem] refreshMachineClones(userId=%d) — %d items en attente", userId, #items))
     for i, entry in ipairs(items) do
-        local clone = spawnMiniCloneAtSlot(i, entry.item.name)
+        print(string.format("[WheelSystem]   Item %d : name='%s' itemId='%s'", i, entry.item.name, entry.item.itemId))
+        local clone = spawnMiniCloneAtSlot(i, entry.item.name, entry.item.itemId)
         if clone then
             machineClones[i] = clone :: Instance
             attachSlotPrompts(i, clone :: Model, userId, entry)
             applyAura(clone :: Model, entry.rarity)
+            print(string.format("[WheelSystem]   ✅ Clone %d placé avec succès", i))
+        else
+            warn(string.format("[WheelSystem]   ❌ Clone %d ÉCHOUÉ pour '%s'", i, entry.item.name))
         end
     end
+    print(string.format("[WheelSystem] refreshMachineClones terminé — %d clones actifs dans MiniClones", #miniClonesFolder:GetChildren()))
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -776,11 +865,10 @@ local function ActionSpin(player: Player)
     spinCooldowns[player.UserId] = now
     wheelLocked = true
 
-    -- 5. Tirage
-    local winRarity    = pickRarity()
-    local segsOfRarity = SEGS_BY_RARITY[winRarity]
-    local winSegIdx    = segsOfRarity[math.random(1, #segsOfRarity)]
+    -- 5. Tirage — probabilité égale parmi tous les brainrots
+    local winSegIdx    = math.random(1, N_SEGMENTS)
     local winItem      = SEGMENTS[winSegIdx].item
+    local winRarity    = "COMMON"
 
     -- 6. Ajout dans la file d'attente (le clone apparaît APRÈS la fin du spin)
     table.insert(userPending, { item = winItem, rarity = winRarity })
@@ -789,17 +877,8 @@ local function ActionSpin(player: Player)
     -- Compteur UI immédiat (le modèle reste caché jusqu'à la révélation)
     MachineUpdate:FireClient(player, { count = #userPending, max = MAX_SLOTS })
 
-    -- Badge légendaire
-    if winRarity == "LEGENDARY" or winRarity == "ULTRA_LEGENDARY" then
-        local ldEvent = Events:FindFirstChild("LegendaryDrop")
-        if ldEvent then ldEvent:FireAllClients(player, winItem.name) end
-        if _G.CheckLegendaryBadge then
-            task.spawn(_G.CheckLegendaryBadge, player, winItem.name)
-        end
-    end
-
-    print(string.format("[WheelSystem] %s → slot %d/%d : %s '%s' | seg%d",
-        player.Name, #userPending, MAX_SLOTS, winRarity, winItem.name, winSegIdx))
+    print(string.format("[WheelSystem] %s → slot %d/%d : '%s' | seg%d/%d",
+        player.Name, #userPending, MAX_SLOTS, winItem.name, winSegIdx, N_SEGMENTS))
 
     -- 7. Animation levier
     local angleVal   = Instance.new("NumberValue")
@@ -865,8 +944,5 @@ Players.PlayerRemoving:Connect(function(player: Player)
 end)
 
 print(string.format(
-    "[WheelSystem] Pret | CasinoMachine generee | %d socles | MiniClones isole | COMMON %.1f%% RARE %.1f%% EPIC %.1f%% LEG %.1f%% ULTRA %.1f%%",
-    MAX_SLOTS,
-    RARITY_WEIGHTS[1].weight / 10, RARITY_WEIGHTS[2].weight / 10,
-    RARITY_WEIGHTS[3].weight / 10, RARITY_WEIGHTS[4].weight / 10,
-    RARITY_WEIGHTS[5].weight / 10))
+    "[WheelSystem] Pret | CasinoMachine generee | %d socles | MiniClones isole | %d brainrots | proba egale",
+    MAX_SLOTS, N_SEGMENTS))

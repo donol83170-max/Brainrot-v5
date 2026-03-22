@@ -2,22 +2,51 @@
   "name": "BRAINROT_V5",
   "tree": {
     "$className": "DataModel",
+    "$ignoreUnknownInstances": true,
     "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
       "$path": "src/ReplicatedStorage"
     },
     "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
       "$path": "src/ServerScriptService"
     },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "$path": "src/ServerStorage"
+    },
     "StarterGui": {
+      "$className": "StarterGui",
+      "$ignoreUnknownInstances": true,
       "$path": "src/StarterGui"
     },
     "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
       "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
         "$path": "src/StarterPlayer/StarterPlayerScripts"
       }
     },
-    "ServerStorage": {
-      "$path": "src/ServerStorage"
+    "Workspace": {
+      "$className": "Workspace",
+      "$ignoreUnknownInstances": true
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$ignoreUnknownInstances": true
+    },
+    "SoundService": {
+      "$className": "SoundService",
+      "$ignoreUnknownInstances": true
+    },
+    "Teams": {
+      "$className": "Teams",
+      "$ignoreUnknownInstances": true
     }
   }
 }

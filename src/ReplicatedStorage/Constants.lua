@@ -18,7 +18,7 @@ Constants.COOLDOWNS = {
 }
 
 Constants.STARTING_STATS = {
-    GOLD = 50,    -- Assez pour 2 spins Roue 1 (20) dès le départ
+    GOLD = 10000, -- Capital de départ généreux
     XP = 0,
     TICKETS = 0,
 }
