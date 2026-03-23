@@ -1,89 +1,93 @@
-# Brainrot Gallery — Roblox Game
+# Brainrot V5 — Roblox Game
 
-Jeu Roblox synchronisé avec **Rojo**. Les joueurs collectent des brainrots via une machine de spin et les exposent dans leur base.
+## BASE ET SPIN PARFAITES — Point de reprise stable
+
+> **Ce commit est le point de reference.** Si un bug de base ou de spin apparait plus tard,
+> revenir ici avec `git log` pour retrouver l'etat qui marchait.
+
+---
+
+## Ce qui fonctionne
+
+### Machine de Spin (WheelSystem)
+- Charge **tous** les modeles brainrot dynamiquement depuis BrainrotModels
+- Scan recursif : conteneurs (5+ enfants) sont ouverts, les Models individuels sont des brainrots
+- Mini-clones sur les socles de la machine (9 studs max, auto-redresses)
+- **E** = porter le brainrot
+- **F** = envoyer le brainrot dans la base (le joueur reste a la machine)
+- Fallback : si aucun brainrot trouve dans les sources, scan tout ReplicatedStorage
+
+### Base joueur (BrainrotGallery)
+- **base.rbxm** = prefab de la base (10 socles)
+- Au demarrage : le script cherche le prefab partout (ReplicatedStorage, Workspace, ServerStorage)
+- Si trouve dans Workspace → le clone dans ReplicatedStorage, puis supprime l'original
+- **1 base clonee par joueur**, placee le long de l'avenue :
+  - Plots impairs → cote nord (Z=195)
+  - Plots pairs → cote sud (Z=25)
+  - Espacement X = 130 studs
+- Scan des socles : mots-cles (PedestalTop, Pedestal, Stand, Podium, Display, Socle, Plate)
+- Fallback : petites parts plates (hauteur <= 3, surface 2x2 a 12x12)
+- Figurines : 12.5 studs max, auto-redressees (rotation corrective si couchees)
+- Plaques de recolte **vertes** a cote de chaque socle → accumulent du power
+- Spawn joueur **devant la machine a spin** (X=30, Z=0)
+
+### Donnees joueur (DataManager)
+- DataStore `"Brainrot_v3"` — 10 000 Gold de depart
+- Sauvegarde : Gold, XP, Level, Tickets, TotalPower, Inventory, Collection
+- **Autosave toutes les 60s** + PlayerRemoving + BindToClose
+- TotalPower cumulatif entre sessions
+
+### Communication entre systemes (hooks _G)
+- `_G.BrainrotGallery_GetEmptyPedestalTops(player)` → socles vides
+- `_G.BrainrotGallery_ForcePlace(player, slotIndex, item)` → place brainrot + active recolte
+- `_G.BrainrotGallery_TeleportToPlot(character, userId, slotIndex)` → TP joueur au socle
+- `_G.BrainrotGallery_Refresh` → refresh galerie depuis inventaire
+
+### Monde (LevelGenerator)
+- Sol LEGO vert : 12x8 tuiles, CanCollide=true, Y=0.5
+- Montagnes, lampadaires, eclairage (ClockTime=14)
+
+---
 
 ## Architecture
 
 ```
 src/
-├── ReplicatedStorage/          -- Données partagées client/serveur
-│   ├── BrainrotModels/         -- Dossier unifié des modèles 3D (Brainrots.rbxm)
-│   ├── BrainrotPack.rbxm       -- Pack supplémentaire de modèles
-│   ├── base.rbxm               -- Prefab base joueur (apparaît comme "Base1" in-game)
-│   ├── Constants.lua           -- Constantes globales (GOLD=10000, TICKETS, XP...)
-│   ├── LootTables.lua          -- Tables de loot (non utilisé actuellement)
-│   ├── BrainrotData.lua        -- Métadonnées des brainrots
+├── ReplicatedStorage/
+│   ├── BrainrotModels/         -- Dossier unifie (Brainrots.rbxm)
+│   ├── BrainrotPack.rbxm       -- Pack supplementaire
+│   ├── base.rbxm               -- PREFAB BASE JOUEUR (10 socles)
+│   ├── Constants.lua           -- GOLD=10000, TICKETS, XP
+│   ├── BrainrotData.lua        -- Metadonnees brainrots
 │   └── LegoRenderer.lua        -- Rendu sol LEGO
 │
-├── ServerScriptService/        -- Scripts serveur
-│   ├── ServerMain.server.lua   -- Point d'entrée : WalkSpeed, PlayerAdded/Removing, SaveData
-│   ├── BrainrotModelsSetup.server.lua -- Fusionne Brainrots + BrainrotPack + "Brainrot pack1" → BrainrotModels
-│   ├── BrainrotGallery.server.lua     -- Galerie : clone Base1, scan socles, placement figurines, hooks _G
-│   ├── WheelSystem.server.lua         -- Machine de spin : charge TOUS les brainrots, tirage, socles machine, E/F
-│   ├── LevelGenerator.server.lua      -- Monde : montagnes, lampadaires, sol LEGO vert, éclairage
-│   └── DataManager.lua                -- DataStore "Brainrot_v3" : Gold, XP, Tickets, TotalPower, Inventory
+├── ServerScriptService/
+│   ├── ServerMain.server.lua           -- Entry point, WalkSpeed=32, autosave 60s
+│   ├── BrainrotModelsSetup.server.lua  -- Fusionne tous les packs → BrainrotModels
+│   ├── BrainrotGallery.server.lua      -- Clone base, socles, figurines, recolte, hooks
+│   ├── WheelSystem.server.lua          -- Machine spin, tirage, E/F prompts
+│   ├── LevelGenerator.server.lua       -- Montagnes, lampadaires, sol LEGO, eclairage
+│   ├── EconomyManager.server.lua       -- Leaderstats, revenu passif
+│   ├── DataManager.lua                 -- DataStore v3, CRUD inventaire/gold/power
+│   └── Communication.server.lua        -- RemoteEvents vente, donnees client
 │
-└── StarterPlayer/              -- Scripts client
-    └── StarterPlayerScripts/
+└── StarterPlayer/StarterPlayerScripts/
 ```
 
-## Systemes cles
+## Rojo — Regles
 
-### Machine de Spin (WheelSystem)
-- Charge **tous** les modeles brainrot dynamiquement (pas de limite, pas de rarete)
-- Sources : `Brainrots`, `BrainrotPack`, `Brainrot pack1`, `BrainrotModels`
-- Mini-clones affiches sur les socles de la machine (taille 9 studs max)
-- Auto-redressement : detecte si le modele est couche et le remet debout
-- Touche **E** : porter le brainrot jusqu'a la base
-- Touche **F** : teleporter le brainrot sur un socle vide de la base + TP joueur
-
-### Galerie / Base (BrainrotGallery)
-- Clone le prefab **"Base1"** (base.rbxm) depuis ReplicatedStorage pour chaque joueur
-- **ATTENTION** : le fichier s'appelle `base.rbxm` mais in-game le Model s'appelle `Base1` (capital B, suffixe 1)
-- `FindFirstChild` est **case-sensitive** : chercher "base1" ne trouve PAS "Base1"
-- Scan dynamique des socles : mots-cles (PedestalTop, Pedestal, Stand, Podium, Display, Socle, Plate) + fallback parts plates
-- 10 socles dans la base, chaque brainrot gagne prend le premier socle vide
-- Figurines redressees automatiquement (rotation corrective si couchees)
-- Taille figurines : 12.5 studs max (TARGET_SIZE)
-- Hooks exposes via `_G` pour communication WheelSystem → Gallery :
-  - `_G.BrainrotGallery_GetEmptyPedestalTops(player)` → socles vides
-  - `_G.BrainrotGallery_ForcePlace(player, slotIndex, item)` → placement direct
-  - `_G.BrainrotGallery_TeleportToPlot(character, userId, slotIndex)` → TP joueur
-
-### Donnees joueur (DataManager)
-- DataStore : `"Brainrot_v3"` (bump de v2 pour reset avec 10 000 Gold de depart)
-- Sauvegarde : Gold, XP, Level, Tickets, TotalPower, Inventory, Collection
-- TotalPower est **cumulatif** et persiste entre sessions
-- Sauvegarde auto sur PlayerRemoving + BindToClose
-
-### Monde (LevelGenerator)
-- Sol LEGO vert : grille 12x8 tuiles (50x50 studs), `CanCollide=true`, `Position Y=0.5`
-- Montagnes decoratives en arriere-plan
-- Lampadaires avec PointLight
-- Eclairage : ClockTime=14, Bloom faible, Atmosphere
-
-## Rojo / Sync — IMPORTANT
-
-- `default.project.json` : configuration Rojo
-- `$ignoreUnknownInstances: true` preserve les objets Studio non geres par Rojo
-- Les `.rbxm` dans les dossiers `$path` sont synchronises automatiquement
-- **base.rbxm** et **BrainrotPack.rbxm** : fichiers `.rbxm` dans ReplicatedStorage
-
-### Regles pour ne pas casser la synchro
-
-1. **NE JAMAIS modifier les scripts (.lua) dans Studio** — Rojo est la source de verite. Toute modification doit etre faite sur le disque (VS Code, etc.). Quand tu acceptes la synchro, Rojo ecrase les scripts Studio avec la version disque.
-2. **Les .rbxm sont en lecture seule** — Si tu modifies un modele dans Studio (ex: base, BrainrotPack), il faut **exporter vers le disque** (clic droit → Save to File) pour que Rojo le prenne en compte.
-3. **Les objets crees dans Studio sont preserves** — Grace a `$ignoreUnknownInstances: true`, tout ce que tu crees dans Studio (qui n'a pas de fichier correspondant sur le disque) est preserve lors de la synchro.
-4. **Ne renomme pas les .rbxm sur le disque** — Le nom du fichier = le nom de l'instance dans Roblox. `base.rbxm` → apparait comme "Base1" in-game (Rojo ajoute parfois un suffixe).
-5. **Sauvegarde auto** — Le serveur sauvegarde les donnees joueur toutes les 60s + a la deconnexion + a l'arret du serveur.
+1. **NE JAMAIS modifier les scripts dans Studio** — Rojo ecrase avec la version disque
+2. **base.rbxm et BrainrotPack.rbxm** declares explicitement dans `default.project.json`
+3. `$ignoreUnknownInstances: true` partout → objets Studio preserves
+4. **Autosave 60s** protege contre les crash/deconnexions
 
 ## Pieges connus
 
-| Piege | Detail |
-|-------|--------|
-| Case sensitivity | `FindFirstChild("base1")` ≠ `FindFirstChild("Base1")` — toujours verifier le nom exact in-game |
-| Brainrots couches | Beaucoup de modeles ont leur axe principal sur X ou Z — le code auto-redresse |
-| Sol vert traversable | Les tuiles doivent avoir `CanCollide=true` et `Position.Y=0.5` (top=1 stud) |
-| Luau syntax | `(expr).field = val` cause "Ambiguous syntax" — utiliser une variable intermediaire |
-| DataStore reset | Changer `DATASTORE_NAME` pour forcer un reset des donnees (ex: v2→v3) |
-| 0 socles | Si le prefab base n'est pas trouve → fallback folder vide → 0 pedestals → brainrots perdus |
+| Piege | Solution |
+|-------|----------|
+| base.rbxm pas dans ReplicatedStorage | Le script cherche partout (Workspace, ServerStorage) et la recupere |
+| FindFirstChild case-sensitive | "Base1" ≠ "base1" — le script essaie tous les noms |
+| Brainrots couches | Auto-redressement par detection d'axe |
+| 0 socles detectes | Fallback sur petites parts plates dans le prefab |
+| Conteneur vs brainrot | Model avec 5+ enfants = conteneur, pas un brainrot |
+| DataStore reset | Changer DATASTORE_NAME (ex: v3 → v4) |

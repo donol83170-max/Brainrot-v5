@@ -92,17 +92,19 @@ for _, sourceName in ipairs(BRAINROT_SOURCES) do
 
     local function scanContainer(container: Instance, depth: number)
         for _, child in ipairs(container:GetChildren()) do
-            if child:IsA("Model") and not seen[child.Name] then
+            local isModel = child:IsA("Model")
+            local childCount = #child:GetChildren()
+            -- Un Model avec beaucoup d'enfants Model est un CONTENEUR, pas un brainrot
+            local isContainer = (child:IsA("Folder")) or (isModel and childCount >= 5)
+            if isContainer then
+                scanContainer(child, depth + 1)
+            elseif isModel and not seen[child.Name] then
                 seen[child.Name] = true
                 table.insert(ALL_ITEMS, {
                     itemId  = child.Name,
                     name    = child.Name,
                     imageId = 0,
                 })
-                print(string.format("[WheelSystem]   + Model '%s' (profondeur %d)", child.Name, depth))
-            elseif child:IsA("Folder") or child:IsA("Model") then
-                -- Récurser dans les Folders ET les Models conteneurs
-                scanContainer(child, depth + 1)
             end
         end
     end
@@ -112,16 +114,19 @@ end
 -- Fallback si aucun modèle trouvé
 if #ALL_ITEMS == 0 then
     warn("[WheelSystem] AUCUN brainrot trouvé dans les sources ! Scan de TOUT ReplicatedStorage...")
-    -- Dernier recours : scanner TOUT ReplicatedStorage pour des Models
     for _, child in ipairs(ReplicatedStorage:GetDescendants()) do
         if child:IsA("Model") and not seen[child.Name] then
-            seen[child.Name] = true
-            table.insert(ALL_ITEMS, {
-                itemId  = child.Name,
-                name    = child.Name,
-                imageId = 0,
-            })
-            print(string.format("[WheelSystem]   + FALLBACK Model '%s' (path: %s)", child.Name, child:GetFullName()))
+            -- Ignorer les conteneurs (5+ enfants) et la base joueur
+            local childCount = #child:GetChildren()
+            local lowerName = string.lower(child.Name)
+            if childCount < 5 and not string.find(lowerName, "base") then
+                seen[child.Name] = true
+                table.insert(ALL_ITEMS, {
+                    itemId  = child.Name,
+                    name    = child.Name,
+                    imageId = 0,
+                })
+            end
         end
     end
 end

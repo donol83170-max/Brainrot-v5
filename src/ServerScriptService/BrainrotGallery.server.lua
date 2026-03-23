@@ -45,14 +45,74 @@ local eventsFolder  = ReplicatedStorage:WaitForChild("Events")
 local HarvestResult = eventsFolder:WaitForChild("HarvestResult")
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- NETTOYAGE AU DÉMARRAGE — supprime les bases orphelines/fantômes
+-- RÉCUPÉRATION DU PREFAB BASE — cherche partout AVANT nettoyage
 -- ══════════════════════════════════════════════════════════════════════════════
-for _, item in ipairs(Workspace:GetDescendants()) do
-    if item.Name:find("BrainrotGallery_") or item.Name:find("PlayerBase_") or item.Name:find("Base_") then
-        item:Destroy()
+local BASE_SEARCH_NAMES = { "Base1", "base", "base1", "BrainrotBase", "Steal A Brainrot Base" }
+local cachedBasePrefab: Instance? = nil
+
+-- 1. ReplicatedStorage
+for _, tryName in ipairs(BASE_SEARCH_NAMES) do
+    cachedBasePrefab = ReplicatedStorage:FindFirstChild(tryName)
+    if not cachedBasePrefab then cachedBasePrefab = ReplicatedStorage:FindFirstChild(tryName, true) end
+    if cachedBasePrefab then
+        print(string.format("[BrainrotGallery] Prefab base trouvé : '%s' dans %s", tryName, cachedBasePrefab:GetFullName()))
+        break
     end
 end
-print("[BrainrotGallery] Nettoyage des bases orphelines effectué.")
+
+-- 2. Workspace (avant nettoyage !)
+if not cachedBasePrefab then
+    for _, tryName in ipairs(BASE_SEARCH_NAMES) do
+        local found = Workspace:FindFirstChild(tryName, true)
+        if found then
+            -- Sauvegarder dans ReplicatedStorage avant de nettoyer Workspace
+            cachedBasePrefab = found:Clone()
+            cachedBasePrefab.Parent = ReplicatedStorage
+            print(string.format("[BrainrotGallery] Prefab '%s' récupéré de Workspace → sauvé dans ReplicatedStorage", tryName))
+            break
+        end
+    end
+end
+
+-- 3. Dernier recours : gros Model dans ReplicatedStorage
+if not cachedBasePrefab then
+    for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+        if child:IsA("Model") and #child:GetChildren() >= 20 then
+            cachedBasePrefab = child
+            print(string.format("[BrainrotGallery] Base détectée par taille : '%s' (%d enfants)", child.Name, #child:GetChildren()))
+            break
+        end
+    end
+end
+
+if cachedBasePrefab then
+    print(string.format("[BrainrotGallery] Prefab base prêt : '%s' (%d enfants)", cachedBasePrefab.Name, #cachedBasePrefab:GetChildren()))
+else
+    warn("[BrainrotGallery] ERREUR : Aucun prefab base trouvé nulle part !")
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- NETTOYAGE AU DÉMARRAGE — supprime les bases orphelines + la base originale Rojo
+-- ══════════════════════════════════════════════════════════════════════════════
+local BASE_CLEANUP_PATTERNS = { "BrainrotGallery_", "PlayerBase_", "Base_" }
+for _, item in ipairs(Workspace:GetChildren()) do
+    -- Supprimer les anciennes bases clonées
+    for _, pattern in ipairs(BASE_CLEANUP_PATTERNS) do
+        if item.Name:find(pattern) then
+            item:Destroy()
+            break
+        end
+    end
+end
+-- Supprimer la base originale de Workspace (celle posée par Rojo/Studio)
+for _, tryName in ipairs(BASE_SEARCH_NAMES) do
+    local original = Workspace:FindFirstChild(tryName)
+    if original then
+        print(string.format("[BrainrotGallery] Suppression base originale '%s' de Workspace", tryName))
+        original:Destroy()
+    end
+end
+print("[BrainrotGallery] Nettoyage effectué.")
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- DOSSIER MAP
@@ -194,68 +254,11 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     local targetZ = isNorth and FRONT_Z or SOUTH_Z
 
     -- ══════════════════════════════════════════════════════════════════════
-    -- CLONAGE DU PREFAB base.rbxm (apparaît comme "Base1" in-game)
+    -- CLONAGE DU PREFAB (récupéré au démarrage dans cachedBasePrefab)
     -- ══════════════════════════════════════════════════════════════════════
-    local BASE_NAMES = { "Base1", "base", "base1", "BrainrotBase", "Steal A Brainrot Base" }
-    local basePrefab: Instance? = nil
-
-    -- 1. Chercher dans ReplicatedStorage (direct + récursif)
-    for _, tryName in ipairs(BASE_NAMES) do
-        basePrefab = ReplicatedStorage:FindFirstChild(tryName)
-        if not basePrefab then basePrefab = ReplicatedStorage:FindFirstChild(tryName, true) end
-        if basePrefab then
-            print(string.format("[BrainrotGallery] Prefab '%s' trouvé dans %s", tryName, basePrefab:GetFullName()))
-            break
-        end
-    end
-
-    -- 2. Chercher PARTOUT dans le jeu (Workspace, ServerStorage, etc.)
-    if not basePrefab then
-        local searchIn = {
-            game:GetService("Workspace"),
-            game:GetService("ServerStorage"),
-            game:GetService("Lighting"),
-        }
-        for _, service in ipairs(searchIn) do
-            for _, tryName in ipairs(BASE_NAMES) do
-                basePrefab = service:FindFirstChild(tryName, true)
-                if basePrefab then
-                    print(string.format("[BrainrotGallery] Prefab '%s' trouvé dans %s", tryName, basePrefab:GetFullName()))
-                    break
-                end
-            end
-            if basePrefab then break end
-        end
-    end
-
-    -- 3. Dernier recours : scanner tout ReplicatedStorage pour un Model avec 30+ enfants (la base en a 41)
-    if not basePrefab then
-        for _, child in ipairs(ReplicatedStorage:GetChildren()) do
-            if child:IsA("Model") and #child:GetChildren() >= 20 then
-                basePrefab = child
-                print(string.format("[BrainrotGallery] Base détectée par taille : '%s' (%d enfants)", child.Name, #child:GetChildren()))
-                break
-            end
-        end
-    end
-
-    if not basePrefab then
-        warn("[BrainrotGallery] ERREUR : Prefab base introuvable nulle part !")
-        warn("[BrainrotGallery] Contenu de ReplicatedStorage :")
-        for _, child in ipairs(ReplicatedStorage:GetChildren()) do
-            warn(string.format("  → '%s' (%s) [%d enfants]", child.Name, child.ClassName, #child:GetChildren()))
-        end
-        warn("[BrainrotGallery] Contenu de Workspace :")
-        for _, child in ipairs(Workspace:GetChildren()) do
-            if child:IsA("Model") and #child:GetChildren() >= 5 then
-                warn(string.format("  → '%s' (%s) [%d enfants]", child.Name, child.ClassName, #child:GetChildren()))
-            end
-        end
-    end
-
     local baseClone: Model? = nil
-    if basePrefab then
-        local raw = basePrefab:Clone()
+    if cachedBasePrefab then
+        local raw = cachedBasePrefab:Clone()
 
         local mdl: Model
         if raw:IsA("Model") then
