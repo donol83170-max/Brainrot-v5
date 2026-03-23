@@ -39,4 +39,15 @@ game:BindToClose(function()
     end
 end)
 
+-- Sauvegarde automatique toutes les 60 secondes (protection contre crash/déco)
+task.spawn(function()
+    while true do
+        task.wait(60)
+        for _, player in ipairs(game.Players:GetPlayers()) do
+            DataManager.SaveData(player)
+        end
+        print("💾 [AutoSave] Sauvegarde auto de tous les joueurs")
+    end
+end)
+
 print("✅ [Wheel a Brainrot] Serveur prêt !")

@@ -62,12 +62,20 @@ src/
 - Lampadaires avec PointLight
 - Eclairage : ClockTime=14, Bloom faible, Atmosphere
 
-## Rojo / Sync
+## Rojo / Sync — IMPORTANT
 
 - `default.project.json` : configuration Rojo
 - `$ignoreUnknownInstances: true` preserve les objets Studio non geres par Rojo
 - Les `.rbxm` dans les dossiers `$path` sont synchronises automatiquement
 - **base.rbxm** et **BrainrotPack.rbxm** : fichiers `.rbxm` dans ReplicatedStorage
+
+### Regles pour ne pas casser la synchro
+
+1. **NE JAMAIS modifier les scripts (.lua) dans Studio** — Rojo est la source de verite. Toute modification doit etre faite sur le disque (VS Code, etc.). Quand tu acceptes la synchro, Rojo ecrase les scripts Studio avec la version disque.
+2. **Les .rbxm sont en lecture seule** — Si tu modifies un modele dans Studio (ex: base, BrainrotPack), il faut **exporter vers le disque** (clic droit → Save to File) pour que Rojo le prenne en compte.
+3. **Les objets crees dans Studio sont preserves** — Grace a `$ignoreUnknownInstances: true`, tout ce que tu crees dans Studio (qui n'a pas de fichier correspondant sur le disque) est preserve lors de la synchro.
+4. **Ne renomme pas les .rbxm sur le disque** — Le nom du fichier = le nom de l'instance dans Roblox. `base.rbxm` → apparait comme "Base1" in-game (Rojo ajoute parfois un suffixe).
+5. **Sauvegarde auto** — Le serveur sauvegarde les donnees joueur toutes les 60s + a la deconnexion + a l'arret du serveur.
 
 ## Pieges connus
 

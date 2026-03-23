@@ -727,7 +727,7 @@ local function attachSlotPrompts(slotIdx: number, clone: Model, userId: number, 
     -- ── Prompt "Téléporter à la Base" (F) ─────────────────────────────────────
     -- Envoie le brainrot à la galerie ET téléporte le joueur à sa base
     local ppTeleport                     = Instance.new("ProximityPrompt")
-    ppTeleport.ActionText                = "Téléporter à la Base"
+    ppTeleport.ActionText                = "Envoyer dans la Base"
     ppTeleport.ObjectText                = itemName
     ppTeleport.KeyboardKeyCode           = Enum.KeyCode.F
     ppTeleport.HoldDuration              = 0.5
@@ -787,13 +787,11 @@ local function attachSlotPrompts(slotIdx: number, clone: Model, userId: number, 
         local updated = DataManager.GetData(triggerPlayer)
         if updated then UpdateClientData:FireClient(triggerPlayer, updated) end
 
-        -- Téléporter le joueur sur le socle où le brainrot a été posé
-        local character = triggerPlayer.Character
-        if character and _G.BrainrotGallery_TeleportToPlot and placedSlotIdx then
-            _G.BrainrotGallery_TeleportToPlot(character, triggerPlayer.UserId, placedSlotIdx)
-            print(string.format("[WheelSystem] ✅ Joueur téléporté au socle %d de sa base", placedSlotIdx))
-        elseif not placedSlotIdx then
-            warn("[WheelSystem] Pas de téléportation — aucun socle n'a reçu le brainrot")
+        -- Le brainrot est envoyé dans la base, le joueur reste à la machine
+        if placedSlotIdx then
+            print(string.format("[WheelSystem] ✅ Brainrot '%s' envoyé sur socle %d de la base", itemName, placedSlotIdx))
+        else
+            warn("[WheelSystem] Pas de placement — aucun socle vide dans la base")
         end
 
         print(string.format("[WheelSystem] %s → '%s' envoyé à la base depuis slot machine %d",

@@ -518,7 +518,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         plate.Anchored  = true
         plate.CanCollide = false
         plate.Material  = Enum.Material.Neon
-        plate.Color     = Color3.fromRGB(255, 215, 0)
+        plate.Color     = Color3.fromRGB(0, 200, 80)
         plate.CastShadow = false
         plate.Parent    = folder
 
@@ -1175,7 +1175,14 @@ local function refreshGallery(player: Player)
 
     local totalPower = 0
 
-    for slotIndex = 1, NUM_SIDES * 2 do
+    -- Boucler sur le nombre réel de socles dans la base (ex: 10 socles dans Base1)
+    local maxSlots = 0
+    for idx in pairs(state.pedestalRefs) do
+        if idx > maxSlots then maxSlots = idx end
+    end
+    if maxSlots == 0 then maxSlots = NUM_SIDES * 2 end  -- fallback ancien système
+
+    for slotIndex = 1, maxSlots do
         local item = ownedItems[slotIndex]
         local refs = state.pedestalRefs[slotIndex]
         if refs then
@@ -1442,6 +1449,13 @@ _G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item
         refs.powerLabel.TextColor3 = RARITY_COLOR[item.Rarity] or COL_GOLD
         refs.nameLabel.Text        = item.Name
         refs.nameLabel.TextColor3  = RARITY_COLOR[item.Rarity] or COL_GOLD
+
+        -- Activer l'accumulation de puissance sur la plaque de récolte
+        local acc = allAccumulators[plotIndex] and allAccumulators[plotIndex][slotIndex]
+        if acc then
+            acc.rate = pps
+            acc.label.TextColor3 = RARITY_COLOR[item.Rarity] or Color3.fromRGB(0, 255, 100)
+        end
     end
 
     -- Hook QuestManager
@@ -1449,8 +1463,8 @@ _G.BrainrotGallery_ForcePlace = function(player: Player, slotIndex: number, item
         task.spawn(_G.QuestManager_OnDeposit, player)
     end
 
-    print(string.format("[BrainrotGallery] ForcePlace: %s dépôt '%s' (%s) sur slot %d",
-        player.Name, item.Name, item.Rarity, slotIndex))
+    print(string.format("[BrainrotGallery] ForcePlace: %s dépôt '%s' (%s) sur slot %d — power=%d⚡/s",
+        player.Name, item.Name, item.Rarity, slotIndex, POWER_PER_RARITY[item.Rarity] or 1))
 end
 -- ── Hook : téléporter un joueur sur le socle de sa base ─────────────────────
 -- Appelé par WheelSystem (touche F). Si slotIndex est fourni, TP sur ce socle précis.
