@@ -48,7 +48,7 @@ local HarvestResult = eventsFolder:WaitForChild("HarvestResult")
 -- NETTOYAGE AU DÉMARRAGE — supprime les bases orphelines/fantômes
 -- ══════════════════════════════════════════════════════════════════════════════
 for _, item in ipairs(Workspace:GetDescendants()) do
-    if item.Name:find("BrainrotGallery_") or item.Name:find("Base_") then
+    if item.Name:find("BrainrotGallery_") or item.Name:find("PlayerBase_") or item.Name:find("Base_") then
         item:Destroy()
     end
 end
@@ -74,7 +74,6 @@ end
 -- COULEURS
 -- ══════════════════════════════════════════════════════════════════════════════
 local COL_GOLD       = Color3.fromRGB(255, 215,   0)
-local COL_PLAQUE     = Color3.fromRGB( 20,  20,  25)
 
 local RARITY_PRIORITY: {[string]: number} = {ULTRA_LEGENDARY=6, ULTRA=5, LEGENDARY=4, MYTHIC=3, EPIC=3, RARE=2, COMMON=1, NORMAL=1}
 -- Puissance générée par mème exposé (×1000 multiplicateur)
@@ -104,17 +103,7 @@ end
 
 -- Images gérées dans ReplicatedStorage/BrainrotData.lua (plus de table locale)
 
--- ══════════════════════════════════════════════════════════════════════════════
--- DIMENSIONS DE LA GALERIE
--- ══════════════════════════════════════════════════════════════════════════════
-local NUM_SIDES   = 8          -- Socles de chaque côté (8×2 = 16 au total)
-local PLACE_GAP   = 28         -- Espacement Z entre les socles (agrandi)
-local SIDE_DIST   = 26         -- Distance X du centre au socle (reculé)
-local CORRIDOR_W  = 64         -- Largeur du couloir (X) (massivement élargi)
-local WALL_H      = 20         -- Hauteur des murs
-local WALL_T      = 2          -- Épaisseur des murs
 local FLOOR_Y     = 1          -- Y du sol
-local GALLERY_LEN = (NUM_SIDES + 1) * PLACE_GAP  -- 144 studs
 
 -- ── Placement des bases le long de l'avenue (axe X) ────────────────────────
 local GRASS_LEVEL  = 0.5    -- Altitude du sol (Y)
@@ -128,29 +117,10 @@ local START_Z_SOUTH =  78   -- Bord sud  de l'avenue
 -- ══════════════════════════════════════════════════════════════════════════════
 -- SYSTÈME DE PARCELLES — limité à 8 (4 de chaque côté)
 -- ══════════════════════════════════════════════════════════════════════════════
-local PLOT_STEP = CORRIDOR_W + 8   -- 52 studs entre galeries (axe X)
 local MAX_PLOTS = 8
 
 local nextPlotIndex                      = 1
 local plotAssignments: {[number]: number} = {}  -- [userId] = plotIndex
-
--- Retourne (offsetX, baseEntranceZ, zDir) pour un plotIndex donné
-local function getPlotParams(plotIndex: number): (number, number, number)
-    local isNorth = (plotIndex % 2 == 1)
-    local rank    = math.ceil(plotIndex / 2)  -- rang au sein du côté (1, 2, 3...)
-
-    local offsetX: number
-    if rank == 1 then
-        offsetX = 0
-    else
-        local n = math.ceil((rank - 1) / 2)
-        offsetX = ((rank - 1) % 2 == 1) and (n * PLOT_STEP) or (-n * PLOT_STEP)
-    end
-
-    local baseZ = isNorth and START_Z or START_Z_SOUTH
-    local zDir  = isNorth and 1 or -1
-    return offsetX, baseZ, zDir
-end
 
 -- État par parcelle
 type PedestalRef = {top: Part, nameLabel: TextLabel, decal: Decal, powerLabel: TextLabel}
@@ -220,69 +190,22 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     local isNorth = (plotIndex % 2 == 1)
     local slotCol = math.floor((plotIndex - 1) / 2)  -- 0,0,1,1,2,2,3,3
 
-    -- Bases réparties est-ouest (axe X), une rangée de chaque côté de l'avenue
-    local targetX       = (slotCol - 1.5) * ESPACEMENT_X   -- centré sur X=0
-    local targetZ       = isNorth and FRONT_Z or SOUTH_Z
-    local offsetX       = targetX
-    local baseEntranceZ = targetZ
-    local zDir          = isNorth and -1 or 1  -- nord ouvre vers l'avenue (-Z), sud vers +Z
-
-    local function worldZ(localZ: number): number
-        return baseEntranceZ + zDir * (localZ - START_Z)
-    end
-
-    -- ── MARQUEUR DE DIAGNOSTIC INCONDITIONNEL ────────────────────────────────
-    -- Cube magenta + label visible même si le prefab est absent
-    do
-        local dbgCube = Instance.new("Part")
-        dbgCube.Name         = "DiagMarker_" .. plotIndex
-        dbgCube.Size         = Vector3.new(6, 6, 6)
-        dbgCube.CFrame       = CFrame.new(targetX, GRASS_LEVEL + 30, targetZ)
-        dbgCube.Anchored     = true
-        dbgCube.CanCollide   = false
-        dbgCube.Transparency = 0
-        dbgCube.Color        = Color3.fromRGB(255, 0, 255)
-        dbgCube.Material     = Enum.Material.Neon
-        dbgCube.Parent       = galleriesFolder
-
-        local dbgBb = Instance.new("BillboardGui")
-        dbgBb.Adornee     = dbgCube
-        dbgBb.Size        = UDim2.new(0, 220, 0, 90)
-        dbgBb.StudsOffset = Vector3.new(0, 7, 0)
-        dbgBb.AlwaysOnTop = true
-        dbgBb.MaxDistance = 3000
-        dbgBb.Parent      = dbgCube
-
-        local dbgLbl = Instance.new("TextLabel")
-        dbgLbl.Size                   = UDim2.new(1, 0, 1, 0)
-        dbgLbl.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
-        dbgLbl.BackgroundTransparency = 0.2
-        dbgLbl.Text                   = string.format("BASE %d\nX=%.0f Z=%.0f", plotIndex, targetX, targetZ)
-        dbgLbl.TextColor3             = Color3.fromRGB(255, 255, 0)
-        dbgLbl.Font                   = Enum.Font.GothamBlack
-        dbgLbl.TextScaled             = true
-        dbgLbl.Parent                 = dbgBb
-
-        print(string.format("[BrainrotGallery] DIAG BASE %d → X=%.0f Z=%.0f (nord=%s col=%d)",
-            plotIndex, targetX, targetZ, tostring(isNorth), slotCol))
-    end
+    local targetX = (slotCol - 1.5) * ESPACEMENT_X
+    local targetZ = isNorth and FRONT_Z or SOUTH_Z
 
     -- ══════════════════════════════════════════════════════════════════════
-    -- CLONAGE DU PREFAB "Steal A Brainrot Base"
-    -- GetBoundingBox appliqué UNIQUEMENT sur le Model cloné, jamais sur folder.
+    -- CLONAGE DU PREFAB base.rbxm (apparaît comme "Base1" in-game)
     -- ══════════════════════════════════════════════════════════════════════
-
-    -- Recherche du prefab base : tous les noms possibles
     local BASE_NAMES = { "Base1", "base", "base1", "BrainrotBase", "Steal A Brainrot Base" }
     local basePrefab: Instance? = nil
 
-    -- 1. Recherche directe au premier niveau
     for _, tryName in ipairs(BASE_NAMES) do
         basePrefab = ReplicatedStorage:FindFirstChild(tryName)
-        if basePrefab then break end
+        if basePrefab then
+            print(string.format("[BrainrotGallery] Prefab '%s' trouvé !", tryName))
+            break
+        end
     end
-
-    -- 2. Recherche récursive
     if not basePrefab then
         for _, tryName in ipairs(BASE_NAMES) do
             basePrefab = ReplicatedStorage:FindFirstChild(tryName, true)
@@ -294,7 +217,7 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     end
 
     if not basePrefab then
-        warn("[BrainrotGallery] ERREUR : Impossible de trouver le prefab base dans ReplicatedStorage !")
+        warn("[BrainrotGallery] ERREUR : Prefab base introuvable !")
         warn("[BrainrotGallery] Contenu de ReplicatedStorage :")
         for _, child in ipairs(ReplicatedStorage:GetChildren()) do
             warn(string.format("  → '%s' (%s) [%d enfants]", child.Name, child.ClassName, #child:GetChildren()))
@@ -305,31 +228,25 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     if basePrefab then
         local raw = basePrefab:Clone()
 
-        -- Garantir un Model (PivotTo + GetBoundingBox exigent un Model)
         local mdl: Model
         if raw:IsA("Model") then
             mdl = raw :: Model
         else
-            warn(string.format("[BrainrotGallery] Prefab est un %s → emballage dans un Model", raw.ClassName))
             mdl = Instance.new("Model")
             mdl.Name = raw.Name
             raw.Parent = mdl
             local bp = mdl:FindFirstChildWhichIsA("BasePart", true)
             if bp then mdl.PrimaryPart = bp :: BasePart end
         end
-        mdl.Name = "BrainrotGallery_" .. tostring(userId)
+        mdl.Name = "PlayerBase_" .. tostring(userId)
 
-        -- Mesurage robuste : GetBoundingBox donne centre ET taille du Model
-        -- On calcule l'écart entre le pivot actuel et le bas du bounding box
-        -- pour que le bas touche exactement GRASS_LEVEL, peu importe où est le pivot.
+        -- Poser le bas du modèle sur GRASS_LEVEL
         local bbCF, bbSize = mdl:GetBoundingBox()
-        local currentPivotY  = mdl:GetPivot().Position.Y
-        local bbBottomY      = bbCF.Position.Y - bbSize.Y / 2
-        local pivotToBottom  = currentPivotY - bbBottomY   -- offset pivot → bas
+        local currentPivotY = mdl:GetPivot().Position.Y
+        local bbBottomY     = bbCF.Position.Y - bbSize.Y / 2
+        local pivotToBottom = currentPivotY - bbBottomY
 
-        -- Bases le long de l'avenue :
         local targetY = GRASS_LEVEL + pivotToBottom
-        -- Rotation : entrée face à l'avenue (nord → regarde sud, sud → regarde nord)
         local rot = isNorth and math.rad(180) or math.rad(0)
 
         mdl:PivotTo(CFrame.new(targetX, targetY, targetZ) * CFrame.Angles(0, rot, 0))
@@ -339,40 +256,8 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
         mdl.Parent = galleriesFolder
 
-        -- Numéro flottant au-dessus de la base (debug visuel)
-        local anchor = Instance.new("Part")
-        anchor.Name         = "DebugAnchor_" .. plotIndex
-        anchor.Size         = Vector3.new(4, 4, 4)
-        anchor.CFrame       = CFrame.new(targetX, targetY + bbSize.Y / 2 + 20, targetZ)
-        anchor.Anchored     = true
-        anchor.CanCollide   = false
-        anchor.Transparency = 0
-        anchor.Color        = Color3.fromRGB(255, 0, 0)
-        anchor.Material     = Enum.Material.Neon
-        anchor.Parent       = galleriesFolder
-
-        local bb = Instance.new("BillboardGui")
-        bb.Name        = "DebugBB_" .. plotIndex
-        bb.Adornee     = anchor
-        bb.Size        = UDim2.new(0, 200, 0, 80)
-        bb.StudsOffset = Vector3.new(0, 6, 0)
-        bb.AlwaysOnTop = true
-        bb.MaxDistance = 2000
-        bb.Parent      = anchor
-
-        local lbl = Instance.new("TextLabel")
-        lbl.Size                   = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
-        lbl.BackgroundTransparency = 0
-        lbl.Text                   = "BASE " .. plotIndex
-        lbl.TextColor3             = Color3.fromRGB(255, 255, 0)
-        lbl.Font                   = Enum.Font.GothamBlack
-        lbl.TextScaled             = true
-        lbl.Parent                 = bb
-
-        print(string.format(
-            "[BrainrotGallery] Base '%s' pour %s — X=%.0f Y=%.1f Z=%.0f | size=(%.0f,%.0f,%.0f) pivotOffset=%.1f",
-            playerName, playerName, targetX, targetY, targetZ, bbSize.X, bbSize.Y, bbSize.Z, pivotToBottom))
+        print(string.format("[BrainrotGallery] Base clonée pour %s — X=%.0f Y=%.1f Z=%.0f | size=(%.0f,%.0f,%.0f)",
+            playerName, targetX, targetY, targetZ, bbSize.X, bbSize.Y, bbSize.Z))
 
         baseClone = mdl
     end
@@ -383,22 +268,20 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         folder = baseClone :: Model
     else
         local fallback = Instance.new("Folder")
-        fallback.Name   = "BrainrotGallery_" .. tostring(userId)
+        fallback.Name   = "PlayerBase_" .. tostring(userId)
         fallback.Parent = mapFolder
         folder = fallback
         warn("[BrainrotGallery] Fallback folder vide pour " .. playerName)
     end
 
     -- ══════════════════════════════════════════════════════════════════════
-    -- SCAN DYNAMIQUE DES SOCLES DANS LE PREFAB
-    -- Cherche toutes les Parts dont le nom contient "PedestalTop", "Pedestal",
-    -- "Stand", "Podium", "Display" ou similaire.
-    -- Si aucun trouvé, utilise toutes les BaseParts de petite taille comme socles.
+    -- SCAN DES SOCLES DANS LE PREFAB base.rbxm
+    -- Cherche par mots-clés, puis fallback sur les petites parts plates.
     -- ══════════════════════════════════════════════════════════════════════
     local pedestalRefs: {[number]: PedestalRef} = {}
 
-    -- Diagnostic : lister tous les descendants du prefab
-    print(string.format("[BrainrotGallery] DIAGNOSTIC — Contenu du prefab pour %s (%d descendants) :", playerName, #folder:GetDescendants()))
+    -- Lister toutes les BaseParts pour diagnostic
+    print(string.format("[BrainrotGallery] Scan socles pour %s (%d descendants) :", playerName, #folder:GetDescendants()))
     for _, v in pairs(folder:GetDescendants()) do
         if v:IsA("BasePart") then
             local bp = v :: BasePart
@@ -407,7 +290,6 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
     end
 
-    -- Trouver tous les "PedestalTop" / "Pedestal" / "Stand" / "Podium" / "Display" dans le clone
     local PEDESTAL_KEYWORDS = { "pedestaltop", "pedestal", "stand", "podium", "display", "socle", "plate" }
     local pedestalTops: {BasePart} = {}
     for _, v in pairs(folder:GetDescendants()) do
@@ -422,13 +304,12 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end
     end
 
-    -- Fallback : si aucun socle trouvé par nom, prendre les petites parts plates (Y < 3, surface > 4)
+    -- Fallback : petites parts plates (hauteur <= 3, surface >= 2x2, <= 12x12)
     if #pedestalTops == 0 then
-        print("[BrainrotGallery] Aucun socle trouvé par mot-clé — fallback sur petites parts plates")
+        print("[BrainrotGallery] Aucun socle par mot-clé — fallback parts plates")
         for _, v in pairs(folder:GetDescendants()) do
             if v:IsA("BasePart") then
                 local bp = v :: BasePart
-                -- Petite part plate : hauteur faible, surface raisonnable
                 if bp.Size.Y <= 3 and bp.Size.X >= 2 and bp.Size.Z >= 2 and bp.Size.X <= 12 and bp.Size.Z <= 12 then
                     table.insert(pedestalTops, bp)
                 end
@@ -614,175 +495,14 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
         end)
     end
 
-    -- Helper mp pour le reste (enseigne, etc.) qui en a encore besoin
-    local function mp(
-        name    : string,
-        size    : Vector3,
-        localPos: Vector3,
-        color   : Color3,
-        material: Enum.Material,
-        topSurf : Enum.SurfaceType?
-    ): Part
-        local p = Instance.new("Part")
-        p.Name          = name
-        p.Size          = size
-        p.Position      = Vector3.new(localPos.X + offsetX, localPos.Y, worldZ(localPos.Z))
-        p.Anchored      = true
-        p.CanCollide    = true
-        p.Color         = color
-        p.Material      = material
-        p.Reflectance   = 0
-        p.CastShadow    = false
-        p.TopSurface    = topSurf or Enum.SurfaceType.Smooth
-        p.BottomSurface = Enum.SurfaceType.Smooth
-        p.Parent        = folder
-        return p
-    end
-
-    -- ══════════════════════════════════════════════════════════════════════
-    -- ANCIENNE CONSTRUCTION PROCÉDURALE SUPPRIMÉE (remplacée par le prefab)
-    -- Les sections 1-4 (sol, plafond, murs, socles) sont dans le prefab cloné.
-    -- ══════════════════════════════════════════════════════════════════════
-
-    -- ── 6. ENSEIGNE (GallerySignPlaque — CRITIQUE pour le client) ───────────
-    local signPlaque = mp("GallerySignPlaque",
-        Vector3.new(CORRIDOR_W - 4, 5, 3),
-        Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 6),
-        COL_PLAQUE, Enum.Material.SmoothPlastic)
-    signPlaque.CanCollide = false
-
-    local signRim = mp("GallerySignRim",
-        Vector3.new(CORRIDOR_W - 2, 5.5, 0.4),
-        Vector3.new(0, FLOOR_Y + WALL_H - 2, START_Z - 4.3),
-        COL_GOLD, Enum.Material.Metal)
-    signRim.CanCollide = false
-
-    local signSGui = Instance.new("SurfaceGui")
-    signSGui.Name           = "GallerySignGui"
-    signSGui.Face           = zDir == 1 and Enum.NormalId.Front or Enum.NormalId.Back
-    signSGui.CanvasSize     = Vector2.new(520, 100)
-    signSGui.SizingMode     = Enum.SurfaceGuiSizingMode.FixedSize
-    signSGui.LightInfluence = 0
-    signSGui.AlwaysOnTop    = false
-    signSGui.ZOffset        = 1
-    signSGui.Parent         = signPlaque
-
-    local signLabel = Instance.new("TextLabel")
-    signLabel.Name                   = "GallerySignLabel"
-    signLabel.Size                   = UDim2.new(1, 0, 1, 0)
-    signLabel.BackgroundColor3       = Color3.fromRGB(0, 0, 255)
-    signLabel.BackgroundTransparency = 0.1
-    signLabel.Text                   = "★  BASE DE " .. string.upper(playerName) .. "  ★"
-    signLabel.TextColor3             = Color3.fromRGB(255, 255, 255)
-    signLabel.Font                   = Enum.Font.GothamBlack
-    signLabel.TextScaled             = true
-    signLabel.TextStrokeTransparency = 0
-    signLabel.TextStrokeColor3       = Color3.new(0, 0, 0)
-    signLabel.Parent                 = signSGui
-
-    Instance.new("UICorner", signLabel).CornerRadius = UDim.new(0, 8)
-
-    -- ── 7. LAMPADAIRES D'ENTRÉE ─────────────────────────────────────────────
-    do
-        local LAMP_POLE_COLOR = Color3.fromRGB(50, 50, 55)
-        local LAMP_BULB_COLOR = Color3.fromRGB(255, 220, 120)
-        local poleH = 16
-
-        for _, side in ipairs({-1, 1}) do
-            local sLbl = side == -1 and "L" or "R"
-            local lx   = side * (CORRIDOR_W / 2 + 1)
-            local lz   = START_Z - 4
-
-            mp("EntryPole_" .. sLbl,
-                Vector3.new(1, poleH, 1),
-                Vector3.new(lx, FLOOR_Y + poleH / 2, lz),
-                LAMP_POLE_COLOR, Enum.Material.Metal).CanCollide = false
-
-            mp("EntryLampCap_" .. sLbl,
-                Vector3.new(2.8, 0.5, 2.8),
-                Vector3.new(lx, FLOOR_Y + poleH + 0.25, lz),
-                LAMP_POLE_COLOR, Enum.Material.Metal).CanCollide = false
-
-            local bulb = mp("EntryLampBulb_" .. sLbl,
-                Vector3.new(2, 1.5, 2),
-                Vector3.new(lx, FLOOR_Y + poleH - 0.5, lz),
-                LAMP_BULB_COLOR, Enum.Material.SmoothPlastic)
-            bulb.CanCollide = false
-
-            local light = Instance.new("PointLight")
-            light.Color      = LAMP_BULB_COLOR
-            light.Brightness = 3
-            light.Range      = 22
-            light.Shadows    = true
-            light.Parent     = bulb
-        end
-    end
-
-    -- ── 8. LUMIÈRES DE PLAFOND ──────────────────────────────────────────────
-    for j = 1, NUM_SIDES do
-        local lightZ    = START_Z + j * PLACE_GAP
-        local lightPart = mp("CeilingLight_" .. j,
-            Vector3.new(1.5, 0.3, 1.5),
-            Vector3.new(0, FLOOR_Y + WALL_H - 0.5, lightZ),
-            Color3.fromRGB(255, 255, 240), Enum.Material.SmoothPlastic)
-        lightPart.CanCollide = false
-
-        local pt = Instance.new("PointLight")
-        pt.Brightness = 1.5
-        pt.Range      = 16
-        pt.Color      = Color3.fromRGB(255, 245, 210)
-        pt.Shadows    = false
-        pt.Parent     = lightPart
-    end
-
-    -- ── 9. LUMIÈRES D'AMBIANCE ──────────────────────────────────────────────
-    local edgeX = CORRIDOR_W / 2 - WALL_T - 4
-    local midY  = FLOOR_Y + WALL_H / 2
-
-    local ambPositions = {
-        Vector3.new(-edgeX, midY, worldZ(START_Z + 2)),
-        Vector3.new( edgeX, midY, worldZ(START_Z + 2)),
-        Vector3.new(-edgeX, midY, worldZ(START_Z + GALLERY_LEN + 2)),
-        Vector3.new( edgeX, midY, worldZ(START_Z + GALLERY_LEN + 2)),
-        Vector3.new(-edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.33)),
-        Vector3.new( edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.33)),
-        Vector3.new(-edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.66)),
-        Vector3.new( edgeX, midY, worldZ(START_Z + GALLERY_LEN * 0.66)),
-    }
-
-    for k, pos in ipairs(ambPositions) do
-        local amb = Instance.new("Part")
-        amb.Name         = "AmbientLight_" .. k
-        amb.Size         = Vector3.new(0.2, 0.2, 0.2)
-        amb.Position     = Vector3.new(pos.X + offsetX, pos.Y, pos.Z)
-        amb.Anchored     = true
-        amb.CanCollide   = false
-        amb.Transparency = 1
-        amb.CastShadow   = false
-        amb.Parent       = folder
-
-        local pl = Instance.new("PointLight")
-        pl.Color      = Color3.fromRGB(255, 255, 255)
-        pl.Brightness = 3.5
-        pl.Range      = 25
-        pl.Shadows    = false
-        pl.Parent     = amb
-    end
-
-    -- Ancrage final de toutes les BaseParts
-    for _, v in pairs(folder:GetDescendants()) do
-        if v:IsA("BasePart") then (v :: BasePart).Anchored = true end
-    end
-
-    local side_lbl = zDir == 1 and "Nord" or "Sud"
-    print(string.format("[BrainrotGallery] Galerie #%d (%s) → %s | X=%d | Z_entree=%d",
-        plotIndex, side_lbl, playerName, offsetX, baseEntranceZ))
+    print(string.format("[BrainrotGallery] Base #%d pour %s — %d socles détectés",
+        plotIndex, playerName, #pedestalTops))
 
     return {
         folder       = folder,
         pedestalRefs = pedestalRefs,
         displayParts = {},
-        signLabelRef = signLabel,
+        signLabelRef = nil,
     }
 end
 
@@ -1180,7 +900,7 @@ local function refreshGallery(player: Player)
     for idx in pairs(state.pedestalRefs) do
         if idx > maxSlots then maxSlots = idx end
     end
-    if maxSlots == 0 then maxSlots = NUM_SIDES * 2 end  -- fallback ancien système
+    if maxSlots == 0 then maxSlots = 10 end  -- fallback : 10 socles dans Base1
 
     for slotIndex = 1, maxSlots do
         local item = ownedItems[slotIndex]
@@ -1238,61 +958,6 @@ local function refreshGallery(player: Player)
 end
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- AVENUE CENTRALE
--- Route entre les deux rangées de galeries (Z=70 à Z=150, soit 80 studs).
--- ══════════════════════════════════════════════════════════════════════════════
-do
-    local AVENUE_HALF_LEN = (MAX_PLOTS / 2 + 2) * PLOT_STEP + CORRIDOR_W / 2
-    local AVENUE_SOUTH_Z  = START_Z_SOUTH          -- 70
-    local AVENUE_NORTH_Z  = START_Z                -- 150
-    local AVENUE_DEPTH    = AVENUE_NORTH_Z - AVENUE_SOUTH_Z  -- 80
-    local AVENUE_CZ       = (AVENUE_SOUTH_Z + AVENUE_NORTH_Z) / 2  -- 110
-
-    local roadPart = Instance.new("Part")
-    roadPart.Name          = "CityAvenue"
-    roadPart.Size          = Vector3.new(AVENUE_HALF_LEN * 2, 1, AVENUE_DEPTH)
-    roadPart.Position      = Vector3.new(0, FLOOR_Y - 0.5, AVENUE_CZ)
-    roadPart.Anchored      = true
-    roadPart.CanCollide    = true
-    roadPart.Color         = Color3.fromRGB(80, 78, 74)
-    roadPart.Material      = Enum.Material.Concrete
-    roadPart.Reflectance   = 0
-    roadPart.TopSurface    = Enum.SurfaceType.Smooth
-    roadPart.BottomSurface = Enum.SurfaceType.Smooth
-    roadPart.Parent        = mapFolder
-
-    local centerMark = Instance.new("Part")
-    centerMark.Name          = "AvenueCenter"
-    centerMark.Size          = Vector3.new(1, 0.1, AVENUE_DEPTH)
-    centerMark.Position      = Vector3.new(0, FLOOR_Y + 0.05, AVENUE_CZ)
-    centerMark.Anchored      = true
-    centerMark.CanCollide    = false
-    centerMark.Color         = Color3.fromRGB(255, 215, 0)
-    centerMark.Material      = Enum.Material.SmoothPlastic
-    centerMark.Reflectance   = 0
-    centerMark.TopSurface    = Enum.SurfaceType.Smooth
-    centerMark.BottomSurface = Enum.SurfaceType.Smooth
-    centerMark.Parent        = mapFolder
-
-    -- Trottoirs : béton légèrement surélevé au bord de chaque rangée de galeries
-    for _, side in ipairs({-1, 1}) do
-        local curbZ = side == -1 and AVENUE_SOUTH_Z or AVENUE_NORTH_Z
-        local curb  = Instance.new("Part")
-        curb.Name          = "AvenueCurb_" .. (side == -1 and "S" or "N")
-        curb.Size          = Vector3.new(AVENUE_HALF_LEN * 2, 0.4, 1.5)
-        curb.Position      = Vector3.new(0, FLOOR_Y + 0.2, curbZ)
-        curb.Anchored      = true
-        curb.CanCollide    = true
-        curb.Color         = Color3.fromRGB(190, 188, 182)
-        curb.Material      = Enum.Material.Concrete
-        curb.Reflectance   = 0
-        curb.Parent        = mapFolder
-    end
-end
-
--- (StreamingEnabled configuré manuellement dans Studio)
-
--- ══════════════════════════════════════════════════════════════════════════════
 -- GESTION DES JOUEURS
 -- ══════════════════════════════════════════════════════════════════════════════
 
@@ -1310,9 +975,6 @@ local function teleportToPlot(character: Model, plotIndex: number)
         hrp.CFrame = CFrame.new(spawnPos)
     end
 end
-
--- Mettre à true pour forcer un cube de test sur le slot 1 (indépendant de l'inventaire)
-local DIAGNOSTIC_FORCE_SLOT1 = false  -- DÉSACTIVÉ : plus de cube magenta de test
 
 local function onPlayerAdded(player: Player)
     if plotAssignments[player.UserId] then return end
@@ -1335,30 +997,6 @@ local function onPlayerAdded(player: Player)
     local state = errOrState :: PlotState
     plotState[plotIndex] = state
     print("[BrainrotGallery] Base generee pour : " .. player.Name .. " (plot #" .. plotIndex .. ")")
-
-    -- ── Test de positionnement forcé sur le slot 1 ───────────────────────────
-    if DIAGNOSTIC_FORCE_SLOT1 then
-        task.spawn(function()
-            task.wait(1)   -- attendre que buildGallery termine
-            local refs = state.pedestalRefs[1]
-            if refs and refs.top then
-                local top = refs.top
-                local testCube = Instance.new("Part")
-                testCube.Name        = "DiagnosticCube_Slot1"
-                testCube.Size        = Vector3.new(2, 2, 2)
-                testCube.CFrame      = top.CFrame * CFrame.new(0, top.Size.Y / 2 + 1, 0)
-                testCube.Anchored    = true
-                testCube.CanCollide  = false
-                testCube.Color       = Color3.fromRGB(255, 0, 255)
-                testCube.Material    = Enum.Material.Neon
-                testCube.Parent      = state.folder
-                print("[BrainrotGallery] DIAG: cube magenta posé sur slot 1 — si visible, le positionnement fonctionne")
-            else
-                warn("[BrainrotGallery] DIAG: refs.top introuvable pour slot 1 !")
-            end
-        end)
-    end
-    -- ── Fin test ─────────────────────────────────────────────────────────────
 
     player.CharacterAdded:Connect(function(character)
         task.wait(2)
