@@ -199,28 +199,57 @@ local function buildGallery(player: Player, plotIndex: number): PlotState
     local BASE_NAMES = { "Base1", "base", "base1", "BrainrotBase", "Steal A Brainrot Base" }
     local basePrefab: Instance? = nil
 
+    -- 1. Chercher dans ReplicatedStorage (direct + récursif)
     for _, tryName in ipairs(BASE_NAMES) do
         basePrefab = ReplicatedStorage:FindFirstChild(tryName)
+        if not basePrefab then basePrefab = ReplicatedStorage:FindFirstChild(tryName, true) end
         if basePrefab then
-            print(string.format("[BrainrotGallery] Prefab '%s' trouvé !", tryName))
+            print(string.format("[BrainrotGallery] Prefab '%s' trouvé dans %s", tryName, basePrefab:GetFullName()))
             break
         end
     end
+
+    -- 2. Chercher PARTOUT dans le jeu (Workspace, ServerStorage, etc.)
     if not basePrefab then
-        for _, tryName in ipairs(BASE_NAMES) do
-            basePrefab = ReplicatedStorage:FindFirstChild(tryName, true)
-            if basePrefab then
-                print(string.format("[BrainrotGallery] Prefab '%s' trouvé en profondeur → %s", tryName, basePrefab:GetFullName()))
+        local searchIn = {
+            game:GetService("Workspace"),
+            game:GetService("ServerStorage"),
+            game:GetService("Lighting"),
+        }
+        for _, service in ipairs(searchIn) do
+            for _, tryName in ipairs(BASE_NAMES) do
+                basePrefab = service:FindFirstChild(tryName, true)
+                if basePrefab then
+                    print(string.format("[BrainrotGallery] Prefab '%s' trouvé dans %s", tryName, basePrefab:GetFullName()))
+                    break
+                end
+            end
+            if basePrefab then break end
+        end
+    end
+
+    -- 3. Dernier recours : scanner tout ReplicatedStorage pour un Model avec 30+ enfants (la base en a 41)
+    if not basePrefab then
+        for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+            if child:IsA("Model") and #child:GetChildren() >= 20 then
+                basePrefab = child
+                print(string.format("[BrainrotGallery] Base détectée par taille : '%s' (%d enfants)", child.Name, #child:GetChildren()))
                 break
             end
         end
     end
 
     if not basePrefab then
-        warn("[BrainrotGallery] ERREUR : Prefab base introuvable !")
+        warn("[BrainrotGallery] ERREUR : Prefab base introuvable nulle part !")
         warn("[BrainrotGallery] Contenu de ReplicatedStorage :")
         for _, child in ipairs(ReplicatedStorage:GetChildren()) do
             warn(string.format("  → '%s' (%s) [%d enfants]", child.Name, child.ClassName, #child:GetChildren()))
+        end
+        warn("[BrainrotGallery] Contenu de Workspace :")
+        for _, child in ipairs(Workspace:GetChildren()) do
+            if child:IsA("Model") and #child:GetChildren() >= 5 then
+                warn(string.format("  → '%s' (%s) [%d enfants]", child.Name, child.ClassName, #child:GetChildren()))
+            end
         end
     end
 
@@ -961,18 +990,13 @@ end
 -- GESTION DES JOUEURS
 -- ══════════════════════════════════════════════════════════════════════════════
 
--- Téléporte devant l'entrée de la parcelle (côté route)
-local function teleportToPlot(character: Model, plotIndex: number)
-    local isNorth = (plotIndex % 2 == 1)
-    local slotCol = math.floor((plotIndex - 1) / 2)
-    local plotX   = (slotCol - 1.5) * ESPACEMENT_X
-    local plotZ   = isNorth and FRONT_Z or SOUTH_Z
-    -- Spawn sur l'avenue, face à l'entrée de sa base
-    local spawnZ  = isNorth and (START_Z + 10) or (START_Z_SOUTH - 10)
-    local spawnPos = Vector3.new(plotX, GRASS_LEVEL + 5, spawnZ)
+-- Spawn devant la machine à spin (X=40, Z=0)
+local SPAWN_POS = Vector3.new(30, GRASS_LEVEL + 3, 0)
+
+local function teleportToSpawn(character: Model)
     local hrp = character:WaitForChild("HumanoidRootPart", 10)
     if hrp then
-        hrp.CFrame = CFrame.new(spawnPos)
+        (hrp :: BasePart).CFrame = CFrame.new(SPAWN_POS)
     end
 end
 
@@ -1000,10 +1024,10 @@ local function onPlayerAdded(player: Player)
 
     player.CharacterAdded:Connect(function(character)
         task.wait(2)
-        teleportToPlot(character, plotIndex)
+        teleportToSpawn(character)
     end)
     if player.Character then
-        teleportToPlot(player.Character, plotIndex)
+        teleportToSpawn(player.Character)
     end
 
     -- FIX 1 : attendre que brainrotModelsFolder soit chargé avant le premier refresh
@@ -1130,8 +1154,8 @@ _G.BrainrotGallery_TeleportToPlot = function(character: Model, userId: number, s
         end
     end
 
-    -- Fallback : devant la base
-    teleportToPlot(character, plotIndex)
+    -- Fallback : devant la machine
+    teleportToSpawn(character)
 end
 
 print("[BrainrotGallery] Hooks GetEmptyPedestalTops + ForcePlace + TeleportToPlot exposes.")
