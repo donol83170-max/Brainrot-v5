@@ -107,4 +107,4 @@ SellAllRequest.OnServerEvent:Connect(function(player)
     SellAllResult:FireClient(player, totalItems, totalGold)
 end)
 
-print("[Communication] Pret (spin desactive — en attente du nouveau systeme)")
+print("[Communication] Pret (vente, données joueur, events)")

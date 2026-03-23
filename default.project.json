@@ -6,7 +6,13 @@
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
       "$ignoreUnknownInstances": true,
-      "$path": "src/ReplicatedStorage"
+      "$path": "src/ReplicatedStorage",
+      "Base1": {
+        "$path": "src/ReplicatedStorage/base.rbxm"
+      },
+      "BrainrotPack": {
+        "$path": "src/ReplicatedStorage/BrainrotPack.rbxm"
+      }
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
